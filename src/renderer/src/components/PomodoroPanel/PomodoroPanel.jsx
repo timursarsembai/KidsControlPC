@@ -1,12 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useRulesStore } from '../../stores/useRulesStore'
+import Select from '../Select/Select'
 import './PomodoroPanel.css'
 
 export default function PomodoroPanel() {
   const { 
     installedApps, rules, getFilteredWebsites, togglePomodoroSession, getPomodoroSession,
-    activeSubTab, addWebsite
+    activeSubTab, addWebsite,
+    selectedDeviceId, devices
   } = useRulesStore()
+  
+  const selectedDevice = devices.find(d => d.id === selectedDeviceId)
+  const lastSeen = selectedDevice?.lastSeen?.toDate?.()
+  const isOnline = selectedDevice?.status !== 'offline' && lastSeen && (Date.now() - lastSeen.getTime()) < 2 * 60 * 1000
   
   const allWebsites = useMemo(() => getFilteredWebsites(), [rules, getFilteredWebsites])
   const currentSession = getPomodoroSession()
@@ -28,6 +34,26 @@ export default function PomodoroPanel() {
   const [urlInput, setUrlInput] = useState('')
   const [scope, setScope]       = useState('domain')
   const [error, setError]       = useState('')
+
+  const [searchStr, setSearchStr] = useState('')
+  const [filterStr, setFilterStr] = useState('all')
+
+  const filteredPrograms = useMemo(() => {
+    return installedApps.filter(app => {
+      if (searchStr && !app.name.toLowerCase().includes(searchStr.toLowerCase())) return false;
+      if (filterStr === 'selected' && !selectedPrograms.has(app.name)) return false;
+      return true;
+    })
+  }, [installedApps, searchStr, filterStr, selectedPrograms])
+
+  const filteredWebsites = useMemo(() => {
+    return allWebsites.filter(site => {
+      const url = site.resolvedPattern || site.inputUrl;
+      if (searchStr && !url.toLowerCase().includes(searchStr.toLowerCase())) return false;
+      if (filterStr === 'selected' && !selectedWebsites.has(url)) return false;
+      return true;
+    })
+  }, [allWebsites, searchStr, filterStr, selectedWebsites])
 
   const [now, setNow] = useState(new Date())
 
@@ -169,14 +195,14 @@ export default function PomodoroPanel() {
             <input type="number" className="input" value={breakMins} onChange={e => setBreakMins(e.target.value)} disabled={isActive} min="1" max="1440" />
           </div>
           <div className="input-group">
-            <label>Длинная пауза</label>
+            <label>Длин. пауза (мин)</label>
             <input type="number" className="input" value={longBreakMins} onChange={e => setLongBreakMins(e.target.value)} disabled={isActive} min="1" max="1440" />
           </div>
           <div className="input-group">
-            <label>Циклов до паузы</label>
+            <label>Циклов до длин. паузы</label>
             <input type="number" className="input" value={cycles} onChange={e => setCycles(e.target.value)} disabled={isActive} min="1" max="100" />
           </div>
-          <button className={`btn ${isActive ? 'btn-danger' : 'btn-primary'}`} style={{ marginTop: 22 }} onClick={handleToggle}>
+          <button className={`btn ${isActive ? 'btn-danger' : 'btn-primary'}`} onClick={handleToggle}>
             {isActive ? 'Остановить сессию' : 'Запустить сессию'}
           </button>
         </div>
@@ -229,11 +255,16 @@ export default function PomodoroPanel() {
               />
             </div>
             <div className="scope-select-wrap">
-              <select className="input select scope-select" value={scope} onChange={e => setScope(e.target.value)}>
-                <option value="exact">Только этот адрес</option>
-                <option value="path">Все внутренние страницы</option>
-                <option value="domain">Весь домен и все его ресурсы</option>
-              </select>
+              <Select 
+                value={scope}
+                onChange={val => setScope(val)}
+                options={[
+                  { value: 'exact', label: 'Только этот адрес' },
+                  { value: 'path', label: 'Все внутренние страницы' },
+                  { value: 'domain', label: 'Весь домен и ресурсы' }
+                ]}
+                style={{ width: 220 }}
+              />
             </div>
             <button className="btn btn-primary add-btn" onClick={handleAddWebsite}>
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -246,22 +277,47 @@ export default function PomodoroPanel() {
         </div>
       )}
 
+      {/* Controls */}
+      <div className="panel-controls">
+        <div className="search-wrap">
+          <svg className="search-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5"/>
+            <path d="M9.5 9.5l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+          <input type="text" className="input search-input"
+            placeholder={activeSubTab === 'programs' ? "Поиск программы..." : "Поиск веб-ресурса..."}
+            value={searchStr}
+            onChange={e => setSearchStr(e.target.value)} />
+        </div>
+        
+        <Select 
+          value={filterStr}
+          onChange={val => setFilterStr(val)}
+          style={{ width: 220 }}
+          options={[
+            { value: 'all', label: activeSubTab === 'programs' ? 'Все программы' : 'Все ресурсы' },
+            { value: 'selected', label: 'Выбраны для сессии' }
+          ]}
+        />
+        
+        <div className="sync-status">
+          <span className={`sync-dot ${isOnline ? 'active' : 'inactive'}`} />
+          {isOnline ? 'Синхронизация с агентом' : 'Агент отключен'}
+        </div>
+      </div>
+
       {/* Table */}
       <div className="table-container" style={{ flex: 1, minHeight: 0 }}>
         <table className="data-table">
           <thead>
             <tr>
-              <th style={{ width: 36 }}>●</th>
               <th>{activeSubTab === 'programs' ? 'Программа' : 'Веб-ресурс'}</th>
               <th style={{ width: 160 }}>Включить в сессию</th>
             </tr>
           </thead>
           <tbody>
-            {activeSubTab === 'programs' && installedApps.map(app => (
+            {activeSubTab === 'programs' && filteredPrograms.map(app => (
               <tr key={app.id}>
-                <td>
-                  <span className={`status-dot ${app.running ? 'active' : 'inactive'}`} title={app.running ? 'Запущена сейчас' : 'Не запущена'} />
-                </td>
                 <td>
                   <div className="prog-name">{app.name}</div>
                   {app.path ? <div className="prog-path">{app.path}</div> : <div className="prog-path no-path">Путь неизвестен</div>}
@@ -280,9 +336,9 @@ export default function PomodoroPanel() {
               </tr>
             ))}
 
-            {activeSubTab === 'web' && allWebsites.length === 0 && (
+            {activeSubTab === 'web' && filteredWebsites.length === 0 && (
               <tr>
-                <td colSpan={3}>
+                <td colSpan={2}>
                   <div className="empty-state">
                     <span className="empty-state-icon">🌐</span>
                     <span className="empty-state-title">Нет добавленных ресурсов</span>
@@ -292,13 +348,10 @@ export default function PomodoroPanel() {
               </tr>
             )}
 
-            {activeSubTab === 'web' && allWebsites.map(site => {
+            {activeSubTab === 'web' && filteredWebsites.map(site => {
               const url = site.resolvedPattern || site.inputUrl
               return (
                 <tr key={site.id}>
-                  <td>
-                    <span className="status-dot inactive" />
-                  </td>
                   <td>
                     <div className="prog-name">{url}</div>
                   </td>

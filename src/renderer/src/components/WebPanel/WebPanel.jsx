@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useRulesStore } from '../../stores/useRulesStore'
 import { evaluateRule } from '../../utils/timeHelpers'
+import Select from '../Select/Select'
 import './WebPanel.css'
 
 const SCOPE_OPTIONS = [
@@ -137,11 +138,12 @@ export default function WebPanel({ mode }) {
             />
           </div>
           <div className="scope-select-wrap">
-            <select className="input select scope-select" value={scope} onChange={e => setScope(e.target.value)}>
-              {SCOPE_OPTIONS.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+            <Select 
+              value={scope}
+              onChange={val => setScope(val)}
+              options={SCOPE_OPTIONS}
+              style={{ width: '100%' }}
+            />
           </div>
           <button className="btn btn-primary add-btn" onClick={handleAdd}>
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -166,7 +168,6 @@ export default function WebPanel({ mode }) {
         <table className="data-table">
           <thead>
             <tr>
-              <th style={{ width: 36 }}>●</th>
               <th>Веб-ресурс</th>
               <th style={{ width: 120 }}>Охват</th>
               {mode === 'timer'    && <th>Таймер</th>}
@@ -178,7 +179,7 @@ export default function WebPanel({ mode }) {
           <tbody>
             {mergedWebsites.length === 0 ? (
               <tr>
-                <td colSpan={mode === 'permanent' ? 4 : 5}>
+                <td colSpan={mode === 'permanent' ? 3 : 4}>
                   <div className="empty-state">
                     <span className="empty-state-icon">🌐</span>
                     <span className="empty-state-title">Нет добавленных ресурсов</span>
@@ -189,17 +190,14 @@ export default function WebPanel({ mode }) {
             ) : mergedWebsites.map(site => (
               <tr key={site.id}>
                 <td>
-                  <span className={`status-dot ${site.blocked ? 'blocked' : 'unblocked'}`} />
-                  {site.evaluation.statusText && mode !== 'permanent' && (
-                    <div className="countdown-text" style={{ fontSize: '0.75rem', color: '#8b8d98', marginTop: 2, position: 'absolute' }}>
-                      {site.evaluation.statusText}
-                    </div>
-                  )}
-                </td>
-                <td>
                   <div className="site-url">{site.inputUrl}</div>
                   {site.resolvedPattern !== site.inputUrl &&
                     <div className="site-pattern">→ блокируется: {site.resolvedPattern}</div>}
+                  {site.evaluation.statusText && mode !== 'permanent' && (
+                    <div className="countdown-text" style={{ fontSize: '0.75rem', color: '#8b8d98', marginTop: 2 }}>
+                      {site.evaluation.statusText}
+                    </div>
+                  )}
                 </td>
                 <td>
                   <span className="scope-badge">{SCOPE_LABEL[site.scope]}</span>

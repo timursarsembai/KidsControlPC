@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react'
 import { useRulesStore } from '../../stores/useRulesStore'
 import { evaluateRule } from '../../utils/timeHelpers'
+import Select from '../Select/Select'
 import './ProgramsPanel.css'
 
 const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
@@ -66,8 +67,13 @@ export default function ProgramsPanel({ mode }) {
     programFilter, setProgramFilter,
     getFilteredPrograms,
     appsLoading,
-    toggleProgramBlock, addProgramRule
+    toggleProgramBlock, addProgramRule,
+    selectedDeviceId, devices
   } = useRulesStore()
+
+  const selectedDevice = devices.find(d => d.id === selectedDeviceId)
+  const lastSeen = selectedDevice?.lastSeen?.toDate?.()
+  const isOnline = selectedDevice?.status !== 'offline' && lastSeen && (Date.now() - lastSeen.getTime()) < 2 * 60 * 1000
 
   // Subscribe to store updates
   const installedApps = useRulesStore(state => state.installedApps)
@@ -149,7 +155,7 @@ export default function ProgramsPanel({ mode }) {
     }
   }, [toggleProgramBlock])
 
-  const colSpan = mode === 'permanent' ? 4 : 5
+  const colSpan = mode === 'permanent' ? 3 : 4
 
   return (
     <div className="programs-panel animate-in">
@@ -165,15 +171,21 @@ export default function ProgramsPanel({ mode }) {
             value={programSearch}
             onChange={e => setProgramSearch(e.target.value)} />
         </div>
-        <select className="input select filter-select" value={programFilter}
-          onChange={e => setProgramFilter(e.target.value)}>
-          <option value="all">Все программы</option>
-          <option value="blocked">Заблокированы</option>
-          <option value="unblocked">Незаблокированы</option>
-        </select>
+        
+        <Select 
+          value={programFilter}
+          onChange={val => setProgramFilter(val)}
+          style={{ width: 220 }}
+          options={[
+            { value: 'all', label: 'Все программы' },
+            { value: 'blocked', label: 'Заблокированы' },
+            { value: 'unblocked', label: 'Незаблокированы' }
+          ]}
+        />
+        
         <div className="sync-status">
-          <span className="sync-dot" />
-          Синхронизация с агентом
+          <span className={`sync-dot ${isOnline ? 'active' : 'inactive'}`} />
+          {isOnline ? 'Синхронизация с агентом' : 'Агент отключен'}
         </div>
       </div>
 
@@ -182,7 +194,6 @@ export default function ProgramsPanel({ mode }) {
         <table className="data-table">
           <thead>
             <tr>
-              <th style={{ width: 36 }}>●</th>
               <th>Программа</th>
               {mode === 'timer'    && <th>Таймер</th>}
               {mode === 'schedule' && <th>Расписание</th>}
@@ -212,12 +223,6 @@ export default function ProgramsPanel({ mode }) {
               const isPending = pendingBlocks.has(app.id)
               return (
                 <tr key={app.id}>
-                  {/* Running indicator */}
-                  <td>
-                    <span className={`status-dot ${app.running ? 'active' : 'inactive'}`}
-                      title={app.running ? 'Запущена сейчас' : 'Не запущена'} />
-                  </td>
-
                   {/* Name & path */}
                   <td>
                     <div className="prog-name">{app.name}</div>

@@ -3,7 +3,7 @@ import { useRulesStore } from '../../stores/useRulesStore'
 import './NotificationsPanel.css'
 
 export default function NotificationsPanel() {
-  const { alerts, acknowledgeAlert, acknowledgeAllAlerts } = useRulesStore()
+  const { alerts, acknowledgeAlert, acknowledgeAllAlerts, devices } = useRulesStore()
   const [activeTab, setActiveTab] = useState('unread')
 
   const unreadAlerts = alerts.filter(a => !a.acknowledged)
@@ -59,13 +59,14 @@ export default function NotificationsPanel() {
                   <div className="notif-title-row">
                     <span className="notif-title">
                       {a.type === 'process_killed' ? 'Процесс заблокирован' : 
-                       a.type === 'agent_stopped' ? 'Агент остановлен' : a.type}
+                       a.type === 'agent_stopped' ? `Отключено: ${devices.find(d => d.id === a.deviceId)?.alias || a.deviceHostname || 'Устройство'}` : 
+                       a.type === 'agent_started' ? `Подключено: ${devices.find(d => d.id === a.deviceId)?.alias || a.deviceHostname || 'Устройство'}` : a.type}
                     </span>
                     <span className="notif-time">{timeStr}</span>
                   </div>
                   <div className="notif-desc">
-                    {a.type === 'agent_stopped' && a.details === 'SIGINT (Ctrl+C)' 
-                       ? 'Фоновая программа была закрыта' 
+                    {(a.type === 'agent_stopped' || a.type === 'agent_started') 
+                       ? a.details 
                        : a.details}
                   </div>
                 </div>

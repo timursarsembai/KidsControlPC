@@ -358,6 +358,8 @@ async function main() {
   // 2. Send initial heartbeat
   await sendHeartbeat()
   log('💓 Heartbeat отправлен')
+  
+  await sendAlert('agent_started', 'Фоновая программа была запущена')
 
   // 3. Scan and upload installed programs
   await performProgramScan()

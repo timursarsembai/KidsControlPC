@@ -140,7 +140,7 @@
   line-height: 1;
 }
 
-.url-input {
+.url-input-wrap .url-input {
   padding-left: 36px;
 }
 

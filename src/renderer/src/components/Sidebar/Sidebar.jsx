@@ -68,7 +68,7 @@ const MODES = [
 
 function DeviceItem({ device, isSelected, onClick }) {
   const lastSeen = device.lastSeen?.toDate?.()
-  const isOnline = lastSeen && (Date.now() - lastSeen.getTime()) < 3 * 60 * 1000
+  const isOnline = device.status !== 'offline' && lastSeen && (Date.now() - lastSeen.getTime()) < 2 * 60 * 1000
 
   return (
     <button

@@ -3,9 +3,13 @@ import { useRulesStore } from '../../stores/useRulesStore'
 import './TitleBar.css'
 
 export default function TitleBar({ onSignOut }) {
-  const { user, alerts, acknowledgeAlert, acknowledgeAllAlerts, setActiveTab } = useRulesStore()
+  const { user, alerts, acknowledgeAlert, acknowledgeAllAlerts, setActiveTab, selectedDeviceId, devices } = useRulesStore()
   const unreadAlertsList = alerts.filter(a => !a.acknowledged)
   const unreadAlerts = unreadAlertsList.length
+
+  const activeDevice = devices.find(d => d.id === selectedDeviceId)
+  const lastSeen = activeDevice?.lastSeen?.toDate?.() || (activeDevice?.lastSeen ? new Date(activeDevice.lastSeen.seconds ? activeDevice.lastSeen.seconds * 1000 : activeDevice.lastSeen) : null)
+  const isOnline = activeDevice ? (activeDevice.status !== 'offline' && lastSeen && (Date.now() - lastSeen.getTime()) < 2 * 60 * 1000) : false
 
   const [showAlerts, setShowAlerts] = useState(false)
   const bellRef = useRef(null)
@@ -16,9 +20,15 @@ export default function TitleBar({ onSignOut }) {
         setShowAlerts(false)
       }
     }
-    if (showAlerts) document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    if (showAlerts) document.addEventListener('mousedown', handleClickOutside, { capture: true })
+    return () => document.removeEventListener('mousedown', handleClickOutside, { capture: true })
   }, [showAlerts])
+
+  useEffect(() => {
+    if (unreadAlerts === 0) {
+      setShowAlerts(false)
+    }
+  }, [unreadAlerts])
 
   const minimize = () => window.electronAPI?.windowMinimize()
   const maximize = () => window.electronAPI?.windowMaximize()
@@ -36,10 +46,12 @@ export default function TitleBar({ onSignOut }) {
 
       <div className="titlebar-center titlebar-drag">
         {/* Sync indicator */}
-        <div className="sync-indicator">
-          <span className="status-dot active" />
-          <span className="sync-text">Синхронизировано</span>
-        </div>
+        {activeDevice && (
+          <div className="sync-indicator">
+            <span className={`status-dot ${isOnline ? 'active' : 'inactive'}`} />
+            <span className="sync-text">{isOnline ? 'Синхронизировано' : 'Агент отключен'}</span>
+          </div>
+        )}
       </div>
 
       <div className="titlebar-right">
@@ -79,13 +91,14 @@ export default function TitleBar({ onSignOut }) {
                         <div className="alert-title-row">
                           <span className="alert-title">
                             {a.type === 'process_killed' ? 'Процесс заблокирован' : 
-                             a.type === 'agent_stopped' ? 'Агент остановлен' : a.type}
+                             a.type === 'agent_stopped' ? `Отключено: ${devices.find(d => d.id === a.deviceId)?.alias || a.deviceHostname || 'Устройство'}` : 
+                             a.type === 'agent_started' ? `Подключено: ${devices.find(d => d.id === a.deviceId)?.alias || a.deviceHostname || 'Устройство'}` : a.type}
                           </span>
                           <span className="alert-time">{timeStr}</span>
                         </div>
                         <div className="alert-desc">
-                          {a.type === 'agent_stopped' && a.details === 'SIGINT (Ctrl+C)' 
-                             ? 'Фоновая программа была закрыта' 
+                          {(a.type === 'agent_stopped' || a.type === 'agent_started') 
+                             ? a.details 
                              : a.details}
                         </div>
                       </div>

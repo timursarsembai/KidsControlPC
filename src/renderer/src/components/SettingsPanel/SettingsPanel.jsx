@@ -150,8 +150,8 @@ function DeviceCard({ device, onRemove, onRename, deleting }) {
   const [editing, setEditing] = useState(false)
   const [name, setName]       = useState(device.alias || device.hostname || device.id)
 
-  const lastSeen = device.lastSeen?.toDate?.()
-  const isOnline = lastSeen && (Date.now() - lastSeen.getTime()) < 3 * 60 * 1000
+  const lastSeen = device?.lastSeen?.toDate?.()
+  const isOnline = device?.status !== 'offline' && lastSeen && (Date.now() - lastSeen.getTime()) < 2 * 60 * 1000
 
   const saveRename = () => {
     if (name.trim()) onRename(name.trim())
