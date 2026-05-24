@@ -96,35 +96,30 @@ export default function ProgramsPanel({ mode }) {
   // Derived merged and filtered apps from store
   const mergedApps = useMemo(() => {
     const apps = getFilteredPrograms()
-    const data = {}
-    apps.forEach(app => {
+    return apps.map(app => {
       const rule = rules.find(r => r.type === 'program' && r.mode === mode && r.program.name === app.name)
       const evaluation = evaluateRule(rule, now)
-      data[app.id] = {
+      return {
+        ...app,
         ruleId: rule?.id,
+        rule: rule,
         isBlockedByTime: evaluation.isBlocked,
-        statusText: evaluation.statusText,
-        timer: rule?.timer || {},
-        schedule: rule?.schedule || {},
-        date: rule?.date || {}
+        statusText: evaluation.statusText
       }
     })
-    setRuleData(data)
-    return apps
   }, [installedApps, rules, programSearch, programFilter, getFilteredPrograms, mode, now])
 
   // Auto-disable expired timers
   useEffect(() => {
     if (mode !== 'timer') return
     mergedApps.forEach(app => {
-      const evaluation = ruleData[app.id]
-      if (app.blocked && evaluation?.statusText === 'Время вышло' && !pendingBlocks.has(app.id)) {
+      if (app.blocked && app.statusText === 'Время вышло' && !pendingBlocks.has(app.id)) {
         if (app.ruleId) {
           toggleProgramBlock(app.ruleId, true)
         }
       }
     })
-  }, [mergedApps, ruleData, mode, pendingBlocks, toggleProgramBlock])
+  }, [mergedApps, mode, pendingBlocks, toggleProgramBlock])
 
   // ── Block a program ──
   const handleBlock = useCallback(async (app) => {
@@ -242,19 +237,19 @@ export default function ProgramsPanel({ mode }) {
                   {/* Dynamic column */}
                   {mode === 'timer' && (
                     <td>
-                      <TimerInput value={ruleData[app.id]?.timer?.duration}
+                      <TimerInput value={ruleData[app.id]?.timer?.duration || app.rule?.timer?.duration || ''}
                         onChange={v => updateRuleData(app.id, { ...ruleData[app.id], timer: { duration: v } })} />
                     </td>
                   )}
                   {mode === 'schedule' && (
                     <td>
-                      <ScheduleInput value={ruleData[app.id]?.schedule}
+                      <ScheduleInput value={ruleData[app.id]?.schedule || app.rule?.schedule}
                         onChange={v => updateRuleData(app.id, { ...ruleData[app.id], schedule: v })} />
                     </td>
                   )}
                   {mode === 'date' && (
                     <td>
-                      <DateInput value={ruleData[app.id]?.date}
+                      <DateInput value={ruleData[app.id]?.date || app.rule?.date}
                         onChange={v => updateRuleData(app.id, { ...ruleData[app.id], date: v })} />
                     </td>
                   )}
@@ -265,13 +260,13 @@ export default function ProgramsPanel({ mode }) {
                       <span className={`status-dot ${app.blocked ? 'blocked' : 'unblocked'}`} />
                       <span className="status-text">
                         {app.blocked 
-                          ? (ruleData[app.id]?.isBlockedByTime ? 'Заблокирован' : 'Ожидание') 
+                          ? (app.isBlockedByTime ? 'Заблокирован' : 'Ожидание') 
                           : 'Отключен'}
                       </span>
                     </div>
-                    {ruleData[app.id]?.statusText && mode !== 'permanent' && (
+                    {app.statusText && mode !== 'permanent' && (
                       <div className="countdown-text" style={{ fontSize: '0.75rem', color: '#8b8d98', marginTop: 2 }}>
-                        {ruleData[app.id].statusText}
+                        {app.statusText}
                       </div>
                     )}
                   </td>
