@@ -116,6 +116,17 @@ export default function PomodoroPanel() {
     if (isActive) {
       togglePomodoroSession(false)
     } else {
+      const store = useRulesStore.getState()
+      const conflictPrograms = Array.from(selectedPrograms).filter(p => store.checkRuleConflict('program', p, 'pomodoro'))
+      const conflictWebsites = Array.from(selectedWebsites).filter(w => store.checkRuleConflict('web', w, 'pomodoro'))
+      
+      if (conflictPrograms.length > 0 || conflictWebsites.length > 0) {
+        alert('Конфликт правил!\n\nСледующие ресурсы уже блокируются в других режимах:\n' + 
+              [...conflictPrograms, ...conflictWebsites].join(', ') +
+              '\n\nСначала отключите их, чтобы запустить сессию Помодоро.')
+        return
+      }
+
       togglePomodoroSession(true, {
         workDuration: Number(workMins),
         breakDuration: Number(breakMins),

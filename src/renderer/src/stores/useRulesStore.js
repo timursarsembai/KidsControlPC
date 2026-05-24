@@ -122,6 +122,29 @@ export const useRulesStore = create((set, get) => ({
     await removeDevice(user.uid, deviceId)
   },
 
+  // ── Rules: conflict check ──
+  checkRuleConflict: (targetType, targetName, desiredMode, ignoreRuleId = null) => {
+    const { rules } = get()
+    const activeRules = rules.filter(r => r.status === 'active' && r.id !== ignoreRuleId)
+    
+    const normalConflict = activeRules.find(r => {
+      if (r.type === 'pomodoro') return false
+      if (r.type !== targetType) return false
+      if (r.mode === desiredMode) return false
+      if (targetType === 'program' && r.program?.name === targetName) return true
+      if (targetType === 'web' && r.web?.resolvedPattern === targetName) return true
+      return false
+    })
+    if (normalConflict) return normalConflict
+
+    const pomodoroRule = activeRules.find(r => r.type === 'pomodoro')
+    if (pomodoroRule && desiredMode !== 'pomodoro') {
+      if (targetType === 'program' && pomodoroRule.targets?.programs?.includes(targetName)) return pomodoroRule
+      if (targetType === 'web' && pomodoroRule.targets?.websites?.includes(targetName)) return pomodoroRule
+    }
+    return null
+  },
+
   // ── Rules: block/unblock ──
   toggleProgramBlock: async (ruleId, currentlyBlocked, modeConfig = {}) => {
     const { user, selectedDeviceId, rules } = get()

@@ -73,6 +73,12 @@ export default function WebPanel({ mode }) {
 
   const handleAdd = () => {
     if (!urlInput.trim()) { setError('Введите URL'); return }
+    const resolved = resolvePattern(urlInput.trim())
+    const conflict = useRulesStore.getState().checkRuleConflict('web', resolved, mode)
+    if (conflict) {
+      setError(`Ресурс уже блокируется (режим: ${conflict.mode === 'pomodoro' ? 'Помодоро' : conflict.mode})`)
+      return
+    }
     setError('')
     addWebsite({
       inputUrl: urlInput.trim(),
@@ -87,6 +93,12 @@ export default function WebPanel({ mode }) {
   }
 
   const handleBlock = async (site) => {
+    const conflict = useRulesStore.getState().checkRuleConflict('web', site.resolvedPattern, mode, site.ruleId)
+    if (conflict) {
+      alert(`Конфликт правил!\n\nРесурс "${site.resolvedPattern}" уже используется в активном правиле (режим: ${conflict.mode === 'pomodoro' ? 'Помодоро' : conflict.mode}).\nСначала отключите то правило.`)
+      return
+    }
+
     setPendingBlocks(prev => new Set([...prev, site.id]))
     try {
       if (site.ruleId) {

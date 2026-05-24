@@ -128,6 +128,12 @@ export default function ProgramsPanel({ mode }) {
 
   // ── Block a program ──
   const handleBlock = useCallback(async (app) => {
+    const conflict = useRulesStore.getState().checkRuleConflict('program', app.name, mode, app.ruleId)
+    if (conflict) {
+      alert(`Конфликт правил!\n\nПрограмма "${app.name}" уже используется в активном правиле (режим: ${conflict.mode === 'pomodoro' ? 'Помодоро' : conflict.mode}).\nСначала отключите то правило, чтобы запустить это.`)
+      return
+    }
+
     setPendingBlocks(prev => new Set([...prev, app.id]))
     try {
       if (app.ruleId) {
