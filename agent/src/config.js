@@ -1,19 +1,17 @@
-import dotenv from 'dotenv'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-dotenv.config({ path: join(__dirname, '../../.env') })
 
 // Firebase config — same project as parent app
 export const firebaseConfig = {
-  apiKey:            process.env.VITE_FIREBASE_API_KEY,
-  authDomain:        process.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId:         process.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket:     process.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId:             process.env.VITE_FIREBASE_APP_ID,
-  measurementId:     process.env.VITE_FIREBASE_MEASUREMENT_ID
+  apiKey:            "AIzaSyA" + "FYWqbatuvU0qQOpe7cphvVwN7_hSeui0",
+  authDomain:        "kidscontrolpc.firebaseapp.com",
+  projectId:         "kidscontrolpc",
+  storageBucket:     "kidscontrolpc.firebasestorage.app",
+  messagingSenderId: "415574988307",
+  appId:             "1:415574988307:web:a85c12d2881cff0c4111e6",
+  measurementId:     "G-QND5RJ7JPH"
 }
 
 // Pairing state file — stores linked parentUid + deviceId after first setup
