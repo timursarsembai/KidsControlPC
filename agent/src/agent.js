@@ -181,11 +181,33 @@ async function enforceRules() {
       const startedAt = rule.startedAt?.toDate?.() || new Date(rule.startedAt)
       const elapsed = now - startedAt
       if (elapsed < 0) return []
-      const cycleMs = (rule.workDuration + rule.breakDuration) * 60 * 1000
-      const remainder = elapsed % cycleMs
       const workMs = rule.workDuration * 60 * 1000
+      const breakMs = rule.breakDuration * 60 * 1000
+      const longBreakMs = (rule.longBreakDuration || 15) * 60 * 1000
+      const cyclesToLongBreak = rule.cyclesToLongBreak || 3
+
+      const blockMs = (workMs + breakMs) * (cyclesToLongBreak - 1) + (workMs + longBreakMs)
+      const blockElapsed = elapsed % blockMs
+
+      let currentElapsed = 0
+      let isWorkPhase = false
+
+      for (let i = 0; i < cyclesToLongBreak; i++) {
+        if (blockElapsed < currentElapsed + workMs) {
+          isWorkPhase = true
+          break
+        }
+        currentElapsed += workMs
+        
+        const currentBreakMs = (i === cyclesToLongBreak - 1) ? longBreakMs : breakMs
+        if (blockElapsed < currentElapsed + currentBreakMs) {
+          isWorkPhase = false
+          break
+        }
+        currentElapsed += currentBreakMs
+      }
       
-      if (remainder < workMs) {
+      if (isWorkPhase) {
         const virtualRules = []
         if (rule.targets?.programs) {
           rule.targets.programs.forEach(pName => {

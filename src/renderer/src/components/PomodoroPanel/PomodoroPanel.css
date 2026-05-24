@@ -21,6 +21,7 @@
   gap: 16px;
   align-items: flex-end;
   flex: 1;
+  flex-wrap: wrap;
 }
 
 .input-group {
@@ -55,6 +56,11 @@
   border-color: rgba(0, 217, 126, 0.3);
 }
 
+.pomodoro-status.long-break {
+  background: rgba(94, 92, 230, 0.1);
+  border-color: rgba(94, 92, 230, 0.3);
+}
+
 .status-val {
   font-size: 14px;
   color: var(--text-tertiary);
@@ -79,6 +85,10 @@
 
 .pomodoro-status.break .status-time {
   color: var(--success);
+}
+
+.pomodoro-status.long-break .status-time {
+  color: var(--primary);
 }
 
 /* Web Resource Input Form inside PomodoroPanel */

@@ -14,6 +14,8 @@ export default function PomodoroPanel() {
 
   const [workMins, setWorkMins] = useState(currentSession?.workDuration || 25)
   const [breakMins, setBreakMins] = useState(currentSession?.breakDuration || 5)
+  const [longBreakMins, setLongBreakMins] = useState(currentSession?.longBreakDuration || 15)
+  const [cycles, setCycles] = useState(currentSession?.cyclesToLongBreak || 3)
   
   // Targets state
   const [selectedPrograms, setSelectedPrograms] = useState(() => 
@@ -40,21 +42,46 @@ export default function PomodoroPanel() {
   if (isActive && currentSession?.startedAt) {
     const startedAt = currentSession.startedAt?.toDate?.() || new Date(currentSession.startedAt)
     const elapsed = now - startedAt
-    const cycleMs = (currentSession.workDuration + currentSession.breakDuration) * 60 * 1000
-    const remainder = elapsed % cycleMs
     const workMs = currentSession.workDuration * 60 * 1000
-    
-    if (remainder < workMs) {
+    const breakMs = currentSession.breakDuration * 60 * 1000
+    const longBreakMs = (currentSession.longBreakDuration || 15) * 60 * 1000
+    const cyclesToLongBreak = currentSession.cyclesToLongBreak || 3
+
+    const blockMs = (workMs + breakMs) * (cyclesToLongBreak - 1) + (workMs + longBreakMs)
+    const blockElapsed = elapsed % blockMs
+
+    let currentElapsed = 0
+    let isWork = false
+    let phaseLeftMs = 0
+    let isLong = false
+
+    for (let i = 0; i < cyclesToLongBreak; i++) {
+      if (blockElapsed < currentElapsed + workMs) {
+        isWork = true
+        phaseLeftMs = currentElapsed + workMs - blockElapsed
+        break
+      }
+      currentElapsed += workMs
+      
+      const currentBreakMs = (i === cyclesToLongBreak - 1) ? longBreakMs : breakMs
+      if (blockElapsed < currentElapsed + currentBreakMs) {
+        isWork = false
+        isLong = (i === cyclesToLongBreak - 1)
+        phaseLeftMs = currentElapsed + currentBreakMs - blockElapsed
+        break
+      }
+      currentElapsed += currentBreakMs
+    }
+
+    if (isWork) {
       phase = 'work'
-      const leftMs = workMs - remainder
-      const m = Math.floor(leftMs / 60000)
-      const s = Math.floor((leftMs % 60000) / 1000)
+      const m = Math.floor(phaseLeftMs / 60000)
+      const s = Math.floor((phaseLeftMs % 60000) / 1000)
       timeLeft = `${m}:${s.toString().padStart(2, '0')}`
     } else {
-      phase = 'break'
-      const leftMs = cycleMs - remainder
-      const m = Math.floor(leftMs / 60000)
-      const s = Math.floor((leftMs % 60000) / 1000)
+      phase = isLong ? 'long-break' : 'break'
+      const m = Math.floor(phaseLeftMs / 60000)
+      const s = Math.floor((phaseLeftMs % 60000) / 1000)
       timeLeft = `${m}:${s.toString().padStart(2, '0')}`
     }
   }
@@ -66,6 +93,8 @@ export default function PomodoroPanel() {
       togglePomodoroSession(true, {
         workDuration: Number(workMins),
         breakDuration: Number(breakMins),
+        longBreakDuration: Number(longBreakMins),
+        cyclesToLongBreak: Number(cycles),
         targets: {
           programs: Array.from(selectedPrograms),
           websites: Array.from(selectedWebsites)
@@ -113,6 +142,8 @@ export default function PomodoroPanel() {
       togglePomodoroSession(true, {
         workDuration: Number(workMins),
         breakDuration: Number(breakMins),
+        longBreakDuration: Number(longBreakMins),
+        cyclesToLongBreak: Number(cycles),
         targets: {
           programs: Array.from(selectedPrograms),
           websites: Array.from(next)
@@ -137,6 +168,14 @@ export default function PomodoroPanel() {
             <label>Пауза (мин)</label>
             <input type="number" className="input" value={breakMins} onChange={e => setBreakMins(e.target.value)} disabled={isActive} min="1" max="1440" />
           </div>
+          <div className="input-group">
+            <label>Длинная пауза</label>
+            <input type="number" className="input" value={longBreakMins} onChange={e => setLongBreakMins(e.target.value)} disabled={isActive} min="1" max="1440" />
+          </div>
+          <div className="input-group">
+            <label>Циклов до паузы</label>
+            <input type="number" className="input" value={cycles} onChange={e => setCycles(e.target.value)} disabled={isActive} min="1" max="100" />
+          </div>
           <button className={`btn ${isActive ? 'btn-danger' : 'btn-primary'}`} style={{ marginTop: 22 }} onClick={handleToggle}>
             {isActive ? 'Остановить сессию' : 'Запустить сессию'}
           </button>
@@ -158,6 +197,12 @@ export default function PomodoroPanel() {
           {phase === 'break' && (
             <>
               <div className="status-label">Пауза (доступ открыт)</div>
+              <div className="status-time">{timeLeft}</div>
+            </>
+          )}
+          {phase === 'long-break' && (
+            <>
+              <div className="status-label">Длинная пауза (доступ открыт)</div>
               <div className="status-time">{timeLeft}</div>
             </>
           )}

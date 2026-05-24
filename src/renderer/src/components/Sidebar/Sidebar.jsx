@@ -112,6 +112,20 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
 
+      {/* ── Back button (when settings are open) ── */}
+      {showSettings && (
+        <button 
+          className="sidebar-back-btn" 
+          onClick={() => setShowSettings(false)}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+          Вернуться
+        </button>
+      )}
+
       {/* ── Devices section ── */}
       <div className="sidebar-group">
         <div className="sidebar-group-label">Устройства</div>

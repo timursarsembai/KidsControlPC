@@ -26,6 +26,28 @@
   padding: var(--space-2) 20px var(--space-1);
 }
 
+/* ── Back button ── */
+.sidebar-back-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 8px 12px;
+  margin: 0 8px 4px 8px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--dur-base) var(--ease);
+}
+.sidebar-back-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
 /* ── Devices ── */
 .sidebar-devices {
   display: flex;
