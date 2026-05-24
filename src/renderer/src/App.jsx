@@ -55,7 +55,7 @@ export default function App() {
         await createUserWithEmailAndPassword(auth, email, password)
       } else if (mode === 'reset') {
         await sendPasswordResetEmail(auth, email)
-        setResetMsg('Ссылка для сброса пароля отправлена на ' + email)
+        setResetMsg(`Письмо отправлено на ${email}. Обязательно проверьте папку «Спам»!`)
       }
     } catch (err) {
       const msgs = {
