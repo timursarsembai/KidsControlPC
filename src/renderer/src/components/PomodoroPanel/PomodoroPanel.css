@@ -1,0 +1,153 @@
+.pomodoro-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+  overflow: hidden;
+}
+
+.pomodoro-top-card {
+  display: flex;
+  gap: 24px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  flex-shrink: 0;
+}
+
+.pomodoro-settings {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  flex: 1;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input-group label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.pomodoro-status {
+  width: 280px;
+  text-align: center;
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.pomodoro-status.work {
+  background: rgba(255, 71, 87, 0.1);
+  border-color: rgba(255, 71, 87, 0.3);
+}
+
+.pomodoro-status.break {
+  background: rgba(0, 217, 126, 0.1);
+  border-color: rgba(0, 217, 126, 0.3);
+}
+
+.status-val {
+  font-size: 14px;
+  color: var(--text-tertiary);
+}
+
+.status-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.status-time {
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  margin-top: 4px;
+}
+
+.pomodoro-status.work .status-time {
+  color: var(--danger);
+}
+
+.pomodoro-status.break .status-time {
+  color: var(--success);
+}
+
+/* Web Resource Input Form inside PomodoroPanel */
+.web-add-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+.web-add-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.web-add-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.web-add-hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.web-add-form {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.url-input-wrap {
+  position: relative;
+  flex: 1;
+}
+
+.url-prefix {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.url-input {
+  padding-left: 36px;
+}
+
+.url-input.input-error {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-dim);
+}
+
+.scope-select-wrap {
+  width: 220px;
+}
+
+.scope-select { cursor: pointer; }
+
+.add-btn { height: 36px; }
+
+.input-error-msg {
+  font-size: 12px;
+  color: var(--danger);
+}

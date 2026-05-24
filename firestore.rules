@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── User's own data ───────────────────────────────────────────────────────
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ── Pairing codes — root collection ───────────────────────────────────────
+    match /pairingCodes/{code} {
+      allow read, write: if true;
+    }
+
+    // ── Devices — agent can write its own device doc ──────────────────────────
+    // Note: agent uses Firebase SDK without auth.
+    // For MVP: allow writes if the parent's UID is known.
+    match /users/{userId}/devices/{deviceId} {
+      allow read, write: if true;  // Tighten after MVP
+    }
+
+    // ── Device Rules — agent needs to read rules ──────────────────────────────
+    match /users/{userId}/devices/{deviceId}/rules/{ruleId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ── Installed Apps — agent needs to upload its apps ───────────────────────
+    match /users/{userId}/devices/{deviceId}/installedApps/{appId} {
+      allow read, write: if true;
+    }
+
+    // ── Alerts — agent can write alerts ──────────────────────────────────────
+    match /users/{userId}/alerts/{alertId} {
+      allow read, write: if true;  // Tighten after MVP
+    }
+  }
+}

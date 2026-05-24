@@ -1,0 +1,22 @@
+{
+  "name": "kidscontrol-agent",
+  "version": "1.0.0",
+  "description": "KidsControlPC — Child background agent",
+  "main": "src/agent.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/agent.js",
+    "dev": "node --watch src/agent.js",
+    "service:install": "node src/installService.js",
+    "service:uninstall": "node src/uninstallService.js"
+  },
+  "dependencies": {
+    "firebase": "^10.12.2",
+    "node-windows": "^1.0.0-beta.8"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0",
+    "makensis": "^3.0.5",
+    "pkg": "^5.8.1"
+  }
+}
