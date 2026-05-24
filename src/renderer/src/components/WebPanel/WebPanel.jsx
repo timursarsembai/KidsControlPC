@@ -1,16 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { useRulesStore } from '../../stores/useRulesStore'
 import { evaluateRule } from '../../utils/timeHelpers'
-import Select from '../Select/Select'
+
 import './WebPanel.css'
 
-const SCOPE_OPTIONS = [
-  { value: 'exact',  label: 'Только этот адрес',                 desc: 'Точное совпадение URL' },
-  { value: 'path',   label: 'Все внутренние страницы',            desc: 'Блокирует путь и всё что глубже' },
-  { value: 'domain', label: 'Весь домен и все его ресурсы',       desc: 'Блокирует сайт целиком' },
-]
 
-const SCOPE_LABEL = { exact: 'Точный URL', path: 'По пути', domain: 'Весь домен' }
 
 const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
@@ -43,7 +37,7 @@ export default function WebPanel({ mode }) {
   const { addWebsite, toggleWebsiteBlock, removeWebsiteGlobally, getFilteredWebsites, rulesLoading, rules } = useRulesStore()
   const websites = getFilteredWebsites()
   const [urlInput, setUrlInput] = useState('')
-  const [scope, setScope]       = useState('domain')
+
   const [error, setError]       = useState('')
   const [webRuleData, setWebRuleData] = useState({})
   const [pendingBlocks, setPendingBlocks] = useState(new Set())
@@ -70,12 +64,10 @@ export default function WebPanel({ mode }) {
     })
   }, [mergedWebsites, mode, toggleWebsiteBlock, webRuleData])
 
-  const resolvePattern = (url, scope) => {
+  const resolvePattern = (url) => {
     try {
       const cleaned = url.replace(/^https?:\/\//, '').replace(/\/$/, '')
-      if (scope === 'domain') return cleaned.split('/')[0]
-      if (scope === 'path')   return cleaned.split('/').slice(0,2).join('/')
-      return cleaned
+      return cleaned.split('/')[0]
     } catch { return url }
   }
 
@@ -84,8 +76,8 @@ export default function WebPanel({ mode }) {
     setError('')
     addWebsite({
       inputUrl: urlInput.trim(),
-      scope,
-      resolvedPattern: resolvePattern(urlInput.trim(), scope)
+      scope: 'domain',
+      resolvedPattern: resolvePattern(urlInput.trim())
     })
     setUrlInput('')
   }
@@ -131,20 +123,13 @@ export default function WebPanel({ mode }) {
             <input
               type="text"
               className={`input url-input ${error ? 'input-error' : ''}`}
-              placeholder="youtube.com/shorts или vk.com/feed"
+              placeholder="youtube.com или vk.com"
               value={urlInput}
               onChange={e => { setUrlInput(e.target.value); setError('') }}
               onKeyDown={e => e.key === 'Enter' && handleAdd()}
             />
           </div>
-          <div className="scope-select-wrap">
-            <Select 
-              value={scope}
-              onChange={val => setScope(val)}
-              options={SCOPE_OPTIONS}
-              style={{ width: '100%' }}
-            />
-          </div>
+
           <button className="btn btn-primary add-btn" onClick={handleAdd}>
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
@@ -153,14 +138,11 @@ export default function WebPanel({ mode }) {
           </button>
         </div>
         {error && <div className="input-error-msg">{error}</div>}
-        <div className="scope-preview">
-          {scope === 'domain' && urlInput &&
-            <span>🔒 Будет заблокирован весь домен: <strong>{resolvePattern(urlInput, 'domain')}</strong></span>}
-          {scope === 'path' && urlInput &&
-            <span>🔒 Будет заблокирован путь: <strong>{resolvePattern(urlInput, 'path')}</strong></span>}
-          {scope === 'exact' && urlInput &&
-            <span>🔒 Точный URL: <strong>{resolvePattern(urlInput, 'exact')}</strong></span>}
-        </div>
+        {urlInput && (
+          <div className="scope-preview">
+            <span>🔒 Будет заблокирован весь домен: <strong>{resolvePattern(urlInput)}</strong></span>
+          </div>
+        )}
       </div>
 
       {/* ── Table ── */}
@@ -169,7 +151,7 @@ export default function WebPanel({ mode }) {
           <thead>
             <tr>
               <th>Веб-ресурс</th>
-              <th style={{ width: 120 }}>Охват</th>
+
               {mode === 'timer'    && <th>Таймер</th>}
               {mode === 'schedule' && <th>Расписание</th>}
               {mode === 'date'     && <th>Дата и время</th>}
@@ -179,7 +161,7 @@ export default function WebPanel({ mode }) {
           <tbody>
             {mergedWebsites.length === 0 ? (
               <tr>
-                <td colSpan={mode === 'permanent' ? 3 : 4}>
+                <td colSpan={mode === 'permanent' ? 2 : 3}>
                   <div className="empty-state">
                     <span className="empty-state-icon">🌐</span>
                     <span className="empty-state-title">Нет добавленных ресурсов</span>
@@ -199,9 +181,7 @@ export default function WebPanel({ mode }) {
                     </div>
                   )}
                 </td>
-                <td>
-                  <span className="scope-badge">{SCOPE_LABEL[site.scope]}</span>
-                </td>
+
 
                 {mode === 'timer' && (
                   <td>
