@@ -3,6 +3,7 @@ import { auth } from './firebase/config'
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   onAuthStateChanged,
   signOut
 } from 'firebase/auth'
@@ -17,6 +18,7 @@ export default function App() {
   const [password, setPassword]       = useState('')
   const [confirmPwd, setConfirmPwd]   = useState('')
   const [error, setError]             = useState('')
+  const [resetMsg, setResetMsg]       = useState('')
   const [loading, setLoading]         = useState(false)
 
   const { user, initFirebase, cleanup } = useRulesStore()
@@ -41,7 +43,7 @@ export default function App() {
       setError('Пароли не совпадают')
       return
     }
-    if (password.length < 6) {
+    if (mode !== 'reset' && password.length < 6) {
       setError('Пароль должен быть не менее 6 символов')
       return
     }
@@ -49,8 +51,11 @@ export default function App() {
     try {
       if (mode === 'login') {
         await signInWithEmailAndPassword(auth, email, password)
-      } else {
+      } else if (mode === 'register') {
         await createUserWithEmailAndPassword(auth, email, password)
+      } else if (mode === 'reset') {
+        await sendPasswordResetEmail(auth, email)
+        setResetMsg('Ссылка для сброса пароля отправлена на ' + email)
       }
     } catch (err) {
       const msgs = {
@@ -100,12 +105,12 @@ export default function App() {
 
         <div className="auth-tab-switch">
           <button
-            className={`auth-tab ${mode === 'login' ? 'active' : ''}`}
-            onClick={() => { setMode('login'); setError('') }}
+            className={`auth-tab ${mode === 'login' || mode === 'reset' ? 'active' : ''}`}
+            onClick={() => { setMode('login'); setError(''); setResetMsg('') }}
           >Войти</button>
           <button
             className={`auth-tab ${mode === 'register' ? 'active' : ''}`}
-            onClick={() => { setMode('register'); setError('') }}
+            onClick={() => { setMode('register'); setError(''); setResetMsg('') }}
           >Создать аккаунт</button>
         </div>
 
@@ -123,7 +128,8 @@ export default function App() {
             />
           </div>
 
-          <div className="form-group">
+          {mode !== 'reset' && (
+            <div className="form-group">
             <label className="form-label">Пароль</label>
             <input
               type="password"
@@ -134,7 +140,15 @@ export default function App() {
               required
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
             />
+            {mode === 'login' && (
+              <div style={{ textAlign: 'right', marginTop: 8 }}>
+                <a href="#" onClick={(e) => { e.preventDefault(); setMode('reset'); setError(''); setResetMsg('') }} style={{ color: 'var(--brand-primary)', fontSize: 13, textDecoration: 'none' }}>
+                  Забыли пароль?
+                </a>
+              </div>
+            )}
           </div>
+          )}
 
           {mode === 'register' && (
             <div className="form-group">
@@ -152,11 +166,12 @@ export default function App() {
           )}
 
           {error && <div className="auth-error">{error}</div>}
+          {resetMsg && <div className="auth-note" style={{ color: 'var(--success, #20c997)', backgroundColor: 'rgba(32, 201, 151, 0.1)', borderColor: 'rgba(32, 201, 151, 0.2)' }}>{resetMsg}</div>}
 
           <button type="submit" className="btn btn-primary auth-submit" disabled={loading}>
             {loading
               ? <span className="btn-spinner" />
-              : mode === 'login' ? '→ Войти' : '✓ Создать аккаунт'
+              : mode === 'login' ? '→ Войти' : mode === 'register' ? '✓ Создать аккаунт' : 'Сбросить пароль'
             }
           </button>
         </form>
