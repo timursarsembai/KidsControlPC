@@ -1,7 +1,4 @@
-import { join, dirname } from 'path'
-import { fileURLToPath } from 'url'
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
+import { join } from 'path'
 
 // Firebase config — same project as parent app
 export const firebaseConfig = {
@@ -15,7 +12,7 @@ export const firebaseConfig = {
 }
 
 // Pairing state file — stores linked parentUid + deviceId after first setup
-export const PAIRING_FILE = join(__dirname, '..', 'pairing.json')
+export const PAIRING_FILE = join(process.cwd(), 'pairing.json')
 
 // How often to send heartbeat to Firebase (ms)
 export const HEARTBEAT_INTERVAL_MS = 30_000   // 30 sec
