@@ -341,14 +341,18 @@ async function main() {
 
   // 1. Load or run pairing
   let pairing = loadPairing()
+  let isNewPairing = false
   if (!pairing) {
     pairing = await runPairingFlow()
+    isNewPairing = true
   } else {
     log(`🔗 Привязан к аккаунту. DeviceID: ${pairing.deviceId}`)
   }
 
-  if (process.argv.includes('--pair-only')) {
-    log('✅ Привязка завершена. Флаг --pair-only обнаружен, завершение работы.')
+  if (process.argv.includes('--pair-only') || isNewPairing) {
+    if (isNewPairing) log('✅ Привязка завершена! Окно автоматически закроется через 3 секунды, а агент продолжит работу в фоне...')
+    else log('✅ Привязка завершена. Флаг --pair-only обнаружен, завершение работы.')
+    await new Promise(r => setTimeout(r, 3000))
     process.exit(0)
   }
 
