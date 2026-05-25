@@ -65,11 +65,6 @@ OutFile "KidsControlAgent_Setup.exe"
 InstallDir "$PROGRAMFILES64\\KidsControlAgent"
 RequestExecutionLevel admin
 
-!define MUI_LANGDLL_REGISTRY_ROOT "HKCU"
-!define MUI_LANGDLL_REGISTRY_KEY "Software\\KidsControlPCAgent"
-!define MUI_LANGDLL_REGISTRY_VALUENAME "Installer Language"
-!define MUI_LANGDLL_ALWAYSSHOW
-
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
