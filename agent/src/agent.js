@@ -340,13 +340,27 @@ async function main() {
   log(`💻 Хост: ${hostname()}`)
 
   // 1. Load or run pairing
+  const isService = process.argv.includes('--service')
   let pairing = loadPairing()
   let isNewPairing = false
+
   if (!pairing) {
+    if (isService) {
+      log('⚠️ Ошибка: Нет файла привязки. Служба будет перезапущена позже.')
+      process.exit(1)
+    }
     pairing = await runPairingFlow()
     isNewPairing = true
   } else {
-    log(`🔗 Привязан к аккаунту. DeviceID: ${pairing.deviceId}`)
+    if (!isService) {
+      log(`🔗 Привязан к аккаунту. DeviceID: ${pairing.deviceId}`)
+      log('✅ Агент уже настроен и работает в фоновом режиме.')
+      log('Окно терминала закроется через 3 секунды...')
+      await new Promise(r => setTimeout(r, 3000))
+      process.exit(0)
+    } else {
+      log(`🔗 Привязан к аккаунту. DeviceID: ${pairing.deviceId}`)
+    }
   }
 
   if (process.argv.includes('--pair-only') || isNewPairing) {

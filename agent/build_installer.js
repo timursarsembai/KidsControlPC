@@ -52,6 +52,7 @@ async function build() {
   <name>KidsControlPCAgent</name>
   <description>KidsControlPC Child Agent</description>
   <executable>%BASE%\\agent.exe</executable>
+  <arguments>--service</arguments>
   <logmode>roll</logmode>
 </service>`
     fs.writeFileSync(path.join(distDir, 'WinSW.xml'), xml)
