@@ -26,6 +26,7 @@ function generatePairingCode() {
 // ─── Sub-sections ─────────────────────────────────────────────────────────────
 
 function DevicesSection({ uid }) {
+  const { t } = useTranslation()
   const { devices, renameDevice, deleteDevice } = useRulesStore()
   const [code, setCode]           = useState('')
   const [generating, setGenerating] = useState(false)
