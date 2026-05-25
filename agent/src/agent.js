@@ -39,7 +39,9 @@ let activeRules = []           // current rules from Firestore
 let unsubRules  = null         // Firestore listener unsubscribe
 let heartbeatTimer = null
 let enforceTimer   = null
-let updateTimer    = null
+const crypto = require('crypto')
+const net = require('net')
+
 let isShuttingDown = false
 
 // Cached installed programs and their running states to minimize Firestore writes
@@ -177,6 +179,15 @@ async function updateRunningStatuses(processes) {
   }
 }
 
+function sendToWidget(message) {
+  const client = new net.Socket()
+  client.connect(49152, '127.0.0.1', () => {
+    client.write(message)
+    client.destroy()
+  })
+  client.on('error', () => { /* ignore */ })
+}
+
 // ─── Enforce rules ─────────────────────────────────────────────────────────────
 async function enforceRules() {
   if (isShuttingDown) return
@@ -187,10 +198,14 @@ async function enforceRules() {
   // 2. Update running status of apps in Firestore
   await updateRunningStatuses(processes)
 
-  if (activeRules.length === 0) return
+  if (activeRules.length === 0) {
+    sendToWidget('hide')
+    return
+  }
 
   // 3. Determine active rules (status === 'active' and within schedule/timer/date)
   const now = new Date()
+  let hasPomodoro = false
   const effectiveRules = activeRules.flatMap(rule => {
     if (rule.status !== 'active') return []
 
@@ -209,10 +224,12 @@ async function enforceRules() {
 
       let currentElapsed = 0
       let isWorkPhase = false
+      let phaseRemainingMs = 0
 
       for (let i = 0; i < cyclesToLongBreak; i++) {
         if (blockElapsed < currentElapsed + workMs) {
           isWorkPhase = true
+          phaseRemainingMs = (currentElapsed + workMs) - blockElapsed
           break
         }
         currentElapsed += workMs
@@ -220,11 +237,19 @@ async function enforceRules() {
         const currentBreakMs = (i === cyclesToLongBreak - 1) ? longBreakMs : breakMs
         if (blockElapsed < currentElapsed + currentBreakMs) {
           isWorkPhase = false
+          phaseRemainingMs = (currentElapsed + currentBreakMs) - blockElapsed
           break
         }
         currentElapsed += currentBreakMs
       }
       
+      hasPomodoro = true
+      const rSec = Math.floor(phaseRemainingMs / 1000)
+      const rMinStr = Math.floor(rSec / 60).toString().padStart(2, '0')
+      const rSecStr = (rSec % 60).toString().padStart(2, '0')
+      const phaseStr = isWorkPhase ? 'Фокус (Работа)' : 'Пауза (Отдых)'
+      sendToWidget(`show|${phaseStr}|${rMinStr}:${rSecStr}`)
+
       if (isWorkPhase) {
         const virtualRules = []
         if (rule.targets?.programs) {
@@ -254,25 +279,61 @@ async function enforceRules() {
 
       case 'schedule': {
         if (!rule.schedule?.weekdays || !rule.schedule?.timeFrom || !rule.schedule?.timeTo) return []
+        const action = rule.schedule.action || 'block'
         const dayOfWeek = now.getDay()    // 0=Sun .. 6=Sat
         const mappedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1  // Mon=0..Sun=6
-        if (!rule.schedule.weekdays.includes(mappedDay)) return []
+        const isRightDay = rule.schedule.weekdays.includes(mappedDay)
+        
         const [hFrom, mFrom] = rule.schedule.timeFrom.split(':').map(Number)
         const [hTo,   mTo  ] = rule.schedule.timeTo.split(':').map(Number)
         const cur = now.getHours() * 60 + now.getMinutes()
         const from = hFrom * 60 + mFrom
         const to   = hTo   * 60 + mTo
-        return cur >= from && cur <= to ? [rule] : []
+        
+        const isWithinTime = cur >= from && cur <= to
+        
+        if (action === 'block') {
+          return (isRightDay && isWithinTime) ? [rule] : []
+        } else {
+          return (!isRightDay || !isWithinTime) ? [rule] : []
+        }
       }
 
       case 'date': {
         if (!rule.date?.date || !rule.date?.timeFrom || !rule.date?.timeTo) return []
+        const action = rule.date.action || 'block'
         const ruleDate = new Date(rule.date.date)
-        if (now.toDateString() !== ruleDate.toDateString()) return []
+        const isRightDay = now.toDateString() === ruleDate.toDateString()
+        
         const [hFrom, mFrom] = rule.date.timeFrom.split(':').map(Number)
         const [hTo,   mTo  ] = rule.date.timeTo.split(':').map(Number)
         const cur = now.getHours() * 60 + now.getMinutes()
-        return cur >= (hFrom*60+mFrom) && cur <= (hTo*60+mTo) ? [rule] : []
+        
+        const isWithinTime = cur >= (hFrom*60+mFrom) && cur <= (hTo*60+mTo)
+        
+        if (action === 'block') {
+          return (isRightDay && isWithinTime) ? [rule] : []
+        } else {
+          return (!isRightDay || !isWithinTime) ? [rule] : []
+        }
+      }
+
+      case 'monthly_date': {
+        if (!rule.monthly_date?.day || !rule.monthly_date?.timeFrom || !rule.monthly_date?.timeTo) return []
+        const action = rule.monthly_date.action || 'block'
+        const isRightDay = now.getDate() === rule.monthly_date.day
+        
+        const [hFrom, mFrom] = rule.monthly_date.timeFrom.split(':').map(Number)
+        const [hTo,   mTo  ] = rule.monthly_date.timeTo.split(':').map(Number)
+        const cur = now.getHours() * 60 + now.getMinutes()
+        
+        const isWithinTime = cur >= (hFrom*60+mFrom) && cur <= (hTo*60+mTo)
+        
+        if (action === 'block') {
+          return (isRightDay && isWithinTime) ? [rule] : []
+        } else {
+          return (!isRightDay || !isWithinTime) ? [rule] : []
+        }
       }
 
       default: return []
@@ -290,6 +351,10 @@ async function enforceRules() {
   if (killedNames.length > 0) {
     const uniqueNames = [...new Set(killedNames)]
     await sendAlert('process_killed', `Blocked: ${uniqueNames.join(', ')}`)
+  }
+
+  if (!hasPomodoro) {
+    sendToWidget('hide')
   }
 }
 

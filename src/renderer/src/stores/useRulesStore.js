@@ -155,6 +155,7 @@ export const useRulesStore = create((set, get) => ({
     if (modeConfig.timer) updates.timer = modeConfig.timer
     if (modeConfig.schedule) updates.schedule = modeConfig.schedule
     if (modeConfig.date) updates.date = modeConfig.date
+    if (modeConfig.monthly_date) updates.monthly_date = modeConfig.monthly_date
 
     if (!currentlyBlocked && rule?.mode === 'timer') {
       updates.timer = { ...(updates.timer || rule.timer), startedAt: serverTimestamp() }
@@ -171,6 +172,7 @@ export const useRulesStore = create((set, get) => ({
     if (modeConfig.timer) updates.timer = modeConfig.timer
     if (modeConfig.schedule) updates.schedule = modeConfig.schedule
     if (modeConfig.date) updates.date = modeConfig.date
+    if (modeConfig.monthly_date) updates.monthly_date = modeConfig.monthly_date
 
     if (!currentlyBlocked && rule?.mode === 'timer') {
       updates.timer = { ...(updates.timer || rule.timer), startedAt: serverTimestamp() }
@@ -191,6 +193,7 @@ export const useRulesStore = create((set, get) => ({
       ...(timerConfig && { timer: timerConfig }),
       ...(modeConfig.schedule && { schedule: modeConfig.schedule }),
       ...(modeConfig.date     && { date: modeConfig.date }),
+      ...(modeConfig.monthly_date && { monthly_date: modeConfig.monthly_date }),
     })
   },
 
@@ -211,6 +214,7 @@ export const useRulesStore = create((set, get) => ({
       ...(timerConfig && { timer: timerConfig }),
       ...(modeConfig.schedule && { schedule: modeConfig.schedule }),
       ...(modeConfig.date     && { date: modeConfig.date }),
+      ...(modeConfig.monthly_date && { monthly_date: modeConfig.monthly_date }),
     })
   },
 

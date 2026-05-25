@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '../../stores/useRulesStore'
 import { evaluateRule } from '../../utils/timeHelpers'
+import Select from '../Select/Select'
 
 import './WebPanel.css'
 
@@ -10,7 +11,9 @@ import './WebPanel.css'
 const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
 function ScheduleCell({ value, onChange }) {
+  const { t } = useTranslation()
   const days = value?.weekdays || []
+  const action = value?.action || 'block'
   const toggleDay = (i) => {
     const next = days.includes(i) ? days.filter(d => d !== i) : [...days, i]
     onChange({ ...value, weekdays: next })
@@ -29,6 +32,17 @@ function ScheduleCell({ value, onChange }) {
         <span className="time-sep">—</span>
         <input type="time" className="input time-input" value={value?.timeTo || ''}
           onChange={e => onChange({ ...value, timeTo: e.target.value })} />
+      </div>
+      <div className="action-select-wrap" style={{ marginTop: 8 }}>
+        <Select 
+          value={action}
+          onChange={val => onChange({ ...value, action: val })}
+          style={{ width: '100%' }}
+          options={[
+            { value: 'block', label: `🛑 ${t('programs.action_block', 'Блокировать в это время')}` },
+            { value: 'allow', label: `✅ ${t('programs.action_allow', 'Разрешать только в это время')}` }
+          ]}
+        />
       </div>
     </div>
   )
@@ -168,7 +182,8 @@ export default function WebPanel({ mode }) {
 
               {mode === 'timer'    && <th>{t('programs.col_timer', 'Таймер')}</th>}
               {mode === 'schedule' && <th>{t('programs.col_schedule', 'Расписание')}</th>}
-              {mode === 'date'     && <th>{t('programs.col_date', 'Дата и время')}</th>}
+              {mode === 'date'     && <th>{t('programs.col_date', 'Единоразовая дата')}</th>}
+              {mode === 'monthly_date' && <th>{t('programs.col_monthly_date', 'Число месяца')}</th>}
               <th style={{ width: 140 }}>Действие</th>
             </tr>
           </thead>
@@ -232,6 +247,48 @@ export default function WebPanel({ mode }) {
                         <input type="time" className="input time-input"
                           value={webRuleData[site.id]?.date?.timeTo || site.rule?.date?.timeTo || ''}
                           onChange={e => updateWebRule(site.id, { ...webRuleData[site.id], date: { ...(webRuleData[site.id]?.date || site.rule?.date), timeTo: e.target.value } })} />
+                      </div>
+                      <div className="action-select-wrap" style={{ marginTop: 8 }}>
+                        <Select 
+                          value={webRuleData[site.id]?.date?.action || site.rule?.date?.action || 'block'}
+                          onChange={val => updateWebRule(site.id, { ...webRuleData[site.id], date: { ...(webRuleData[site.id]?.date || site.rule?.date), action: val } })}
+                          style={{ width: '100%' }}
+                          options={[
+                            { value: 'block', label: `🛑 ${t('programs.action_block', 'Блокировать в это время')}` },
+                            { value: 'allow', label: `✅ ${t('programs.action_allow', 'Разрешать только в это время')}` }
+                          ]}
+                        />
+                      </div>
+                    </div>
+                  </td>
+                )}
+                {mode === 'monthly_date' && (
+                  <td onClick={e => e.stopPropagation()}>
+                    <div className="schedule-input-wrap">
+                      <div className="time-range">
+                        <input type="number" className="input timer-input" min="1" max="31" placeholder={t('programs.day_placeholder', 'Число (1-31)')}
+                          value={webRuleData[site.id]?.monthly_date?.day || site.rule?.monthly_date?.day || ''}
+                          onChange={e => updateWebRule(site.id, { ...webRuleData[site.id], monthly_date: { ...(webRuleData[site.id]?.monthly_date || site.rule?.monthly_date), day: Number(e.target.value) } })} />
+                      </div>
+                      <div className="time-range" style={{ marginTop: 8 }}>
+                        <input type="time" className="input time-input"
+                          value={webRuleData[site.id]?.monthly_date?.timeFrom || site.rule?.monthly_date?.timeFrom || ''}
+                          onChange={e => updateWebRule(site.id, { ...webRuleData[site.id], monthly_date: { ...(webRuleData[site.id]?.monthly_date || site.rule?.monthly_date), timeFrom: e.target.value } })} />
+                        <span className="time-sep">—</span>
+                        <input type="time" className="input time-input"
+                          value={webRuleData[site.id]?.monthly_date?.timeTo || site.rule?.monthly_date?.timeTo || ''}
+                          onChange={e => updateWebRule(site.id, { ...webRuleData[site.id], monthly_date: { ...(webRuleData[site.id]?.monthly_date || site.rule?.monthly_date), timeTo: e.target.value } })} />
+                      </div>
+                      <div className="action-select-wrap" style={{ marginTop: 8 }}>
+                        <Select 
+                          value={webRuleData[site.id]?.monthly_date?.action || site.rule?.monthly_date?.action || 'block'}
+                          onChange={val => updateWebRule(site.id, { ...webRuleData[site.id], monthly_date: { ...(webRuleData[site.id]?.monthly_date || site.rule?.monthly_date), action: val } })}
+                          style={{ width: '100%' }}
+                          options={[
+                            { value: 'block', label: `🛑 ${t('programs.action_block', 'Блокировать в это время')}` },
+                            { value: 'allow', label: `✅ ${t('programs.action_allow', 'Разрешать только в это время')}` }
+                          ]}
+                        />
                       </div>
                     </div>
                   </td>

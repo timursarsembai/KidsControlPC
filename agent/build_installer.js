@@ -40,6 +40,9 @@ async function build() {
     console.log('📦 2/5 Packaging to agent.exe with pkg...')
     execSync('npx pkg dist/agent.cjs -t node18-win-x64 -o dist/agent.exe', { stdio: 'inherit' })
 
+    console.log('📦 2.5/5 Compiling TimerWidget.cs...')
+    execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /target:winexe /out:dist\\TimerWidget.exe src\\widget\\TimerWidget.cs', { stdio: 'inherit' })
+
     console.log('📦 3/5 Downloading WinSW...')
     const winswPath = path.join(distDir, 'WinSW.exe')
     if (!fs.existsSync(winswPath)) {
@@ -92,11 +95,15 @@ Section "Install"
   nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" uninstall'
   
   File "agent.exe"
+  File "TimerWidget.exe"
   File "WinSW.exe"
   File "WinSW.xml"
   
   ; Install service
   nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" install'
+  
+  ; Add TimerWidget to Run registry for all users (HKLM)
+  WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "KidsControlTimerWidget" '"$INSTDIR\\TimerWidget.exe"'
   
   ; Run agent.exe once to trigger pairing code prompt in foreground
   ExecWait '"$INSTDIR\\agent.exe"'
@@ -120,6 +127,7 @@ Section "Uninstall"
   
   ; Delete files
   Delete "$INSTDIR\\agent.exe"
+  Delete "$INSTDIR\\TimerWidget.exe"
   Delete "$INSTDIR\\WinSW.exe"
   Delete "$INSTDIR\\WinSW.xml"
   Delete "$INSTDIR\\pairing.json"
@@ -130,6 +138,7 @@ Section "Uninstall"
   
   ; Remove registry keys
   DeleteRegKey HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\KidsControlAgent"
+  DeleteRegValue HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "KidsControlTimerWidget"
 SectionEnd
 `
     fs.writeFileSync(path.join(distDir, 'installer.nsi'), nsi)

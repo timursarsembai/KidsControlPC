@@ -21,7 +21,9 @@ function TimerInput({ value, onChange }) {
 }
 
 function ScheduleInput({ value, onChange }) {
+  const { t } = useTranslation()
   const days = value?.weekdays || []
+  const action = value?.action || 'block'
   const toggleDay = (i) => {
     const next = days.includes(i) ? days.filter(d => d !== i) : [...days, i]
     onChange({ ...value, weekdays: next })
@@ -41,11 +43,24 @@ function ScheduleInput({ value, onChange }) {
         <input type="time" className="input time-input" value={value?.timeTo || ''}
           onChange={e => onChange({ ...value, timeTo: e.target.value })} />
       </div>
+      <div className="action-select-wrap" style={{ marginTop: 8 }}>
+        <Select 
+          value={action}
+          onChange={val => onChange({ ...value, action: val })}
+          style={{ width: '100%' }}
+          options={[
+            { value: 'block', label: `🛑 ${t('programs.action_block', 'Блокировать в это время')}` },
+            { value: 'allow', label: `✅ ${t('programs.action_allow', 'Разрешать только в это время')}` }
+          ]}
+        />
+      </div>
     </div>
   )
 }
 
 function DateInput({ value, onChange }) {
+  const { t } = useTranslation()
+  const action = value?.action || 'block'
   return (
     <div className="schedule-input-wrap" onClick={e => e.stopPropagation()}>
       <input type="date" className="input date-input" value={value?.date || ''}
@@ -56,6 +71,49 @@ function DateInput({ value, onChange }) {
         <span className="time-sep">—</span>
         <input type="time" className="input time-input" value={value?.timeTo || ''}
           onChange={e => onChange({ ...value, timeTo: e.target.value })} />
+      </div>
+      <div className="action-select-wrap" style={{ marginTop: 8 }}>
+        <Select 
+          value={action}
+          onChange={val => onChange({ ...value, action: val })}
+          style={{ width: '100%' }}
+          options={[
+            { value: 'block', label: `🛑 ${t('programs.action_block', 'Блокировать в это время')}` },
+            { value: 'allow', label: `✅ ${t('programs.action_allow', 'Разрешать только в это время')}` }
+          ]}
+        />
+      </div>
+    </div>
+  )
+}
+
+function MonthlyDateInput({ value, onChange }) {
+  const { t } = useTranslation()
+  const action = value?.action || 'block'
+  return (
+    <div className="schedule-input-wrap" onClick={e => e.stopPropagation()}>
+      <div className="time-range">
+        <input type="number" className="input timer-input" min="1" max="31" placeholder={t('programs.day_placeholder', 'Число (1-31)')}
+          value={value?.day || ''}
+          onChange={e => onChange({ ...value, day: Number(e.target.value) })} />
+      </div>
+      <div className="time-range" style={{ marginTop: 8 }}>
+        <input type="time" className="input time-input" value={value?.timeFrom || ''}
+          onChange={e => onChange({ ...value, timeFrom: e.target.value })} />
+        <span className="time-sep">—</span>
+        <input type="time" className="input time-input" value={value?.timeTo || ''}
+          onChange={e => onChange({ ...value, timeTo: e.target.value })} />
+      </div>
+      <div className="action-select-wrap" style={{ marginTop: 8 }}>
+        <Select 
+          value={action}
+          onChange={val => onChange({ ...value, action: val })}
+          style={{ width: '100%' }}
+          options={[
+            { value: 'block', label: `🛑 ${t('programs.action_block', 'Блокировать в это время')}` },
+            { value: 'allow', label: `✅ ${t('programs.action_allow', 'Разрешать только в это время')}` }
+          ]}
+        />
       </div>
     </div>
   )
@@ -200,7 +258,8 @@ export default function ProgramsPanel({ mode }) {
               <th>{t('programs.col_program', 'Программа')}</th>
               {mode === 'timer'    && <th>{t('programs.col_timer', 'Таймер')}</th>}
               {mode === 'schedule' && <th>{t('programs.col_schedule', 'Расписание')}</th>}
-              {mode === 'date'     && <th>{t('programs.col_date', 'Дата и время')}</th>}
+              {mode === 'date'     && <th>{t('programs.col_date', 'Единоразовая дата')}</th>}
+              {mode === 'monthly_date' && <th>{t('programs.col_monthly_date', 'Число месяца')}</th>}
               <th style={{ width: 150 }}>Статус</th>
               <th style={{ width: 160 }}>Действие</th>
             </tr>
@@ -253,6 +312,12 @@ export default function ProgramsPanel({ mode }) {
                     <td>
                       <DateInput value={ruleData[app.id]?.date || app.rule?.date}
                         onChange={v => updateRuleData(app.id, { ...ruleData[app.id], date: v })} />
+                    </td>
+                  )}
+                  {mode === 'monthly_date' && (
+                    <td>
+                      <MonthlyDateInput value={ruleData[app.id]?.monthly_date || app.rule?.monthly_date}
+                        onChange={v => updateRuleData(app.id, { ...ruleData[app.id], monthly_date: v })} />
                     </td>
                   )}
 
