@@ -56,11 +56,16 @@ export async function getInstalledPrograms() {
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
+New-PSDrive -Name HKU -PSProvider Registry -Root HKEY_USERS -ErrorAction SilentlyContinue | Out-Null
+
+
 $ErrorActionPreference = 'SilentlyContinue'
 $paths = @(
   'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',
   'HKLM:\\Software\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',
-  'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*'
+  'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',
+  'HKU:\\*\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',
+  'HKU:\\*\\Software\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*'
 )
 $apps = @()
 foreach ($p in $paths) {
@@ -68,7 +73,7 @@ foreach ($p in $paths) {
   if ($items) { $apps += $items }
 }
 $result = $apps |
-  Where-Object { $_.DisplayName -and $_.DisplayName.Trim() -ne '' -and -not $_.SystemComponent -and -not $_.ReleaseType } |
+  Where-Object { $_.DisplayName -and $_.DisplayName.Trim() -ne '' -and $_.SystemComponent -ne 1 -and -not $_.ParentKeyName } |
   Select-Object DisplayName, InstallLocation, DisplayIcon, Publisher, DisplayVersion |
   Sort-Object DisplayName -Unique
 
