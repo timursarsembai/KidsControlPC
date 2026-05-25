@@ -81,7 +81,6 @@ RequestExecutionLevel admin
 Function .onInit
   !insertmacro MUI_LANGDLL_DISPLAY
 FunctionEnd
-FunctionEnd
 
 Section "Install"
   SetOutPath "$INSTDIR"
