@@ -52,16 +52,32 @@ function log(msg) {
   console.log(`[${ts}] ${msg}`)
 }
 
+let consecutiveFailures = 0
+
 // ─── Heartbeat — update lastSeen in Firestore ─────────────────────────────────
 async function sendHeartbeat() {
   if (!parentUid || !deviceId) return
   try {
-    await updateDoc(
-      doc(db, 'users', parentUid, 'devices', deviceId),
-      { lastSeen: serverTimestamp(), status: 'online' }
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Heartbeat timeout')), 15000)
     )
+
+    await Promise.race([
+      updateDoc(
+        doc(db, 'users', parentUid, 'devices', deviceId),
+        { lastSeen: serverTimestamp(), status: 'online' }
+      ),
+      timeoutPromise
+    ])
+    
+    consecutiveFailures = 0 // reset on success
   } catch (err) {
-    log(`⚠️  Heartbeat error: ${err.message}`)
+    consecutiveFailures++
+    log(`⚠️  Heartbeat error (${consecutiveFailures}/3): ${err.message}`)
+    if (consecutiveFailures >= 3) {
+      log('🔄 Network likely stuck after sleep/disconnect. Restarting agent...')
+      process.exit(1)
+    }
   }
 }
 
@@ -85,11 +101,11 @@ async function sendAlert(type, details = '') {
 
 // ─── Scan and upload installed programs ──────────────────────────────────────
 async function performProgramScan() {
-  log('🔍 Сканирование установленных программ...')
+  log('🔍 Scanning installed programs...')
   try {
     const apps = await getInstalledPrograms()
     installedAppsCached = apps
-    log(`🔎 Найдено ${apps.length} программ. Загрузка в Firestore...`)
+    log(`🔎 Found ${apps.length} programs. Uploading to Firestore...`)
 
     const col = collection(db, 'users', parentUid, 'devices', deviceId, 'installedApps')
     
@@ -113,9 +129,9 @@ async function performProgramScan() {
       }
       await batch.commit()
     }
-    log(`📤 Список программ успешно загружен (${apps.length} шт.)`)
+    log(`📤 Program list successfully uploaded (${apps.length} items)`)
   } catch (err) {
-    log(`⚠️  Ошибка при сканировании/загрузке программ: ${err.message}`)
+    log(`⚠️  Error during scanning/uploading: ${err.message}`)
   }
 }
 
@@ -154,9 +170,9 @@ async function updateRunningStatuses(processes) {
         batch.update(doc(col, item.id), { running: item.running })
       }
       await batch.commit()
-      log(`🔄 Обновлен статус работы для ${changedApps.length} программ`)
+      log(`🔄 Updated running status for ${changedApps.length} programs`)
     } catch (err) {
-      log(`⚠️  Ошибка обновления статуса программ: ${err.message}`)
+      log(`⚠️  Error updating program status: ${err.message}`)
     }
   }
 }
@@ -273,13 +289,13 @@ async function enforceRules() {
   const killedNames  = await enforceProcessRules(programRules, processes)
   if (killedNames.length > 0) {
     const uniqueNames = [...new Set(killedNames)]
-    await sendAlert('process_killed', `Заблокировано: ${uniqueNames.join(', ')}`)
+    await sendAlert('process_killed', `Blocked: ${uniqueNames.join(', ')}`)
   }
 }
 
 // ─── Subscribe to Firestore rules (per-device) ────────────────────────────────
 function subscribeToRules() {
-  log('📡 Подписываюсь на правила из Firestore...')
+  log('📡 Subscribing to rules from Firestore...')
 
   const q = query(
     collection(db, 'users', parentUid, 'devices', deviceId, 'rules'),
@@ -288,7 +304,7 @@ function subscribeToRules() {
 
   unsubRules = onSnapshot(q, (snap) => {
     activeRules = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    log(`📋 Получено ${activeRules.length} правил (${activeRules.filter(r=>r.status==='active').length} активных)`)
+    log(`📋 Received ${activeRules.length} rules (${activeRules.filter(r=>r.status==='active').length} active)`)
     console.log(JSON.stringify(activeRules, null, 2))
   }, (err) => {
     log(`❌ Firestore error: ${err.message}`)
@@ -300,7 +316,7 @@ async function shutdown(reason) {
   if (isShuttingDown) return
   isShuttingDown = true
 
-  log(`\n🛑 Остановка агента: ${reason}`)
+  log(`\n🛑 Stopping agent: ${reason}`)
 
   // Alert parent
   await sendAlert('agent_stopped', reason)
@@ -324,7 +340,7 @@ async function shutdown(reason) {
   clearInterval(updateTimer)
   if (unsubRules) unsubRules()
 
-  log('✅ Агент остановлен. hosts-блокировки сняты.')
+  log('✅ Agent stopped. Hosts blocks cleared.')
   process.exit(0)
 }
 
@@ -339,8 +355,8 @@ process.on('uncaughtException', async (err) => {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 async function main() {
-  log('🛡️  KidsControlPC Agent v1.0.0 запускается...')
-  log(`💻 Хост: ${hostname()}`)
+  log('🛡️  KidsControlPC Agent v1.0.0 starting...')
+  log(`💻 Host: ${hostname()}`)
 
   // 1. Load or run pairing
   const isService = process.argv.includes('--service')
@@ -349,26 +365,26 @@ async function main() {
 
   if (!pairing) {
     if (isService) {
-      log('⚠️ Ошибка: Нет файла привязки. Служба будет перезапущена позже.')
+      log('⚠️ Error: No pairing file found. Service will restart later.')
       process.exit(1)
     }
     pairing = await runPairingFlow()
     isNewPairing = true
   } else {
     if (!isService) {
-      log(`🔗 Привязан к аккаунту. DeviceID: ${pairing.deviceId}`)
-      log('✅ Агент уже настроен и работает в фоновом режиме.')
-      log('Окно терминала закроется через 3 секунды...')
+      log(`🔗 Paired with account. DeviceID: ${pairing.deviceId}`)
+      log('✅ Agent is configured and running in background.')
+      log('Terminal window will close in 3 seconds...')
       await new Promise(r => setTimeout(r, 3000))
       process.exit(0)
     } else {
-      log(`🔗 Привязан к аккаунту. DeviceID: ${pairing.deviceId}`)
+      log(`🔗 Paired with account. DeviceID: ${pairing.deviceId}`)
     }
   }
 
   if (process.argv.includes('--pair-only') || isNewPairing) {
-    if (isNewPairing) log('✅ Привязка завершена! Окно автоматически закроется через 3 секунды, а агент продолжит работу в фоне...')
-    else log('✅ Привязка завершена. Флаг --pair-only обнаружен, завершение работы.')
+    if (isNewPairing) log('✅ Pairing complete! Window will close in 3 seconds, agent will continue in background...')
+    else log('✅ Pairing complete. --pair-only flag detected, exiting.')
     await new Promise(r => setTimeout(r, 3000))
     process.exit(0)
   }
@@ -378,9 +394,9 @@ async function main() {
 
   // 2. Send initial heartbeat
   await sendHeartbeat()
-  log('💓 Heartbeat отправлен')
+  log('💓 Heartbeat sent')
   
-  await sendAlert('agent_started', 'Фоновая программа была запущена')
+  await sendAlert('agent_started', 'Background program was started')
 
   // 3. Scan and upload installed programs
   await performProgramScan()
@@ -400,9 +416,9 @@ async function main() {
   // Check for updates immediately on startup (with 10 sec delay so it doesn't interrupt initial sync)
   setTimeout(() => checkAndUpdateSilently(log), 10_000)
 
-  log(`✅ Агент запущен и мониторит процессы (DeviceID: ${deviceId})`)
-  log(`✅ Агент активен. Проверка правил каждые ${ENFORCE_INTERVAL_MS/1000}с.`)
-  log('   Нажмите Ctrl+C для остановки.\n')
+  log(`✅ Agent started and monitoring processes (DeviceID: ${deviceId})`)
+  log(`✅ Agent active. Rule check interval: ${ENFORCE_INTERVAL_MS/1000}s.`)
+  log('   Press Ctrl+C to stop.\n')
 }
 
 main().catch(async err => {

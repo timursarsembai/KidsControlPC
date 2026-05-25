@@ -1,0 +1,60 @@
+{
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "programs": "Programs",
+    "websites": "Websites",
+    "settings": "Settings",
+    "devices": "Devices",
+    "modes": {
+      "permanent": "Permanent",
+      "permanent_sub": "Always active",
+      "timer": "Timer",
+      "timer_sub": "Countdown",
+      "schedule": "Schedule",
+      "schedule_sub": "Days + Time",
+      "date": "Date",
+      "date_sub": "Specific date",
+      "pomodoro": "Pomodoro",
+      "pomodoro_sub": "Work & Break"
+    },
+    "device_online": "Online",
+    "device_offline": "Offline",
+    "device_default": "Device"
+  },
+  "settings": {
+    "title": "Settings",
+    "desc": "Application preferences",
+    "language": "Language",
+    "theme": "Theme",
+    "devices": {
+      "title": "Child's PC",
+      "desc": "Link your child's computer — the agent will receive blocking rules from the cloud",
+      "empty": "No linked devices",
+      "add_new": "Add new device",
+      "add_hint": "Install the agent on the child's PC and enter the code during the first launch",
+      "code_gen": "Generate Code",
+      "code_active": "Code active for 15 minutes",
+      "remove": "Remove",
+      "rename": "Rename"
+    },
+    "account": {
+      "title": "Account",
+      "desc": "Manage your profile and security",
+      "logout": "Log Out"
+    }
+  },
+  "auth": {
+    "login": "Log In",
+    "register": "Register",
+    "reset": "Reset Password",
+    "email": "Email",
+    "password": "Password",
+    "confirm_password": "Confirm Password",
+    "submit_login": "Sign In",
+    "submit_register": "Sign Up",
+    "submit_reset": "Send Link",
+    "no_account": "Don't have an account?",
+    "has_account": "Already have an account?",
+    "forgot_pwd": "Forgot password?"
+  }
+}

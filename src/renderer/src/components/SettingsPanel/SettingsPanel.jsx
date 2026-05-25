@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { auth } from '../../firebase/config'
 import { db } from '../../firebase/config'
 import {
@@ -65,18 +66,17 @@ function DevicesSection({ uid }) {
       <div className="settings-section-header">
         <div className="settings-section-icon">🖥️</div>
         <div>
-          <h2 className="settings-section-title">ПК ребёнка</h2>
+          <h2 className="settings-section-title">{t('settings.devices.title', 'ПК ребёнка')}</h2>
           <p className="settings-section-desc">
-            Привяжите компьютер ребёнка — агент будет получать правила блокировки из облака
+            {t('settings.devices.desc', 'Привяжите компьютер ребёнка — агент будет получать правила блокировки из облака')}
           </p>
         </div>
       </div>
 
-      {/* Connected devices */}
       {devices.length === 0 ? (
         <div className="devices-empty">
           <span className="devices-empty-icon">📡</span>
-          <span>Нет привязанных устройств</span>
+          <span>{t('settings.devices.empty', 'Нет привязанных устройств')}</span>
         </div>
       ) : (
         <div className="devices-list">
@@ -95,52 +95,49 @@ function DevicesSection({ uid }) {
       {/* Pairing code generator */}
       <div className="pairing-card">
         <div className="pairing-header">
-          <div className="pairing-title">Добавить новое устройство</div>
+          <div className="pairing-title">{t('settings.devices.add_new', 'Добавить новое устройство')}</div>
           <div className="pairing-hint">
-            Установите агент на ПК ребёнка и введите код при первом запуске
+            {t('settings.devices.add_hint', 'Установите агент на ПК ребёнка и введите код при первом запуске')}
           </div>
         </div>
-
-        {code ? (
-          <div className="code-display">
-            <div className="code-label">Код привязки (действителен 15 минут)</div>
-            <div className="code-value">
-              {code.split('').map((c, i) => (
-                <span key={i} className="code-char">{c}</span>
-              ))}
-            </div>
-            <div className="code-actions">
-              <button className="btn btn-ghost btn-sm" onClick={() => setCode('')}>
-                Отмена
-              </button>
-              <button className="btn btn-ghost btn-sm" onClick={generateCode}>
-                🔄 Новый код
-              </button>
-            </div>
-            <div className="code-steps">
-              <div className="code-step">
-                <span className="step-num">1</span>
-                <span>Установите <strong>KidsControlPC Agent</strong> на ПК ребёнка</span>
+        <div className="pairing-body" style={{ marginTop: '1rem' }}>
+          {code ? (
+            <div className="code-display">
+              <div className="code-label">{t('settings.devices.code_active', 'Код привязки (действителен 15 минут)')}</div>
+              <div className="code-value">
+                {code.split('').map((c, i) => (
+                  <span key={i} className="code-char">{c}</span>
+                ))}
               </div>
-              <div className="code-step">
-                <span className="step-num">2</span>
-                <span>При запуске агент спросит код привязки — введите код выше</span>
+              <div className="code-actions">
+                <button className="btn btn-ghost btn-sm" onClick={() => setCode('')}>Отмена</button>
+                <button className="btn btn-ghost btn-sm" onClick={generateCode}>🔄 Новый код</button>
               </div>
-              <div className="code-step">
-                <span className="step-num">3</span>
-                <span>Устройство появится в этом списке автоматически</span>
+              <div className="code-steps">
+                <div className="code-step">
+                  <span className="step-num">1</span>
+                  <span>Установите <strong>KidsControlPC Agent</strong> на ПК ребёнка</span>
+                </div>
+                <div className="code-step">
+                  <span className="step-num">2</span>
+                  <span>При запуске агент спросит код привязки — введите код выше</span>
+                </div>
+                <div className="code-step">
+                  <span className="step-num">3</span>
+                  <span>Устройство появится в этом списке автоматически</span>
+                </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <button
-            className="btn btn-primary pairing-btn"
-            onClick={generateCode}
-            disabled={generating}
-          >
-            {generating ? <><span className="btn-spinner-sm" /> Генерирую...</> : '+ Сгенерировать код привязки'}
-          </button>
-        )}
+          ) : (
+            <button
+              className="btn btn-primary pairing-btn"
+              onClick={generateCode}
+              disabled={generating}
+            >
+              {generating ? <><span className="btn-spinner-sm" /> ...</> : t('settings.devices.code_gen', '+ Сгенерировать код привязки')}
+            </button>
+          )}
+        </div>
       </div>
     </section>
   )
@@ -213,40 +210,13 @@ function DeviceCard({ device, onRemove, onRename, deleting }) {
 
 // ─── Account section ──────────────────────────────────────────────────────────
 function AccountSection({ user }) {
-  const [currentPwd, setCurrentPwd]   = useState('')
-  const [newPwd, setNewPwd]           = useState('')
-  const [confirmPwd, setConfirmPwd]   = useState('')
-  const [pwdLoading, setPwdLoading]   = useState(false)
-  const [pwdMsg, setPwdMsg]           = useState(null)  // { type: 'success'|'error', text }
+  const { t, i18n } = useTranslation()
+  const { logout } = useRulesStore()
 
-  const changePassword = async (e) => {
-    e.preventDefault()
-    if (newPwd !== confirmPwd) {
-      setPwdMsg({ type: 'error', text: 'Новые пароли не совпадают' })
-      return
-    }
-    if (newPwd.length < 6) {
-      setPwdMsg({ type: 'error', text: 'Пароль должен быть не менее 6 символов' })
-      return
-    }
-    setPwdLoading(true)
-    setPwdMsg(null)
-    try {
-      const credential = EmailAuthProvider.credential(user.email, currentPwd)
-      await reauthenticateWithCredential(auth.currentUser, credential)
-      await updatePassword(auth.currentUser, newPwd)
-      setPwdMsg({ type: 'success', text: 'Пароль успешно изменён' })
-      setCurrentPwd(''); setNewPwd(''); setConfirmPwd('')
-    } catch (err) {
-      const msgs = {
-        'auth/wrong-password': 'Неверный текущий пароль',
-        'auth/invalid-credential': 'Неверный текущий пароль',
-        'auth/too-many-requests': 'Слишком много попыток, подождите немного',
-      }
-      setPwdMsg({ type: 'error', text: msgs[err.code] || err.message })
-    } finally {
-      setPwdLoading(false)
-    }
+  const handleLanguageChange = (e) => {
+    const lang = e.target.value
+    i18n.changeLanguage(lang)
+    localStorage.setItem('appLanguage', lang)
   }
 
   return (
@@ -254,61 +224,42 @@ function AccountSection({ user }) {
       <div className="settings-section-header">
         <div className="settings-section-icon">👤</div>
         <div>
-          <h2 className="settings-section-title">Аккаунт</h2>
-          <p className="settings-section-desc">Управление профилем и паролем</p>
+          <h2 className="settings-section-title">{t('settings.account.title', 'Аккаунт')}</h2>
+          <p className="settings-section-desc">{t('settings.account.desc', 'Управление профилем и настройками')}</p>
         </div>
       </div>
 
-      {/* Account info */}
-      <div className="account-info-card">
-        <div className="account-avatar">{user.email[0].toUpperCase()}</div>
-        <div>
-          <div className="account-email">{user.email}</div>
-          <div className="account-plan">
-            <span className="plan-badge">Free</span>
-            <span className="account-since">
-              Аккаунт создан: {user.metadata?.creationTime
-                ? new Date(user.metadata.creationTime).toLocaleDateString('ru-RU')
-                : '—'}
-            </span>
+      <div className="account-card">
+        <div className="account-info">
+          <div className="account-avatar">
+            {user?.email?.charAt(0).toUpperCase()}
+          </div>
+          <div className="account-details">
+            <span className="account-email">{user?.email}</span>
+            <span className="account-id">ID: {user?.uid.slice(0,8)}...</span>
           </div>
         </div>
-      </div>
+        
+        <div className="settings-row" style={{ marginTop: 20 }}>
+          <label style={{ color: 'var(--text-secondary)' }}>{t('settings.language', 'Язык (Language)')}</label>
+          <select 
+            className="input" 
+            style={{ width: 150 }} 
+            value={i18n.language} 
+            onChange={handleLanguageChange}
+          >
+            <option value="en">English</option>
+            <option value="ru">Русский</option>
+          </select>
+        </div>
 
-      {/* Change password */}
-      <div className="settings-subsection">
-        <h3 className="subsection-title">Сменить пароль</h3>
-        <form className="settings-form" onSubmit={changePassword}>
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Текущий пароль</label>
-              <input type="password" className="input" placeholder="Текущий пароль"
-                value={currentPwd} onChange={e => setCurrentPwd(e.target.value)} required />
-            </div>
-          </div>
-          <div className="form-row two-cols">
-            <div className="form-group">
-              <label className="form-label">Новый пароль</label>
-              <input type="password" className="input" placeholder="Минимум 6 символов"
-                value={newPwd} onChange={e => setNewPwd(e.target.value)} required />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Повтор пароля</label>
-              <input type="password" className="input" placeholder="Повторите новый пароль"
-                value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)} required />
-            </div>
-          </div>
-
-          {pwdMsg && (
-            <div className={`settings-msg ${pwdMsg.type}`}>
-              {pwdMsg.type === 'success' ? '✓ ' : '✕ '}{pwdMsg.text}
-            </div>
-          )}
-
-          <button type="submit" className="btn btn-primary" disabled={pwdLoading}>
-            {pwdLoading ? <><span className="btn-spinner-sm" /> Сохранение...</> : 'Сменить пароль'}
-          </button>
-        </form>
+        <button 
+          className="btn btn-danger" 
+          onClick={logout}
+          style={{ width: '100%', marginTop: 20 }}
+        >
+          {t('settings.account.logout', 'Выйти из аккаунта')}
+        </button>
       </div>
     </section>
   )
@@ -390,6 +341,7 @@ const TABS = [
 ]
 
 export default function SettingsPanel() {
+  const { t } = useTranslation()
   const { user } = useRulesStore()
   const [activeTab, setActiveTab] = useState('devices')
 
@@ -398,7 +350,7 @@ export default function SettingsPanel() {
   return (
     <div className="settings-panel animate-in">
       <div className="settings-sidebar">
-        <div className="settings-sidebar-title">Настройки</div>
+        <div className="settings-sidebar-title">{t('settings.title', 'Настройки')}</div>
         {TABS.map(tab => (
           <button
             key={tab.id}

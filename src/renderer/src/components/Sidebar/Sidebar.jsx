@@ -1,72 +1,28 @@
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '../../stores/useRulesStore'
 import './Sidebar.css'
 
 const MODES = [
-  {
-    id: 'permanent',
-    label: 'Постоянная',
-    sub: 'Всегда активна',
-    icon: (
-      <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-        <rect x="2.5" y="6.5" width="10" height="7" rx="1.3" stroke="currentColor" strokeWidth="1.2"/>
-        <path d="M4.5 6.5V5a3 3 0 016 0v1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-      </svg>
-    )
-  },
-  {
-    id: 'timer',
-    label: 'По таймеру',
-    sub: 'Обратный отсчёт',
-    icon: (
-      <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-        <circle cx="7.5" cy="8.5" r="5" stroke="currentColor" strokeWidth="1.2"/>
-        <path d="M7.5 5.5v3l2 1.2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M5.5 2h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-      </svg>
-    )
-  },
-  {
-    id: 'schedule',
-    label: 'По расписанию',
-    sub: 'Дни недели + время',
-    icon: (
-      <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-        <rect x="1.5" y="2.5" width="12" height="10" rx="1.3" stroke="currentColor" strokeWidth="1.2"/>
-        <path d="M5 1v3M10 1v3M1.5 6.5h12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-        <circle cx="5" cy="9.5" r="0.9" fill="currentColor"/>
-        <circle cx="7.5" cy="9.5" r="0.9" fill="currentColor"/>
-        <circle cx="10" cy="9.5" r="0.9" fill="currentColor"/>
-      </svg>
-    )
-  },
-  {
-    id: 'date',
-    label: 'По дате',
-    sub: 'Конкретная дата',
-    icon: (
-      <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-        <rect x="1.5" y="2.5" width="12" height="10" rx="1.3" stroke="currentColor" strokeWidth="1.2"/>
-        <path d="M5 1v3M10 1v3M1.5 6.5h12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-        <path d="M4.5 9.5h6M4.5 11.5h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-      </svg>
-    )
-  },
-  {
-    id: 'pomodoro',
-    label: 'Интервалы',
-    sub: 'Чередование работы и отдыха',
-    icon: (
-      <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-        <circle cx="7.5" cy="7.5" r="5" stroke="currentColor" strokeWidth="1.2"/>
-        <path d="M7.5 4.5v3h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M5.5 1h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-      </svg>
-    )
-  },
+  { id: 'permanent', icon: (
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="2.5" y="6.5" width="10" height="7" rx="1.3" stroke="currentColor" strokeWidth="1.2"/><path d="M4.5 6.5V5a3 3 0 016 0v1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+    ) },
+  { id: 'timer', icon: (
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="8.5" r="5" stroke="currentColor" strokeWidth="1.2"/><path d="M7.5 5.5v3l2 1.2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/><path d="M5.5 2h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+    ) },
+  { id: 'schedule', icon: (
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2.5" width="12" height="10" rx="1.3" stroke="currentColor" strokeWidth="1.2"/><path d="M5 1v3M10 1v3M1.5 6.5h12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/><circle cx="5" cy="9.5" r="0.9" fill="currentColor"/><circle cx="7.5" cy="9.5" r="0.9" fill="currentColor"/><circle cx="10" cy="9.5" r="0.9" fill="currentColor"/></svg>
+    ) },
+  { id: 'date', icon: (
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="1.5" y="2.5" width="12" height="10" rx="1.3" stroke="currentColor" strokeWidth="1.2"/><path d="M5 1v3M10 1v3M1.5 6.5h12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/><path d="M4.5 9.5h6M4.5 11.5h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+    ) },
+  { id: 'pomodoro', icon: (
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="5" stroke="currentColor" strokeWidth="1.2"/><path d="M7.5 4.5v3h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/><path d="M5.5 1h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+    ) },
 ]
 
 function DeviceItem({ device, isSelected, onClick }) {
+  const { t } = useTranslation()
   const lastSeen = device.lastSeen?.toDate?.()
   const isOnline = device.status !== 'offline' && lastSeen && (Date.now() - lastSeen.getTime()) < 2 * 60 * 1000
 
@@ -79,10 +35,10 @@ function DeviceItem({ device, isSelected, onClick }) {
       <span className={`status-dot ${isOnline ? 'active' : 'inactive'}`} />
       <div className="device-item-labels">
         <span className="device-item-name">
-          {device.alias || device.hostname || 'Устройство'}
+          {device.alias || device.hostname || t('sidebar.device_default')}
         </span>
         <span className="device-item-sub">
-          {isOnline ? 'Онлайн' : 'Оффлайн'}
+          {isOnline ? t('sidebar.device_online') : t('sidebar.device_offline')}
         </span>
       </div>
       {isSelected && <span className="device-item-check">✓</span>}
@@ -91,6 +47,7 @@ function DeviceItem({ device, isSelected, onClick }) {
 }
 
 export default function Sidebar() {
+  const { t } = useTranslation()
   const {
     devices, selectedDeviceId, selectDevice,
     activeTab, setActiveTab,
@@ -172,8 +129,8 @@ export default function Sidebar() {
               >
                 <span className="sidebar-icon">{mode.icon}</span>
                 <span className="sidebar-labels">
-                  <span className="sidebar-label">{mode.label}</span>
-                  <span className="sidebar-sub">{mode.sub}</span>
+                  <span className="sidebar-label">{t(`sidebar.modes.${mode.id}`)}</span>
+                  <span className="sidebar-sub">{t(`sidebar.modes.${mode.id}_sub`)}</span>
                 </span>
                 {activeTab === mode.id && <span className="sidebar-active-bar" />}
               </button>

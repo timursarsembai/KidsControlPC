@@ -9,9 +9,11 @@ import {
 } from 'firebase/auth'
 import { useRulesStore } from './stores/useRulesStore'
 import Dashboard from './components/Dashboard/Dashboard'
+import { useTranslation } from 'react-i18next'
 import './App.css'
 
 export default function App() {
+  const { t } = useTranslation()
   const [authLoading, setAuthLoading] = useState(true)
   const [mode, setMode]               = useState('login')
   const [email, setEmail]             = useState('')
@@ -40,11 +42,11 @@ export default function App() {
     e.preventDefault()
     setError('')
     if (mode === 'register' && password !== confirmPwd) {
-      setError('Пароли не совпадают')
+      setError(t('auth.pwd_mismatch', 'Пароли не совпадают'))
       return
     }
     if (mode !== 'reset' && password.length < 6) {
-      setError('Пароль должен быть не менее 6 символов')
+      setError(t('auth.pwd_length', 'Пароль должен быть не менее 6 символов'))
       return
     }
     setLoading(true)
@@ -107,16 +109,16 @@ export default function App() {
           <button
             className={`auth-tab ${mode === 'login' || mode === 'reset' ? 'active' : ''}`}
             onClick={() => { setMode('login'); setError(''); setResetMsg('') }}
-          >Войти</button>
+          >{t('auth.login', 'Войти')}</button>
           <button
             className={`auth-tab ${mode === 'register' ? 'active' : ''}`}
             onClick={() => { setMode('register'); setError(''); setResetMsg('') }}
-          >Создать аккаунт</button>
+          >{t('auth.register', 'Создать аккаунт')}</button>
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label">Email</label>
+            <label className="form-label">{t('auth.email', 'Email')}</label>
             <input
               type="email"
               className="input"
@@ -130,11 +132,11 @@ export default function App() {
 
           {mode !== 'reset' && (
             <div className="form-group">
-            <label className="form-label">Пароль</label>
+            <label className="form-label">{t('auth.password', 'Пароль')}</label>
             <input
               type="password"
               className="input"
-              placeholder="Минимум 6 символов"
+              placeholder="••••••••"
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
@@ -143,7 +145,7 @@ export default function App() {
             {mode === 'login' && (
               <div style={{ textAlign: 'right', marginTop: 8 }}>
                 <a href="#" onClick={(e) => { e.preventDefault(); setMode('reset'); setError(''); setResetMsg('') }} style={{ color: 'var(--brand-primary)', fontSize: 13, textDecoration: 'none' }}>
-                  Забыли пароль?
+                  {t('auth.forgot_password', 'Забыли пароль?')}
                 </a>
               </div>
             )}
@@ -152,11 +154,11 @@ export default function App() {
 
           {mode === 'register' && (
             <div className="form-group">
-              <label className="form-label">Повторите пароль</label>
+              <label className="form-label">{t('auth.confirm_password', 'Повторите пароль')}</label>
               <input
                 type="password"
                 className="input"
-                placeholder="Повторите пароль"
+                placeholder="••••••••"
                 value={confirmPwd}
                 onChange={e => setConfirmPwd(e.target.value)}
                 required
@@ -171,14 +173,14 @@ export default function App() {
           <button type="submit" className="btn btn-primary auth-submit" disabled={loading}>
             {loading
               ? <span className="btn-spinner" />
-              : mode === 'login' ? '→ Войти' : mode === 'register' ? '✓ Создать аккаунт' : 'Сбросить пароль'
+              : mode === 'login' ? t('auth.submit_login', '→ Войти') : mode === 'register' ? t('auth.submit_register', '✓ Создать аккаунт') : t('auth.submit_reset', 'Сбросить пароль')
             }
           </button>
         </form>
 
         {mode === 'register' && (
           <div className="auth-note">
-            После регистрации вы сможете добавить ПК ребёнка через раздел настроек
+            {t('auth.register_note', 'После регистрации вы сможете добавить ПК ребёнка через раздел настроек')}
           </div>
         )}
       </div>
