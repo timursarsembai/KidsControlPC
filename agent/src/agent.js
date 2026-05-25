@@ -27,6 +27,7 @@ import { loadPairing, runPairingFlow }    from './pairing.js'
 import { applyHostsBlock, clearHostsBlock, extractDomains } from './hostsBlocker.js'
 import { enforceProcessRules }            from './processEnforcer.js'
 import { getInstalledPrograms, getRunningProcesses } from './scanner.js'
+import { checkAndUpdateSilently }         from './updater.js'
 
 // ─── Init Firebase ────────────────────────────────────────────────────────────
 const app = initializeApp(firebaseConfig)
@@ -38,6 +39,7 @@ let activeRules = []           // current rules from Firestore
 let unsubRules  = null         // Firestore listener unsubscribe
 let heartbeatTimer = null
 let enforceTimer   = null
+let updateTimer    = null
 let isShuttingDown = false
 
 // Cached installed programs and their running states to minimize Firestore writes
@@ -319,7 +321,8 @@ async function shutdown(reason) {
   // Stop timers
   clearInterval(heartbeatTimer)
   clearInterval(enforceTimer)
-  unsubRules?.()
+  clearInterval(updateTimer)
+  if (unsubRules) unsubRules()
 
   log('✅ Агент остановлен. hosts-блокировки сняты.')
   process.exit(0)
@@ -388,9 +391,16 @@ async function main() {
   // 5. Start heartbeat timer
   heartbeatTimer = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS)
 
-  // 6. Start enforcement loop
+  // 6. Start enforcing loop
   enforceTimer = setInterval(enforceRules, ENFORCE_INTERVAL_MS)
+  
+  // 5. Start auto-updater loop (check every 2 hours)
+  updateTimer = setInterval(() => checkAndUpdateSilently(log), 2 * 60 * 60 * 1000)
+  
+  // Check for updates immediately on startup (with 10 sec delay so it doesn't interrupt initial sync)
+  setTimeout(() => checkAndUpdateSilently(log), 10_000)
 
+  log(`✅ Агент запущен и мониторит процессы (DeviceID: ${deviceId})`)
   log(`✅ Агент активен. Проверка правил каждые ${ENFORCE_INTERVAL_MS/1000}с.`)
   log('   Нажмите Ctrl+C для остановки.\n')
 }

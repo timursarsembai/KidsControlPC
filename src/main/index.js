@@ -1,6 +1,7 @@
-import { app, BrowserWindow, shell, ipcMain } from 'electron'
+import { app, BrowserWindow, shell, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { getSystemApps } from './scanner'
+import { autoUpdater } from 'electron-updater'
 
 let mainWindow = null
 
@@ -23,6 +24,10 @@ function createWindow() {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
+    // Check for updates
+    if (app.isPackaged) {
+      autoUpdater.checkForUpdatesAndNotify().catch(err => console.error('AutoUpdate check failed:', err))
+    }
   })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -73,4 +78,18 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
+})
+
+// ── AutoUpdater Events ───────────────────────────────────────────────────────
+autoUpdater.on('update-downloaded', (info) => {
+  dialog.showMessageBox({
+    type: 'info',
+    title: 'Обновление загружено',
+    message: `Доступна новая версия программы (v${info.version}).\\nУстановить и перезапустить прямо сейчас?`,
+    buttons: ['Да, установить', 'Позже']
+  }).then((result) => {
+    if (result.response === 0) {
+      autoUpdater.quitAndInstall()
+    }
+  })
 })
