@@ -8,7 +8,8 @@ const resources = {
   ru: { translation: ru }
 }
 
-const savedLanguage = localStorage.getItem('appLanguage') || 'en'
+const systemLang = navigator.language.startsWith('ru') ? 'ru' : 'en'
+const savedLanguage = localStorage.getItem('appLanguage') || systemLang
 
 i18n
   .use(initReactI18next)

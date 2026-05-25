@@ -1,19 +1,11 @@
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '../../stores/useRulesStore'
 import ProgramsPanel from '../ProgramsPanel/ProgramsPanel'
 import WebPanel from '../WebPanel/WebPanel'
 import PomodoroPanel from '../PomodoroPanel/PomodoroPanel'
 import NotificationsPanel from '../NotificationsPanel/NotificationsPanel'
 import './ContentArea.css'
-
-const TAB_META = {
-  permanent: { label: 'Постоянная блокировка', icon: '🔒', desc: 'Блокировка активна всегда, пока не отключите вручную' },
-  timer:     { label: 'Блокировка по таймеру', icon: '⏱️', desc: 'Задайте длительность — блокировка снимется автоматически' },
-  schedule:  { label: 'Блокировка по расписанию', icon: '📅', desc: 'Активна только в выбранные дни недели и временной диапазон' },
-  date:      { label: 'Блокировка по дате', icon: '📆', desc: 'Активна в конкретные даты с заданным временным диапазоном' },
-  pomodoro:  { label: 'Интервалы (Помодоро)', icon: '🍅', desc: 'Единый таймер, чередующий фазы блокировки и доступа для выбранных программ и сайтов' },
-  notifications: { label: 'Уведомления', icon: '🔔', desc: 'История всех системных событий и тревог' },
-}
 
 // ── Empty state: no devices ───────────────────────────────────────────────────
 function NoDeviceState({ onAddDevice }) {
@@ -50,12 +42,20 @@ function NoDeviceState({ onAddDevice }) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function ContentArea() {
+  const { t } = useTranslation()
   const {
     activeTab, activeSubTab, setActiveSubTab,
     selectedDeviceId, devices, setShowSettings
   } = useRulesStore()
 
-  const meta           = TAB_META[activeTab]
+  const meta = {
+    permanent: { label: t('sidebar.modes.permanent'), icon: '🔒', desc: t('sidebar.modes.permanent_sub') },
+    timer:     { label: t('sidebar.modes.timer'), icon: '⏱️', desc: t('sidebar.modes.timer_sub') },
+    schedule:  { label: t('sidebar.modes.schedule'), icon: '📅', desc: t('sidebar.modes.schedule_sub') },
+    date:      { label: t('sidebar.modes.date'), icon: '📆', desc: t('sidebar.modes.date_sub') },
+    pomodoro:  { label: t('sidebar.modes.pomodoro'), icon: '🍅', desc: t('sidebar.modes.pomodoro_sub') },
+    notifications: { label: t('sidebar.notifications', 'Уведомления'), icon: '🔔', desc: t('sidebar.notifications_sub', 'История системных событий') },
+  }[activeTab]
   const selectedDevice = devices.find(d => d.id === selectedDeviceId)
 
   if (!selectedDeviceId || !selectedDevice) {
@@ -76,8 +76,7 @@ export default function ContentArea() {
             <h1 className="content-title">{meta.label}</h1>
             <p className="content-desc">
               {meta.desc}
-              <span className="content-device-badge">
-                🖥️ {selectedDevice.alias || selectedDevice.hostname || 'Устройство'}
+                🖥️ {selectedDevice.alias || selectedDevice.hostname || t('sidebar.device_default', 'Устройство')}
               </span>
             </p>
           </div>
@@ -95,7 +94,7 @@ export default function ContentArea() {
                 <rect x="1" y="1" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="1.3"/>
                 <path d="M4 5h7M4 7.5h5M4 10h7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
               </svg>
-              Программы ОС
+              {t('sidebar.programs', 'Программы')}
             </button>
             <button
               id="subtab-web"
@@ -107,7 +106,7 @@ export default function ContentArea() {
                 <path d="M7.5 1.5c-2 2-2 9 0 12M7.5 1.5c2 2 2 9 0 12" stroke="currentColor" strokeWidth="1.3"/>
                 <path d="M1.5 7.5h12" stroke="currentColor" strokeWidth="1.3"/>
               </svg>
-              Веб-ресурсы
+              {t('sidebar.websites', 'Сайты')}
             </button>
           </div>
         )}

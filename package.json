@@ -23,7 +23,8 @@
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
-      "displayLanguageSelector": true
+      "displayLanguageSelector": true,
+      "installerLanguages": ["en_US", "ru_RU"]
     },
     "publish": [
       {

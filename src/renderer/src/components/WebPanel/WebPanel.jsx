@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '../../stores/useRulesStore'
 import { evaluateRule } from '../../utils/timeHelpers'
 
@@ -34,6 +35,7 @@ function ScheduleCell({ value, onChange }) {
 }
 
 export default function WebPanel({ mode }) {
+  const { t } = useTranslation()
   const { addWebsite, toggleWebsiteBlock, removeWebsiteGlobally, getFilteredWebsites, rulesLoading, rules } = useRulesStore()
   const websites = getFilteredWebsites()
   const [urlInput, setUrlInput] = useState('')
@@ -126,8 +128,8 @@ export default function WebPanel({ mode }) {
       {/* ── Add form ── */}
       <div className="web-add-card">
         <div className="web-add-header">
-          <span className="web-add-title">Добавить веб-ресурс</span>
-          <span className="web-add-hint">Добавленный ресурс сразу блокируется</span>
+          <span className="web-add-title">{t('web.add_title', 'Добавить веб-ресурс')}</span>
+          <span className="web-add-hint">{t('web.add_hint', 'Добавленный ресурс сразу блокируется')}</span>
         </div>
         <div className="web-add-form">
           <div className="url-input-wrap">
@@ -135,7 +137,7 @@ export default function WebPanel({ mode }) {
             <input
               type="text"
               className={`input url-input ${error ? 'input-error' : ''}`}
-              placeholder="youtube.com или vk.com"
+              placeholder={t('web.placeholder', 'youtube.com или vk.com')}
               value={urlInput}
               onChange={e => { setUrlInput(e.target.value); setError('') }}
               onKeyDown={e => e.key === 'Enter' && handleAdd()}
@@ -152,7 +154,7 @@ export default function WebPanel({ mode }) {
         {error && <div className="input-error-msg">{error}</div>}
         {urlInput && (
           <div className="scope-preview">
-            <span>🔒 Будет заблокирован весь домен: <strong>{resolvePattern(urlInput)}</strong></span>
+            <span>🔒 {t('web.domain_blocked', 'Будет заблокирован весь домен:')} <strong>{resolvePattern(urlInput)}</strong></span>
           </div>
         )}
       </div>
@@ -162,11 +164,11 @@ export default function WebPanel({ mode }) {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Веб-ресурс</th>
+              <th>{t('web.col_web', 'Веб-ресурс')}</th>
 
-              {mode === 'timer'    && <th>Таймер</th>}
-              {mode === 'schedule' && <th>Расписание</th>}
-              {mode === 'date'     && <th>Дата и время</th>}
+              {mode === 'timer'    && <th>{t('programs.col_timer', 'Таймер')}</th>}
+              {mode === 'schedule' && <th>{t('programs.col_schedule', 'Расписание')}</th>}
+              {mode === 'date'     && <th>{t('programs.col_date', 'Дата и время')}</th>}
               <th style={{ width: 140 }}>Действие</th>
             </tr>
           </thead>
@@ -176,8 +178,8 @@ export default function WebPanel({ mode }) {
                 <td colSpan={mode === 'permanent' ? 2 : 3}>
                   <div className="empty-state">
                     <span className="empty-state-icon">🌐</span>
-                    <span className="empty-state-title">Нет добавленных ресурсов</span>
-                    <span className="empty-state-desc">Введите URL выше и нажмите «Добавить»</span>
+                    <span className="empty-state-title">{t('web.empty_title', 'Нет добавленных ресурсов')}</span>
+                    <span className="empty-state-desc">{t('web.empty_desc', 'Введите URL выше и нажмите «Добавить»')}</span>
                   </div>
                 </td>
               </tr>
@@ -186,7 +188,7 @@ export default function WebPanel({ mode }) {
                 <td>
                   <div className="site-url">{site.inputUrl}</div>
                   {site.resolvedPattern !== site.inputUrl &&
-                    <div className="site-pattern">→ блокируется: {site.resolvedPattern}</div>}
+                    <div className="site-pattern">→ {t('web.blocked_arrow', 'блокируется:')} {site.resolvedPattern}</div>}
                   {site.evaluation.statusText && mode !== 'permanent' && (
                     <div className="countdown-text" style={{ fontSize: '0.75rem', color: '#8b8d98', marginTop: 2 }}>
                       {site.evaluation.statusText}
@@ -242,7 +244,7 @@ export default function WebPanel({ mode }) {
                       disabled={pendingBlocks.has(site.id)}
                       onClick={() => site.blocked ? handleUnblock(site) : handleBlock(site)}
                     >
-                      {pendingBlocks.has(site.id) ? <span className="btn-spinner-sm" /> : (site.blocked ? 'Отключить правило' : 'Включить правило')}
+                      {pendingBlocks.has(site.id) ? <span className="btn-spinner-sm" /> : (site.blocked ? t('programs.btn_disable', 'Отключить правило') : t('programs.btn_enable', 'Включить правило'))}
                     </button>
                     <button
                       className="btn btn-icon btn-sm"
@@ -263,7 +265,7 @@ export default function WebPanel({ mode }) {
 
       <div className="panel-footer">
         <span className="footer-count">
-          {websites.filter(w => w.blocked).length} из {websites.length} заблокировано
+          {websites.filter(w => w.blocked).length} {t('programs.of', 'из')} {websites.length} {t('programs.blocked_word', 'заблокировано')}
         </span>
       </div>
     </div>

@@ -241,19 +241,6 @@ function AccountSection({ user }) {
           </div>
         </div>
         
-        <div className="settings-row" style={{ marginTop: 20 }}>
-          <label style={{ color: 'var(--text-secondary)' }}>{t('settings.language', 'Язык (Language)')}</label>
-          <select 
-            className="input" 
-            style={{ width: 150 }} 
-            value={i18n.language} 
-            onChange={handleLanguageChange}
-          >
-            <option value="en">English</option>
-            <option value="ru">Русский</option>
-          </select>
-        </div>
-
         <button 
           className="btn btn-danger" 
           onClick={logout}
@@ -268,6 +255,7 @@ function AccountSection({ user }) {
 
 // ─── About / Info section ─────────────────────────────────────────────────────
 function AboutSection() {
+  const { t, i18n } = useTranslation()
   const { devices } = useRulesStore()
   const hasDevices = devices.length > 0
   const anyOnline = devices.some(d => {
@@ -275,60 +263,54 @@ function AboutSection() {
     return lastSeen && (Date.now() - lastSeen.getTime()) < 3 * 60 * 1000
   })
 
+  const handleLanguageChange = (e) => {
+    const lang = e.target.value
+    i18n.changeLanguage(lang)
+    localStorage.setItem('appLanguage', lang)
+  }
+
   return (
     <section className="settings-section">
       <div className="settings-section-header">
         <div className="settings-section-icon">ℹ️</div>
         <div>
-          <h2 className="settings-section-title">О приложении</h2>
-          <p className="settings-section-desc">Версия и информация о системе</p>
+          <h2 className="settings-section-title">{t('settings.about.title', 'О приложении')}</h2>
+          <p className="settings-section-desc">{t('settings.about.desc', 'Настройки и информация')}</p>
         </div>
       </div>
 
       <div className="about-grid">
         <div className="about-item">
-          <span className="about-label">Приложение</span>
-          <span className="about-value">KidsControlPC (Родительское)</span>
+          <span className="about-label">{t('settings.language', 'Язык (Language)')}</span>
+          <select 
+            className="input" 
+            style={{ width: '100%', marginTop: 5 }} 
+            value={i18n.language} 
+            onChange={handleLanguageChange}
+          >
+            <option value="en">English</option>
+            <option value="ru">Русский</option>
+          </select>
+        </div>
+        
+        <div className="about-item">
+          <span className="about-label">{t('settings.about.app_label', 'Приложение')}</span>
+          <span className="about-value">KidsControlPC</span>
         </div>
         <div className="about-item">
-          <span className="about-label">Версия</span>
-          <span className="about-value">1.0.0-mvp</span>
-        </div>
-        <div className="about-item">
-          <span className="about-label">Платформа</span>
-          <span className="about-value">Windows 10 / 11</span>
-        </div>
-        <div className="about-item">
-          <span className="about-label">Синхронизация</span>
-          <span className="about-value">Firebase Firestore (Realtime)</span>
-        </div>
-        <div className="about-item">
-          <span className="about-label">Статус агента</span>
+          <span className="about-label">{t('settings.about.status_label', 'Статус агента')}</span>
           <span className="about-value about-status">
             {hasDevices ? (
               anyOnline ? (
-                <><span className="status-dot active" /> Подключен ({devices.length} ПК, Онлайн)</>
+                <><span className="status-dot active" /> {t('settings.about.status_online', 'Подключен (Онлайн)')}</>
               ) : (
-                <><span className="status-dot inactive" /> Подключен ({devices.length} ПК, Оффлайн)</>
+                <><span className="status-dot inactive" /> {t('settings.about.status_offline', 'Подключен (Оффлайн)')}</>
               )
             ) : (
-              <><span className="status-dot inactive" /> Не установлен на детском ПК</>
+              <><span className="status-dot inactive" /> {t('settings.about.status_not_installed', 'Не установлен')}</>
             )}
           </span>
         </div>
-      </div>
-
-      <div className="about-roadmap">
-        <div className="roadmap-title">Дорожная карта</div>
-        <div className="roadmap-item done">✅ Родительский UI с устройствами в виде вкладок</div>
-        <div className="roadmap-item done">✅ Firebase Auth + Firestore синхронизация устройств</div>
-        <div className="roadmap-item done">✅ Синхронизация списка установленных программ с детского ПК</div>
-        <div className="roadmap-item done">✅ Экран настроек (устройства, аккаунт)</div>
-        <div className="roadmap-item done">✅ Детский фоновый агент (подключение, heartbeat, реестр)</div>
-        <div className="roadmap-item done">✅ Реальная блокировка сайтов (hosts) и программ (процессы)</div>
-        <div className="roadmap-item done">✅ Запуск в фоне как служба Windows Service</div>
-        <div className="roadmap-item future">⏳ Уведомления-тревоги при попытке обхода защиты</div>
-        <div className="roadmap-item future">⏳ Экран активности и статистики</div>
       </div>
     </section>
   )

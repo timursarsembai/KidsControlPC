@@ -62,6 +62,7 @@ function DateInput({ value, onChange }) {
 
 // ─── Main component ──────────────────────────────────────────────────────────
 export default function ProgramsPanel({ mode }) {
+  const { t } = useTranslation()
   const {
     programSearch, setProgramSearch,
     programFilter, setProgramFilter,
@@ -168,7 +169,7 @@ export default function ProgramsPanel({ mode }) {
             <path d="M9.5 9.5l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
           </svg>
           <input type="text" className="input search-input"
-            placeholder="Поиск программы..."
+            placeholder={t('programs.search', 'Поиск программы...')}
             value={programSearch}
             onChange={e => setProgramSearch(e.target.value)} />
         </div>
@@ -178,15 +179,15 @@ export default function ProgramsPanel({ mode }) {
           onChange={val => setProgramFilter(val)}
           style={{ width: 220 }}
           options={[
-            { value: 'all', label: 'Все программы' },
-            { value: 'blocked', label: 'Заблокированы' },
-            { value: 'unblocked', label: 'Незаблокированы' }
+            { value: 'all', label: t('programs.filter_all', 'Все программы') },
+            { value: 'blocked', label: t('programs.filter_blocked', 'Заблокированы') },
+            { value: 'unblocked', label: t('programs.filter_unblocked', 'Незаблокированы') }
           ]}
         />
         
         <div className="sync-status">
           <span className={`sync-dot ${isOnline ? 'active' : 'inactive'}`} />
-          {isOnline ? 'Синхронизация с агентом' : 'Агент отключен'}
+          {isOnline ? t('programs.sync_active', 'Синхронизация с агентом') : t('programs.sync_offline', 'Агент отключен')}
         </div>
       </div>
 
@@ -195,10 +196,10 @@ export default function ProgramsPanel({ mode }) {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Программа</th>
-              {mode === 'timer'    && <th>Таймер</th>}
-              {mode === 'schedule' && <th>Расписание</th>}
-              {mode === 'date'     && <th>Дата и время</th>}
+              <th>{t('programs.col_program', 'Программа')}</th>
+              {mode === 'timer'    && <th>{t('programs.col_timer', 'Таймер')}</th>}
+              {mode === 'schedule' && <th>{t('programs.col_schedule', 'Расписание')}</th>}
+              {mode === 'date'     && <th>{t('programs.col_date', 'Дата и время')}</th>}
               <th style={{ width: 150 }}>Статус</th>
               <th style={{ width: 160 }}>Действие</th>
             </tr>
@@ -208,16 +209,16 @@ export default function ProgramsPanel({ mode }) {
               <tr><td colSpan={colSpan}>
                 <div className="empty-state">
                   <div className="loading-spinner" />
-                  <span className="empty-state-title">Загрузка программ с устройства...</span>
-                  <span className="empty-state-desc">Синхронизируем базу данных приложений</span>
+                  <span className="empty-state-title">{t('programs.loading_state', 'Загрузка программ с устройства...')}</span>
+                  <span className="empty-state-desc">{t('programs.loading_desc', 'Синхронизируем базу данных приложений')}</span>
                 </div>
               </td></tr>
             ) : mergedApps.length === 0 ? (
               <tr><td colSpan={colSpan}>
                 <div className="empty-state">
                   <span className="empty-state-icon">🔍</span>
-                  <span className="empty-state-title">Ничего не найдено</span>
-                  <span className="empty-state-desc">Убедитесь, что агент запущен на детском ПК и загрузил список программ</span>
+                  <span className="empty-state-title">{t('programs.empty_title', 'Ничего не найдено')}</span>
+                  <span className="empty-state-desc">{t('programs.empty_desc', 'Убедитесь, что агент запущен на детском ПК и загрузил список программ')}</span>
                 </div>
               </td></tr>
             ) : mergedApps.map(app => {
@@ -229,7 +230,7 @@ export default function ProgramsPanel({ mode }) {
                     <div className="prog-name">{app.name}</div>
                     {app.path
                       ? <div className="prog-path">{app.path}</div>
-                      : <div className="prog-path no-path">Путь неизвестен</div>
+                      : <div className="prog-path no-path">{t('programs.path_unknown', 'Путь неизвестен')}</div>
                     }
                     {app.publisher && <div className="prog-publisher">{app.publisher}</div>}
                   </td>
@@ -260,8 +261,8 @@ export default function ProgramsPanel({ mode }) {
                       <span className={`status-dot ${app.blocked ? 'blocked' : 'unblocked'}`} />
                       <span className="status-text">
                         {app.blocked 
-                          ? (app.isBlockedByTime ? 'Заблокирован' : 'Ожидание') 
-                          : 'Отключен'}
+                          ? (app.isBlockedByTime ? t('programs.status_blocked', 'Заблокирован') : t('programs.status_waiting', 'Ожидание')) 
+                          : t('programs.status_disabled', 'Отключен')}
                       </span>
                     </div>
                     {app.statusText && mode !== 'permanent' && (
@@ -280,7 +281,7 @@ export default function ProgramsPanel({ mode }) {
                     >
                       {isPending
                         ? <span className="btn-spinner-sm" />
-                        : app.blocked ? 'Отключить правило' : 'Включить правило'
+                        : app.blocked ? t('programs.btn_disable', 'Отключить правило') : t('programs.btn_enable', 'Включить правило')
                       }
                     </button>
                   </td>
@@ -295,13 +296,13 @@ export default function ProgramsPanel({ mode }) {
       <div className="panel-footer">
         <span className="footer-count">
           {appsLoading
-            ? 'Загрузка...'
-            : `${mergedApps.filter(a => a.blocked).length} из ${mergedApps.length} заблокировано`
+            ? t('programs.loading', 'Загрузка...')
+            : `${mergedApps.filter(a => a.blocked).length} из ${mergedApps.length} {t('programs.blocked_word', 'заблокировано')}`
           }
         </span>
         {!appsLoading && (
           <span className="footer-hint">
-            {installedApps.length} программ синхронизировано
+            {installedApps.length} {t('programs.synced_count', 'программ синхронизировано')}
           </span>
         )}
       </div>

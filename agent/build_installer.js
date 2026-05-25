@@ -73,6 +73,10 @@ RequestExecutionLevel admin
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "Russian"
 
+!define MUI_LANGDLL_REGISTRY_ROOT "HKCU"
+!define MUI_LANGDLL_REGISTRY_KEY "Software\\KidsControlPCAgent"
+!define MUI_LANGDLL_REGISTRY_VALUENAME "Installer Language"
+
 Function .onInit
   !insertmacro MUI_LANGDLL_DISPLAY
 FunctionEnd
