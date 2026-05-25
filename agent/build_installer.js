@@ -54,6 +54,7 @@ async function build() {
   <executable>%BASE%\\agent.exe</executable>
   <arguments>--service</arguments>
   <logmode>roll</logmode>
+  <onfailure action="restart" delay="10 sec"/>
 </service>`
     fs.writeFileSync(path.join(distDir, 'WinSW.xml'), xml)
 
@@ -81,12 +82,14 @@ Section "Install"
   File "WinSW.exe"
   File "WinSW.xml"
   
-  ; Install and start service
+  ; Install service
   nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" install'
-  nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" start'
   
   ; Run agent.exe once to trigger pairing code prompt in foreground
   ExecWait '"$INSTDIR\\agent.exe"'
+
+  ; Start service in background after pairing
+  nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" start'
 SectionEnd
 `
     fs.writeFileSync(path.join(distDir, 'installer.nsi'), nsi)
