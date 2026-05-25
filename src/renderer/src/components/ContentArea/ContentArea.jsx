@@ -53,6 +53,7 @@ export default function ContentArea() {
     timer:     { label: t('sidebar.modes.timer'), icon: '⏱️', desc: t('sidebar.modes.timer_sub') },
     schedule:  { label: t('sidebar.modes.schedule'), icon: '📅', desc: t('sidebar.modes.schedule_sub') },
     date:      { label: t('sidebar.modes.date'), icon: '📆', desc: t('sidebar.modes.date_sub') },
+    monthly_date: { label: t('sidebar.modes.monthly_date', 'Ежемесячно'), icon: '📆', desc: t('sidebar.modes.monthly_date_sub', 'Блокировка по числам месяца') },
     pomodoro:  { label: t('sidebar.modes.pomodoro'), icon: '🍅', desc: t('sidebar.modes.pomodoro_sub') },
     notifications: { label: t('sidebar.notifications', 'Уведомления'), icon: '🔔', desc: t('sidebar.notifications_sub', 'История системных событий') },
   }[activeTab]
