@@ -90,6 +90,33 @@ Section "Install"
 
   ; Start service in background after pairing
   nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" start'
+  
+  ; Create uninstaller
+  WriteUninstaller "$INSTDIR\\uninstall.exe"
+  
+  ; Add to Windows Add/Remove Programs
+  WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\KidsControlAgent" "DisplayName" "KidsControlPC Agent"
+  WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\KidsControlAgent" "UninstallString" '"$INSTDIR\\uninstall.exe"'
+  WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\KidsControlAgent" "QuietUninstallString" '"$INSTDIR\\uninstall.exe" /S'
+SectionEnd
+
+Section "Uninstall"
+  ; Stop and uninstall service
+  nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" stop'
+  nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" uninstall'
+  
+  ; Delete files
+  Delete "$INSTDIR\\agent.exe"
+  Delete "$INSTDIR\\WinSW.exe"
+  Delete "$INSTDIR\\WinSW.xml"
+  Delete "$INSTDIR\\pairing.json"
+  Delete "$INSTDIR\\uninstall.exe"
+  
+  ; Remove directory
+  RMDir /r "$INSTDIR"
+  
+  ; Remove registry keys
+  DeleteRegKey HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\KidsControlAgent"
 SectionEnd
 `
     fs.writeFileSync(path.join(distDir, 'installer.nsi'), nsi)
