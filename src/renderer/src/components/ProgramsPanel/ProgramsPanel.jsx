@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '../../stores/useRulesStore'
 import { evaluateRule } from '../../utils/timeHelpers'
 import Select from '../Select/Select'

@@ -22,6 +22,10 @@ function createWindow() {
     }
   })
 
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    console.log(`[Renderer Console] ${message} (at ${sourceId}:${line})`)
+  })
+
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
     // Check for updates
