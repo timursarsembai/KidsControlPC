@@ -76,6 +76,7 @@ export default function ContentArea() {
             <h1 className="content-title">{meta.label}</h1>
             <p className="content-desc">
               {meta.desc}
+              <span className="content-device-badge">
                 🖥️ {selectedDevice.alias || selectedDevice.hostname || t('sidebar.device_default', 'Устройство')}
               </span>
             </p>
