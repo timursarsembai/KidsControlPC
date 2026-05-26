@@ -126,6 +126,7 @@ async function performProgramScan() {
           path: app.path,
           publisher: app.publisher,
           version: app.version,
+          uninstallCmd: app.uninstallCmd,
           running: false
         }, { merge: true })
       }
@@ -367,13 +368,67 @@ function subscribeToRules() {
     where('status', 'in', ['active', 'inactive'])
   )
 
-  unsubRules = onSnapshot(q, (snap) => {
-    activeRules = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    log(`📋 Received ${activeRules.length} rules (${activeRules.filter(r=>r.status==='active').length} active)`)
-    console.log(JSON.stringify(activeRules, null, 2))
-  }, (err) => {
-    log(`❌ Firestore error: ${err.message}`)
-  })
+  unsubRules = onSnapshot(
+    q,
+    (snap) => {
+      activeRules = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      log(`📋 Received ${activeRules.length} rules (${activeRules.filter(r=>r.status==='active').length} active)`)
+    },
+    (err) => {
+      log(`❌ Firestore error: ${err.message}`)
+    }
+  )
+}
+
+let unsubCommands = null
+function subscribeToCommands() {
+  if (!parentUid || !deviceId) return
+
+  const commandsRef = collection(db, 'users', parentUid, 'devices', deviceId, 'commands')
+  const q = query(commandsRef, where('status', '==', 'pending'))
+
+  unsubCommands = onSnapshot(
+    q,
+    async (snapshot) => {
+      for (const change of snapshot.docChanges()) {
+        if (change.type === 'added') {
+          const cmdDoc = change.doc
+          const cmd = cmdDoc.data()
+          log(`📥 Received command: ${cmd.type}`)
+          
+          if (cmd.type === 'uninstall' && cmd.uninstallCmd) {
+            log(`🗑️  Uninstalling app: ${cmd.appId}...`)
+            try {
+              // Update status to processing
+              await updateDoc(cmdDoc.ref, { status: 'processing' })
+              
+              // Run uninstall command
+              const { exec } = require('child_process')
+              const { promisify } = require('util')
+              const execAsync = promisify(exec)
+              
+              await execAsync(cmd.uninstallCmd, { timeout: 60000 })
+              log(`✅ Uninstall command finished for ${cmd.appId}`)
+              
+              await updateDoc(cmdDoc.ref, { status: 'completed', completedAt: serverTimestamp() })
+              
+              // Rescan programs after successful uninstall
+              setTimeout(performProgramScan, 2000)
+            } catch (err) {
+              log(`❌ Uninstall failed: ${err.message}`)
+              await updateDoc(cmdDoc.ref, { status: 'failed', error: err.message, completedAt: serverTimestamp() })
+            }
+          } else {
+            // Unknown or invalid command
+            await updateDoc(cmdDoc.ref, { status: 'failed', error: 'Invalid command or missing uninstallCmd' })
+          }
+        }
+      }
+    },
+    (err) => {
+      log(`⚠️  Commands sync error: ${err.message}`)
+    }
+  )
 }
 
 // ─── Graceful shutdown ─────────────────────────────────────────────────────────
@@ -404,6 +459,7 @@ async function shutdown(reason) {
   clearInterval(enforceTimer)
   clearInterval(updateTimer)
   if (unsubRules) unsubRules()
+  if (unsubCommands) unsubCommands()
 
   log('✅ Agent stopped. Hosts blocks cleared.')
   process.exit(0)
@@ -468,6 +524,9 @@ async function main() {
 
   // 4. Subscribe to rules
   subscribeToRules()
+  
+  // Subscribe to remote commands
+  subscribeToCommands()
 
   // 5. Start heartbeat timer
   heartbeatTimer = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS)

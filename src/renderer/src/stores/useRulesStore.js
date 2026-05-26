@@ -4,7 +4,8 @@ import {
   subscribeToDevices, updateDeviceAlias, removeDevice,
   subscribeToInstalledApps,
   subscribeToAlerts, acknowledgeAlert, acknowledgeAllAlerts,
-  initUserProfile, serverTimestamp, savePomodoroRule
+  initUserProfile, serverTimestamp, savePomodoroRule,
+  sendDeviceCommand as fsSendDeviceCommand
 } from '../firebase/firestore'
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -268,6 +269,13 @@ export const useRulesStore = create((set, get) => ({
     const unread = alerts.filter(a => !a.acknowledged).map(a => a.id)
     if (unread.length === 0) return
     await acknowledgeAllAlerts(user.uid, unread)
+  },
+
+  // ── Commands ──
+  sendDeviceCommand: async (commandData) => {
+    const { user, selectedDeviceId } = get()
+    if (!user || !selectedDeviceId) throw new Error('No device selected')
+    await fsSendDeviceCommand(user.uid, selectedDeviceId, commandData)
   },
 
   // ── Derived: programs from installedApps merged with rules ──

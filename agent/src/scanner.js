@@ -74,7 +74,7 @@ foreach ($p in $paths) {
 }
 $result = $apps |
   Where-Object { $_.DisplayName -and $_.DisplayName.Trim() -ne '' -and $_.SystemComponent -ne 1 -and -not $_.ParentKeyName } |
-  Select-Object DisplayName, InstallLocation, DisplayIcon, Publisher, DisplayVersion |
+  Select-Object DisplayName, InstallLocation, DisplayIcon, Publisher, DisplayVersion, QuietUninstallString, UninstallString |
   Sort-Object DisplayName -Unique
 
 if ($result) {
@@ -118,6 +118,7 @@ if ($result) {
           exeBasename,
           publisher: app.Publisher?.trim() || '',
           version: app.DisplayVersion?.trim() || '',
+          uninstallCmd: app.QuietUninstallString?.trim() || app.UninstallString?.trim() || '',
           running: false
         }
       })

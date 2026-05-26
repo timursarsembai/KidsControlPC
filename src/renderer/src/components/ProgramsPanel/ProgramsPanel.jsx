@@ -127,7 +127,7 @@ export default function ProgramsPanel({ mode }) {
     programFilter, setProgramFilter,
     getFilteredPrograms,
     appsLoading,
-    toggleProgramBlock, addProgramRule,
+    toggleProgramBlock, addProgramRule, sendDeviceCommand,
     selectedDeviceId, devices
   } = useRulesStore()
 
@@ -215,6 +215,28 @@ export default function ProgramsPanel({ mode }) {
       setPendingBlocks(prev => { const s = new Set(prev); s.delete(app.id); return s })
     }
   }, [toggleProgramBlock])
+
+  // ── Remote Uninstall ──
+  const handleRemoteUninstall = useCallback(async (app) => {
+    if (!app.uninstallCmd) {
+      alert(t('programs.no_uninstall_cmd', 'Для этой программы не найдена команда удаления. Скорее всего она является системной или портативной.'))
+      return
+    }
+    const confirmMsg = t('programs.confirm_uninstall', 'Вы уверены, что хотите УДАЛЕННО УДАЛИТЬ программу "{{name}}" с компьютера ребенка?\\n\\nВнимание: Это действие может быть необратимым!', { name: app.name }).replace(/\\n/g, '\n')
+    if (!window.confirm(confirmMsg)) return
+
+    try {
+      await sendDeviceCommand({
+        type: 'uninstall',
+        appId: app.id,
+        appName: app.name,
+        uninstallCmd: app.uninstallCmd
+      })
+      alert(t('programs.uninstall_sent', 'Команда на удаление успешно отправлена на детский ПК. Выполнение может занять несколько секунд.'))
+    } catch (err) {
+      alert('Ошибка при отправке команды: ' + err.message)
+    }
+  }, [sendDeviceCommand, t])
 
   const colSpan = mode === 'permanent' ? 3 : 4
 
@@ -340,16 +362,27 @@ export default function ProgramsPanel({ mode }) {
 
                   {/* Action */}
                   <td>
-                    <button
-                      className={`btn btn-sm ${app.blocked ? 'btn-success' : 'btn-danger'}`}
-                      disabled={isPending}
-                      onClick={() => app.blocked ? handleUnblock(app) : handleBlock(app)}
-                    >
-                      {isPending
-                        ? <span className="btn-spinner-sm" />
-                        : app.blocked ? t('programs.btn_disable', 'Отключить правило') : t('programs.btn_enable', 'Включить правило')
-                      }
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <button
+                        className={`btn btn-sm ${app.blocked ? 'btn-success' : 'btn-danger'}`}
+                        disabled={isPending}
+                        onClick={() => app.blocked ? handleUnblock(app) : handleBlock(app)}
+                        style={{ flex: 1 }}
+                      >
+                        {isPending
+                          ? <span className="btn-spinner-sm" />
+                          : app.blocked ? t('programs.btn_disable', 'Отключить правило') : t('programs.btn_enable', 'Включить правило')
+                        }
+                      </button>
+                      <button
+                        className="btn btn-sm"
+                        style={{ padding: '0 8px', background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-danger)', fontSize: '1rem' }}
+                        title={t('programs.btn_uninstall', 'Удалить программу с ПК')}
+                        onClick={() => handleRemoteUninstall(app)}
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )

@@ -19,6 +19,7 @@ const deviceDoc      = (uid, devId)       => doc(db, 'users', uid, 'devices', de
 const rulesCol       = (uid, devId)       => collection(db, 'users', uid, 'devices', devId, 'rules')
 const ruleDoc        = (uid, devId, rId)  => doc(db, 'users', uid, 'devices', devId, 'rules', rId)
 const appsCol        = (uid, devId)       => collection(db, 'users', uid, 'devices', devId, 'installedApps')
+const commandsCol    = (uid, devId)       => collection(db, 'users', uid, 'devices', devId, 'commands')
 const alertsCol      = (uid)              => collection(db, 'users', uid, 'alerts')
 const pairingCol     = (uid)              => collection(db, 'users', uid, 'pairingCodes')
 
@@ -103,7 +104,18 @@ export async function uploadInstalledApps(uid, deviceId, apps) {
   }
 }
 
-// ─── Alerts ──────────────────────────────────────────────────────────────────
+// ─── Commands ─────────────────────────────────────────────────────────────────
+
+export async function sendDeviceCommand(uid, deviceId, commandData) {
+  if (!deviceId) throw new Error('No device selected')
+  return await addDoc(commandsCol(uid, deviceId), {
+    ...commandData,
+    status: 'pending',
+    timestamp: serverTimestamp()
+  })
+}
+
+// ─── Alerts ───────────────────────────────────────────────────────────────────
 
 export function subscribeToAlerts(uid, callback) {
   return onSnapshot(
