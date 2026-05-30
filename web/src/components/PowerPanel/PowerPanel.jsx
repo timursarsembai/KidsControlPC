@@ -11,7 +11,7 @@ const COLORS = [
   { label: 'Темно-зеленый', value: '#092113' }
 ]
 
-export default function PowerPanel() {
+export default function PowerPanel({ mode = 'power' }) {
   const { sendDeviceCommand, updateDeviceSettings, selectedDeviceId, devices } = useRulesStore()
   
   const selectedDevice = devices.find(d => d.id === selectedDeviceId)
@@ -19,6 +19,8 @@ export default function PowerPanel() {
   const [lockMessage, setLockMessage] = useState('Время вышло! Компьютер заблокирован.')
   const [lockColor, setLockColor] = useState('#000000')
   const [lockPin, setLockPin] = useState('')
+  const [sendingAction, setSendingAction] = useState(null)
+  const [successAction, setSuccessAction] = useState(null)
 
   useEffect(() => {
     if (selectedDevice) {
@@ -38,12 +40,18 @@ export default function PowerPanel() {
       }
     }
     
+    setSendingAction(action)
     try {
       if (action === 'lock') {
         await updateDeviceSettings({
+          isLocked: true,
           lockMessage,
           lockColor,
           lockPin
+        })
+      } else if (action === 'unlock') {
+        await updateDeviceSettings({
+          isLocked: false
         })
       }
 
@@ -55,40 +63,49 @@ export default function PowerPanel() {
       }
       
       await sendDeviceCommand(payload)
-      
-      // We could show a toast here, but for now standard alert
-      // alert('Команда отправлена успешно!')
+      setSuccessAction(action)
+      setTimeout(() => setSuccessAction(null), 2500)
     } catch (e) {
       alert('Ошибка при отправке команды: ' + e.message)
+    } finally {
+      setSendingAction(null)
     }
   }
 
-  return (
-    <div className="power-panel animate-in">
-      <div className="power-card">
-        <h2 className="power-card-title">Мгновенные действия</h2>
-        <p className="power-card-desc">Эти команды будут отправлены на устройство немедленно.</p>
-        
-        <div className="power-actions-grid">
-          <button className="power-action-btn shutdown" onClick={() => handleCommand('shutdown')}>
-            <span className="power-action-icon">🔴</span>
-            <span className="power-action-label">Выключить</span>
-          </button>
-          <button className="power-action-btn restart" onClick={() => handleCommand('restart')}>
-            <span className="power-action-icon">🔄</span>
-            <span className="power-action-label">Перезагрузить</span>
-          </button>
-          <button className="power-action-btn sleep" onClick={() => handleCommand('sleep')}>
-            <span className="power-action-icon">🌙</span>
-            <span className="power-action-label">Спящий режим</span>
-          </button>
-          <button className="power-action-btn hibernate" onClick={() => handleCommand('hibernate')}>
-            <span className="power-action-icon">❄️</span>
-            <span className="power-action-label">Гибернация</span>
-          </button>
+  // ── Power mode ─────────────────────────────────────────────────────────────
+  if (mode === 'power') {
+    return (
+      <div className="power-panel animate-in">
+        <div className="power-card">
+          <h2 className="power-card-title">Мгновенные действия</h2>
+          <p className="power-card-desc">Эти команды будут отправлены на устройство немедленно.</p>
+          
+          <div className="power-actions-grid">
+            <button className={`power-action-btn shutdown ${successAction === 'shutdown' ? 'success' : ''}`} onClick={() => handleCommand('shutdown')} disabled={sendingAction}>
+              {sendingAction === 'shutdown' ? <span className="power-spinner" /> : successAction === 'shutdown' ? <span className="power-action-icon">✅</span> : <span className="power-action-icon">🔴</span>}
+              <span className="power-action-label">{successAction === 'shutdown' ? 'Отправлено' : 'Выключить'}</span>
+            </button>
+            <button className={`power-action-btn restart ${successAction === 'restart' ? 'success' : ''}`} onClick={() => handleCommand('restart')} disabled={sendingAction}>
+              {sendingAction === 'restart' ? <span className="power-spinner" /> : successAction === 'restart' ? <span className="power-action-icon">✅</span> : <span className="power-action-icon">🔄</span>}
+              <span className="power-action-label">{successAction === 'restart' ? 'Отправлено' : 'Перезагрузить'}</span>
+            </button>
+            <button className={`power-action-btn sleep ${successAction === 'sleep' ? 'success' : ''}`} onClick={() => handleCommand('sleep')} disabled={sendingAction}>
+              {sendingAction === 'sleep' ? <span className="power-spinner" /> : successAction === 'sleep' ? <span className="power-action-icon">✅</span> : <span className="power-action-icon">🌙</span>}
+              <span className="power-action-label">{successAction === 'sleep' ? 'Отправлено' : 'Спящий режим'}</span>
+            </button>
+            <button className={`power-action-btn hibernate ${successAction === 'hibernate' ? 'success' : ''}`} onClick={() => handleCommand('hibernate')} disabled={sendingAction}>
+              {sendingAction === 'hibernate' ? <span className="power-spinner" /> : successAction === 'hibernate' ? <span className="power-action-icon">✅</span> : <span className="power-action-icon">❄️</span>}
+              <span className="power-action-label">{successAction === 'hibernate' ? 'Отправлено' : 'Гибернация'}</span>
+            </button>
+          </div>
         </div>
       </div>
+    )
+  }
 
+  // ── Lock screen mode ────────────────────────────────────────────────────────
+  return (
+    <div className="power-panel animate-in">
       <div className="power-card">
         <h2 className="power-card-title">Блокировка экрана</h2>
         <p className="power-card-desc">Моментально заблокировать экран компьютера полноэкранной заставкой.</p>
@@ -135,9 +152,15 @@ export default function PowerPanel() {
             </div>
           </div>
         </div>
-        <button className="btn btn-primary lock-btn-large" onClick={() => handleCommand('lock')}>
-          🔒 Заблокировать сейчас
-        </button>
+        {selectedDevice?.isLocked ? (
+          <button className={`btn btn-secondary lock-btn-large ${successAction === 'unlock' ? 'success' : ''}`} onClick={() => handleCommand('unlock')} disabled={sendingAction}>
+            {sendingAction === 'unlock' ? <span className="power-spinner btn-spinner" /> : successAction === 'unlock' ? '✅ Отправлено!' : '🔓 Разблокировать сейчас'}
+          </button>
+        ) : (
+          <button className={`btn btn-primary lock-btn-large ${successAction === 'lock' ? 'success' : ''}`} onClick={() => handleCommand('lock')} disabled={sendingAction}>
+            {sendingAction === 'lock' ? <span className="power-spinner btn-spinner" /> : successAction === 'lock' ? '✅ Отправлено!' : '🔒 Заблокировать сейчас'}
+          </button>
+        )}
       </div>
     </div>
   )

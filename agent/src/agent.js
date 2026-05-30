@@ -198,7 +198,14 @@ function startWidgetListener() {
         log('🔓 Widget unlocked by PIN')
         // Send alert
         await sendAlert('pin_unlock', 'Разблокировка по ПИН-коду')
-        // Update any commands if needed
+        // Update device document
+        try {
+          await updateDoc(doc(db, 'users', parentUid, 'devices', deviceId), {
+            isLocked: false
+          })
+        } catch (err) {
+          log('❌ Error updating isLocked state: ' + err.message)
+        }
       }
     })
   })

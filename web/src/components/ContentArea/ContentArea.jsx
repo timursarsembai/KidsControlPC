@@ -56,7 +56,8 @@ export default function ContentArea() {
     date:      { label: t('sidebar.modes.date'), icon: '📆', desc: t('sidebar.modes.date_sub') },
     monthly_date: { label: t('sidebar.modes.monthly_date', 'Ежемесячно'), icon: '📆', desc: t('sidebar.modes.monthly_date_sub', 'Блокировка по числам месяца') },
     pomodoro:  { label: t('sidebar.modes.pomodoro'), icon: '🍅', desc: t('sidebar.modes.pomodoro_sub') },
-    power:     { label: 'Управление питанием', icon: '⚡', desc: 'Питание, заставка и команды' },
+    power:     { label: 'Питание', icon: '⚡', desc: 'Выключение, перезагрузка, спящий режим, гибернация' },
+    lock_screen: { label: 'Блокировка экрана', icon: '🔒', desc: 'Цвет фона, ПИН-код, заставка' },
     notifications: { label: t('sidebar.notifications', 'Уведомления'), icon: '🔔', desc: t('sidebar.notifications_sub', 'История системных событий') },
   }[activeTab]
   const selectedDevice = devices.find(d => d.id === selectedDeviceId)
@@ -87,7 +88,7 @@ export default function ContentArea() {
         </div>
 
         {/* Sub-tabs */}
-        {activeTab !== 'notifications' && activeTab !== 'power' && (
+        {activeTab !== 'notifications' && activeTab !== 'power' && activeTab !== 'lock_screen' && (
           <div className="subtab-bar">
             <button
               id="subtab-programs"
@@ -121,7 +122,9 @@ export default function ContentArea() {
         {activeTab === 'notifications' ? (
           <NotificationsPanel key={`${selectedDeviceId}-notifications`} />
         ) : activeTab === 'power' ? (
-          <PowerPanel key={`${selectedDeviceId}-power`} />
+          <PowerPanel key={`${selectedDeviceId}-power`} mode="power" />
+        ) : activeTab === 'lock_screen' ? (
+          <PowerPanel key={`${selectedDeviceId}-lock_screen`} mode="lock_screen" />
         ) : activeTab === 'pomodoro' ? (
           <PomodoroPanel key={`${selectedDeviceId}-pomodoro`} />
         ) : activeSubTab === 'programs' ? (

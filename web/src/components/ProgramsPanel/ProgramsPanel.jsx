@@ -131,6 +131,8 @@ export default function ProgramsPanel({ mode }) {
     selectedDeviceId, devices
   } = useRulesStore()
 
+  const [showRunningOnly, setShowRunningOnly] = useState(false)
+
   const selectedDevice = devices.find(d => d.id === selectedDeviceId)
   const lastSeen = selectedDevice?.lastSeen?.toDate?.()
   const isOnline = selectedDevice?.status !== 'offline' && lastSeen && (Date.now() - lastSeen.getTime()) < 2 * 60 * 1000
@@ -155,7 +157,10 @@ export default function ProgramsPanel({ mode }) {
 
   // Derived merged and filtered apps from store
   const mergedApps = useMemo(() => {
-    const apps = getFilteredPrograms()
+    let apps = getFilteredPrograms()
+    if (showRunningOnly) {
+      apps = apps.filter(app => app.running)
+    }
     return apps.map(app => {
       const rule = rules.find(r => r.type === 'program' && r.mode === mode && r.program.name === app.name)
       const evaluation = evaluateRule(rule, now)
@@ -168,7 +173,7 @@ export default function ProgramsPanel({ mode }) {
         running: app.running || false
       }
     })
-  }, [installedApps, rules, programSearch, programFilter, getFilteredPrograms, mode, now])
+  }, [installedApps, rules, programSearch, programFilter, getFilteredPrograms, mode, now, showRunningOnly])
 
   // Auto-disable expired timers
   useEffect(() => {
@@ -266,11 +271,14 @@ export default function ProgramsPanel({ mode }) {
             { value: 'unblocked', label: t('programs.filter_unblocked', 'Незаблокированы') }
           ]}
         />
-        
-        <div className="sync-status">
-          <span className={`sync-dot ${isOnline ? 'active' : 'inactive'}`} />
-          {isOnline ? t('programs.sync_active', 'Синхронизация с агентом') : t('programs.sync_offline', 'Агент отключен')}
-        </div>
+        <button 
+          className={`filter-btn ${showRunningOnly ? 'active' : ''}`}
+          onClick={() => setShowRunningOnly(!showRunningOnly)}
+          title="Показать только запущенные программы"
+        >
+          <span className="running-dot" />
+          Только запущенные
+        </button>
       </div>
 
       {/* Table */}

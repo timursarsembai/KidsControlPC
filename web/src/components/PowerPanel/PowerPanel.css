@@ -68,6 +68,42 @@
   color: var(--text-primary);
 }
 
+.power-action-btn.success {
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.05);
+}
+
+.power-action-btn.success .power-action-label {
+  color: #22c55e;
+}
+
+.power-action-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.power-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: var(--accent);
+  animation: spin 1s ease-in-out infinite;
+  margin-bottom: 4px;
+}
+
+.btn-spinner {
+  border-top-color: #ffffff;
+  margin-bottom: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .lock-settings {
   display: grid;
   grid-template-columns: 1fr 1fr;
