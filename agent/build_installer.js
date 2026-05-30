@@ -112,6 +112,9 @@ Section "Install"
   ; Start service in background after pairing
   nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" start'
   
+  ; Restart TimerWidget for the current user
+  Exec 'explorer.exe "$INSTDIR\\TimerWidget.exe"'
+  
   ; Create uninstaller
   WriteUninstaller "$INSTDIR\\uninstall.exe"
   
