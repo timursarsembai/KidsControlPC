@@ -164,7 +164,8 @@ export default function ProgramsPanel({ mode }) {
         ruleId: rule?.id,
         rule: rule,
         isBlockedByTime: evaluation.isBlocked,
-        statusText: evaluation.statusText
+        statusText: evaluation.statusText,
+        running: app.running || false
       }
     })
   }, [installedApps, rules, programSearch, programFilter, getFilteredPrograms, mode, now])
@@ -309,7 +310,12 @@ export default function ProgramsPanel({ mode }) {
                 <tr key={app.id}>
                   {/* Name & path */}
                   <td>
-                    <div className="prog-name">{app.name}</div>
+                    <div className="prog-name-row">
+                      <div className="prog-name">{app.name}</div>
+                      {app.running && (
+                        <span className="prog-running-badge">● Работает</span>
+                      )}
+                    </div>
                     {app.path
                       ? <div className="prog-path">{app.path}</div>
                       : <div className="prog-path no-path">{t('programs.path_unknown', 'Путь неизвестен')}</div>
