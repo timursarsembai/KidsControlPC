@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { useRulesStore } from '../../stores/useRulesStore'
+import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import './TitleBar.css'
 
 export default function TitleBar({ onSignOut }) {
@@ -148,3 +148,4 @@ export default function TitleBar({ onSignOut }) {
     </div>
   )
 }
+

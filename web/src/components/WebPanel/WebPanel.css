@@ -1,0 +1,157 @@
+.web-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Add card */
+.web-add-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+.web-add-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.web-add-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.web-add-hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.web-add-form {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.url-input-wrap {
+  position: relative;
+  flex: 1;
+}
+
+.url-prefix {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.url-input-wrap .url-input {
+  padding-left: 36px;
+}
+
+.url-input.input-error {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-dim);
+}
+
+.scope-select-wrap {
+  width: 220px;
+}
+
+.scope-select { cursor: pointer; }
+
+.add-btn { height: 36px; }
+
+.input-error-msg {
+  font-size: 12px;
+  color: var(--danger);
+}
+
+.scope-preview {
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-height: 18px;
+}
+.scope-preview strong { color: var(--accent); }
+
+/* Table specifics */
+.site-url {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.site-pattern {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  margin-top: 2px;
+}
+
+.scope-badge {
+  display: inline-flex;
+  padding: 3px 8px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.action-btns {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.btn-spinner-sm {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+
+/* Reuse from ProgramsPanel */
+.schedule-input-wrap { display: flex; flex-direction: column; gap: var(--space-2); min-width: 220px; }
+.time-range { display: flex; align-items: center; gap: var(--space-2); }
+.time-input { width: 100px; padding: 5px 8px; font-size: 12px; }
+.date-input { width: 150px; padding: 5px 8px; font-size: 12px; }
+.time-sep { color: var(--text-tertiary); font-size: 13px; }
+.timer-input-wrap { display: flex; align-items: center; gap: var(--space-2); }
+.timer-input { width: 80px; text-align: center; }
+.timer-unit { font-size: 12px; color: var(--text-tertiary); }
+
+.day-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-base);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--dur-base) var(--ease);
+}
+.day-label.checked {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.day-label:hover { border-color: var(--border-strong); color: var(--text-primary); }

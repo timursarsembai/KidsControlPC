@@ -1,5 +1,5 @@
 import React from 'react'
-import { useRulesStore } from '../../stores/useRulesStore'
+import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import ContentArea from '../ContentArea/ContentArea'
 import SettingsPanel from '../SettingsPanel/SettingsPanel'
 import TitleBar from '../TitleBar/TitleBar'
@@ -22,3 +22,4 @@ export default function Dashboard({ onSignOut }) {
     </div>
   )
 }
+

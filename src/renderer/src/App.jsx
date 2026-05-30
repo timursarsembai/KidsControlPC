@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { auth } from './firebase/config'
+import { auth } from '@kidscontrol/shared/firebase/config'
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -7,7 +7,7 @@ import {
   onAuthStateChanged,
   signOut
 } from 'firebase/auth'
-import { useRulesStore } from './stores/useRulesStore'
+import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import Dashboard from './components/Dashboard/Dashboard'
 import { useTranslation } from 'react-i18next'
 import './App.css'
@@ -193,3 +193,4 @@ export default function App() {
     </div>
   )
 }
+

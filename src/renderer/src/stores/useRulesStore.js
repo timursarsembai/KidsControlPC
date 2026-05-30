@@ -6,7 +6,7 @@ import {
   subscribeToAlerts, acknowledgeAlert, acknowledgeAllAlerts,
   initUserProfile, serverTimestamp, savePomodoroRule,
   sendDeviceCommand as fsSendDeviceCommand
-} from '../firebase/firestore'
+} from '@kidscontrol/shared/firebase/firestore'
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 export const useRulesStore = create((set, get) => ({
@@ -343,3 +343,4 @@ export const useRulesStore = create((set, get) => ({
     })
   },
 }))
+

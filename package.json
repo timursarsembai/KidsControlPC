@@ -3,7 +3,14 @@
   "version": "1.0.0",
   "description": "Parental control desktop application",
   "main": "out/main/index.js",
+  "workspaces": [
+    "shared",
+    "web"
+  ],
   "scripts": {
+    "web:dev": "npm run dev --workspace=web",
+    "web:build": "npm run build --workspace=web",
+    "web:deploy": "npm run deploy --workspace=web",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "build:win": "electron-vite build && electron-builder --win --x64",

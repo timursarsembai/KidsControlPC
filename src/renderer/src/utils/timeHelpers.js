@@ -162,3 +162,4 @@ export function evaluateRule(rule, now = new Date()) {
       return { isBlocked: false, statusText: null }
   }
 }
+

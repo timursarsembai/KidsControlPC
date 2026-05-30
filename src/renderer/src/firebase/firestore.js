@@ -162,3 +162,4 @@ export async function initUserProfile(uid, email) {
     await setDoc(ref, { email, createdAt: serverTimestamp(), plan: 'free' })
   }
 }
+

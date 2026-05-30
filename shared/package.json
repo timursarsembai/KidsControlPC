@@ -1,0 +1,21 @@
+{
+  "name": "@kidscontrol/shared",
+  "version": "1.0.0",
+  "description": "Shared data layer for KidsControlPC (firebase, stores, utils, locales)",
+  "type": "module",
+  "exports": {
+    "./firebase/config": "./firebase/config.js",
+    "./firebase/firestore": "./firebase/firestore.js",
+    "./stores/useRulesStore": "./stores/useRulesStore.js",
+    "./utils/timeHelpers": "./utils/timeHelpers.js",
+    "./i18n": "./i18n.js",
+    "./locales/ru": "./locales/ru.json",
+    "./locales/en": "./locales/en.json"
+  },
+  "peerDependencies": {
+    "firebase": ">=10.0.0",
+    "i18next": ">=23.0.0",
+    "react-i18next": ">=14.0.0",
+    "zustand": ">=4.0.0"
+  }
+}
