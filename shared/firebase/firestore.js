@@ -115,6 +115,10 @@ export async function sendDeviceCommand(uid, deviceId, commandData) {
   })
 }
 
+export async function updateDeviceSettings(uid, deviceId, settings) {
+  await updateDoc(doc(db, 'users', uid, 'devices', deviceId), settings)
+}
+
 // ─── Alerts ───────────────────────────────────────────────────────────────────
 
 export function subscribeToAlerts(uid, callback) {

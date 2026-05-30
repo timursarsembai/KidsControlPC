@@ -145,6 +145,23 @@ export default function Sidebar() {
       {/* ── Spacer ── */}
       <div className="sidebar-spacer" />
 
+      {/* ── Power button ── */}
+      {selectedDeviceId && !showSettings && (
+        <button
+          className={`sidebar-settings-btn ${activeTab === 'power' && !showSettings ? 'active' : ''}`}
+          onClick={() => handleMode('power')}
+          style={{ marginBottom: 4 }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M7 1v4M7 9v4M3 3l2 2M11 3L9 5M3 11l2-2M11 11L9 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+              <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.2"/>
+            </svg>
+            Питание и Блокировка
+          </span>
+        </button>
+      )}
+
       {/* ── Notifications button ── */}
       {selectedDeviceId && !showSettings && (
         <button

@@ -189,6 +189,23 @@ function sendToWidget(message) {
   client.on('error', () => { /* ignore */ })
 }
 
+let widgetServer = null
+function startWidgetListener() {
+  widgetServer = net.createServer((socket) => {
+    socket.on('data', async (data) => {
+      const msg = data.toString().trim()
+      if (msg === 'unlock_by_pin') {
+        log('🔓 Widget unlocked by PIN')
+        // Send alert
+        await sendAlert('pin_unlock', 'Разблокировка по ПИН-коду')
+        // Update any commands if needed
+      }
+    })
+  })
+  widgetServer.listen(49153, '127.0.0.1')
+  widgetServer.on('error', () => { /* ignore if already listening */ })
+}
+
 // ─── Enforce rules ─────────────────────────────────────────────────────────────
 async function enforceRules() {
   if (isShuttingDown) return
@@ -394,33 +411,58 @@ function subscribeToCommands() {
         if (change.type === 'added') {
           const cmdDoc = change.doc
           const cmd = cmdDoc.data()
-          log(`📥 Received command: ${cmd.type}`)
+          // Support old 'type' and new 'action'
+          const action = cmd.action || cmd.type
+          log(`📥 Received command: ${action}`)
           
-          if (cmd.type === 'uninstall' && cmd.uninstallCmd) {
-            log(`🗑️  Uninstalling app: ${cmd.appId}...`)
-            try {
-              // Update status to processing
-              await updateDoc(cmdDoc.ref, { status: 'processing' })
-              
-              // Run uninstall command
-              const { exec } = require('child_process')
-              const { promisify } = require('util')
-              const execAsync = promisify(exec)
-              
+          try {
+            await updateDoc(cmdDoc.ref, { status: 'processing' })
+            
+            const { exec } = require('child_process')
+            const { promisify } = require('util')
+            const execAsync = promisify(exec)
+
+            if (action === 'uninstall' && cmd.uninstallCmd) {
+              log(`🗑️  Uninstalling app: ${cmd.appId}...`)
               await execAsync(cmd.uninstallCmd, { timeout: 60000 })
               log(`✅ Uninstall command finished for ${cmd.appId}`)
-              
-              await updateDoc(cmdDoc.ref, { status: 'completed', completedAt: serverTimestamp() })
-              
-              // Rescan programs after successful uninstall
               setTimeout(performProgramScan, 2000)
-            } catch (err) {
-              log(`❌ Uninstall failed: ${err.message}`)
-              await updateDoc(cmdDoc.ref, { status: 'failed', error: err.message, completedAt: serverTimestamp() })
+            } 
+            else if (action === 'shutdown') {
+              log(`🔴 Shutting down...`)
+              await execAsync('shutdown /s /t 0')
             }
-          } else {
-            // Unknown or invalid command
-            await updateDoc(cmdDoc.ref, { status: 'failed', error: 'Invalid command or missing uninstallCmd' })
+            else if (action === 'restart') {
+              log(`🔄 Restarting...`)
+              await execAsync('shutdown /r /t 0')
+            }
+            else if (action === 'sleep') {
+              log(`🌙 Sleeping...`)
+              await execAsync('rundll32.exe powrprof.dll,SetSuspendState 0,1,0')
+            }
+            else if (action === 'hibernate') {
+              log(`❄️ Hibernating...`)
+              await execAsync('rundll32.exe powrprof.dll,SetSuspendState 1,1,0')
+            }
+            else if (action === 'lock') {
+              log(`🔒 Locking screen...`)
+              const msg = cmd.message || 'Время вышло! Компьютер заблокирован.'
+              const color = cmd.color || '#000000'
+              const pin = cmd.pin || ''
+              sendToWidget(`lock|${msg}|${color}|${pin}`)
+            }
+            else if (action === 'unlock') {
+              log(`🔓 Unlocking screen...`)
+              sendToWidget(`unlock`)
+            }
+            else {
+              throw new Error(`Unknown command action: ${action}`)
+            }
+
+            await updateDoc(cmdDoc.ref, { status: 'completed', completedAt: serverTimestamp() })
+          } catch (err) {
+            log(`❌ Command failed: ${err.message}`)
+            await updateDoc(cmdDoc.ref, { status: 'failed', error: err.message, completedAt: serverTimestamp() })
           }
         }
       }
@@ -527,6 +569,9 @@ async function main() {
   
   // Subscribe to remote commands
   subscribeToCommands()
+
+  // Start widget listener
+  startWidgetListener()
 
   // 5. Start heartbeat timer
   heartbeatTimer = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS)

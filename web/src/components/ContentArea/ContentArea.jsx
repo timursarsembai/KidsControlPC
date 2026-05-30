@@ -5,6 +5,7 @@ import ProgramsPanel from '../ProgramsPanel/ProgramsPanel'
 import WebPanel from '../WebPanel/WebPanel'
 import PomodoroPanel from '../PomodoroPanel/PomodoroPanel'
 import NotificationsPanel from '../NotificationsPanel/NotificationsPanel'
+import PowerPanel from '../PowerPanel/PowerPanel'
 import './ContentArea.css'
 
 // ── Empty state: no devices ───────────────────────────────────────────────────
@@ -55,6 +56,7 @@ export default function ContentArea() {
     date:      { label: t('sidebar.modes.date'), icon: '📆', desc: t('sidebar.modes.date_sub') },
     monthly_date: { label: t('sidebar.modes.monthly_date', 'Ежемесячно'), icon: '📆', desc: t('sidebar.modes.monthly_date_sub', 'Блокировка по числам месяца') },
     pomodoro:  { label: t('sidebar.modes.pomodoro'), icon: '🍅', desc: t('sidebar.modes.pomodoro_sub') },
+    power:     { label: 'Управление питанием', icon: '⚡', desc: 'Питание, заставка и команды' },
     notifications: { label: t('sidebar.notifications', 'Уведомления'), icon: '🔔', desc: t('sidebar.notifications_sub', 'История системных событий') },
   }[activeTab]
   const selectedDevice = devices.find(d => d.id === selectedDeviceId)
@@ -85,7 +87,7 @@ export default function ContentArea() {
         </div>
 
         {/* Sub-tabs */}
-        {activeTab !== 'notifications' && (
+        {activeTab !== 'notifications' && activeTab !== 'power' && (
           <div className="subtab-bar">
             <button
               id="subtab-programs"
@@ -118,6 +120,8 @@ export default function ContentArea() {
       <div className="content-body">
         {activeTab === 'notifications' ? (
           <NotificationsPanel key={`${selectedDeviceId}-notifications`} />
+        ) : activeTab === 'power' ? (
+          <PowerPanel key={`${selectedDeviceId}-power`} />
         ) : activeTab === 'pomodoro' ? (
           <PomodoroPanel key={`${selectedDeviceId}-pomodoro`} />
         ) : activeSubTab === 'programs' ? (
