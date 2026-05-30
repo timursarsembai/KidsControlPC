@@ -93,6 +93,7 @@ Section "Install"
   ; Stop service if exists
   nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" stop'
   nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" uninstall'
+  nsExec::ExecToLog 'taskkill /F /IM TimerWidget.exe'
   
   File "agent.exe"
   File "TimerWidget.exe"
