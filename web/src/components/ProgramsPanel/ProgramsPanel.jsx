@@ -1,5 +1,4 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react'
-import { Trash2, Lock, Unlock, RefreshCw, XCircle, Search, Calendar, ChevronDown, ChevronUp } from 'lucide-react'
 import ConfirmModal from '../ConfirmModal'
 import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
