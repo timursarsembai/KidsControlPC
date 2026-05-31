@@ -93,15 +93,15 @@ export default function Header({ onSignOut }) {
                       <div className="alert-content">
                         <div className="alert-title-row">
                           <span className="alert-title">
-                            {a.type === 'process_killed' ? 'Процесс заблокирован' : 
+                            {a.type === 'process_killed' ? (a.details.startsWith('Blocked: ') ? a.details.replace('Blocked: ', '') : a.details) : 
                              a.type === 'agent_stopped' ? `Отключено: ${devices.find(d => d.id === a.deviceId)?.alias || a.deviceHostname || 'Устройство'}` : 
                              a.type === 'agent_started' ? `Подключено: ${devices.find(d => d.id === a.deviceId)?.alias || a.deviceHostname || 'Устройство'}` : a.type}
                           </span>
                           <span className="alert-time">{timeStr}</span>
                         </div>
                         <div className="alert-desc">
-                          {(a.type === 'agent_stopped' || a.type === 'agent_started') 
-                             ? a.details 
+                          {a.type === 'process_killed' 
+                             ? `Процесс заблокирован на ПК: ${devices.find(d => d.id === a.deviceId)?.alias || a.deviceHostname || 'Неизвестно'}` 
                              : a.details}
                         </div>
                       </div>

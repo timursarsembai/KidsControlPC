@@ -58,15 +58,15 @@ export default function NotificationsPanel() {
                 <div className="notif-content">
                   <div className="notif-title-row">
                     <span className="notif-title">
-                      {a.type === 'process_killed' ? 'Процесс заблокирован' : 
+                      {a.type === 'process_killed' ? (a.details.startsWith('Blocked: ') ? a.details.replace('Blocked: ', '') : a.details) : 
                        a.type === 'agent_stopped' ? `Отключено: ${devices.find(d => d.id === a.deviceId)?.alias || a.deviceHostname || 'Устройство'}` : 
                        a.type === 'agent_started' ? `Подключено: ${devices.find(d => d.id === a.deviceId)?.alias || a.deviceHostname || 'Устройство'}` : a.type}
                     </span>
                     <span className="notif-time">{timeStr}</span>
                   </div>
                   <div className="notif-desc">
-                    {(a.type === 'agent_stopped' || a.type === 'agent_started') 
-                       ? a.details 
+                    {a.type === 'process_killed' 
+                       ? `Процесс заблокирован на ПК: ${devices.find(d => d.id === a.deviceId)?.alias || a.deviceHostname || 'Неизвестно'}` 
                        : a.details}
                   </div>
                 </div>
