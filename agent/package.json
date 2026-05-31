@@ -8,7 +8,9 @@
     "start": "node src/agent.js",
     "dev": "node --watch src/agent.js",
     "service:install": "node src/installService.js",
-    "service:uninstall": "node src/uninstallService.js"
+    "service:uninstall": "node src/uninstallService.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "firebase": "^10.12.2",
@@ -17,6 +19,7 @@
   "devDependencies": {
     "esbuild": "^0.28.0",
     "makensis": "^3.0.5",
-    "pkg": "^5.8.1"
+    "pkg": "^5.8.1",
+    "vitest": "^4.1.7"
   }
 }
