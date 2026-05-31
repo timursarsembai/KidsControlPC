@@ -410,7 +410,7 @@ export default function ProgramsPanel({ mode }) {
         <span className="footer-count">
           {appsLoading
             ? t('programs.loading', 'Загрузка...')
-            : `${mergedApps.filter(a => a.blocked).length} из ${mergedApps.length} {t('programs.blocked_word', 'заблокировано')}`
+            : `${mergedApps.filter(a => a.blocked).length} из ${mergedApps.length} ${t('programs.blocked_word', 'заблокировано')}`
           }
         </span>
         {!appsLoading && (
