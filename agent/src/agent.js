@@ -58,6 +58,10 @@ let lastPenaltyProgName = ''
 
 import crypto from 'crypto'
 import net from 'net'
+import fs from 'fs'
+import path from 'path'
+import { exec, spawn } from 'child_process'
+import { promisify } from 'util'
 
 // ─── Logging helper ───────────────────────────────────────────────────────────
 function log(msg) {
@@ -85,11 +89,19 @@ async function sendHeartbeat() {
     
     consecutiveFailures = 0 // reset on success
   } catch (err) {
-    consecutiveFailures++
-    log(`⚠️  Heartbeat error (${consecutiveFailures}/3): ${err.message}`)
-    if (consecutiveFailures >= 3) {
-      log('🔄 Network likely stuck after sleep/disconnect. Restarting agent...')
-      process.exit(1)
+    if (err.message.includes('RESOURCE_EXHAUSTED')) {
+      log(`⚠️  Heartbeat error: Firebase quota exceeded. Backing off.`)
+      consecutiveFailures = 0
+    } else if (err.message.includes('NOT_FOUND')) {
+      log(`⚠️  Heartbeat error: Device not found in Firestore. Backing off.`)
+      consecutiveFailures = 0
+    } else {
+      consecutiveFailures++
+      log(`⚠️  Heartbeat error (${consecutiveFailures}/3): ${err.message}`)
+      if (consecutiveFailures >= 3) {
+        log('🔄 Network likely stuck after sleep/disconnect. Restarting agent...')
+        process.exit(1)
+      }
     }
   }
 }
@@ -129,32 +141,78 @@ async function performProgramScan() {
   try {
     const apps = await getInstalledPrograms()
     installedAppsCached = apps
-    log(`🔎 Found ${apps.length} programs. Uploading to Firestore...`)
+    
+    const cacheFile = path.join(process.cwd(), 'programs_cache.json')
+    let cachedApps = {}
+    if (fs.existsSync(cacheFile)) {
+      try {
+        cachedApps = JSON.parse(fs.readFileSync(cacheFile, 'utf8'))
+      } catch(e) {
+        log('⚠️  Failed to read programs_cache.json: ' + e.message)
+      }
+    }
+
+    const currentAppsMap = {}
+    apps.forEach(a => { currentAppsMap[a.id] = a })
+
+    const toUpdate = []
+    const toDelete = []
+
+    // Find new or modified apps
+    for (const app of apps) {
+      const cached = cachedApps[app.id]
+      if (!cached || cached.name !== app.name || cached.path !== app.path || cached.version !== app.version) {
+        toUpdate.push(app)
+      }
+    }
+
+    // Find deleted apps
+    for (const id in cachedApps) {
+      if (!currentAppsMap[id]) {
+        toDelete.push(id)
+      }
+    }
+
+    if (toUpdate.length === 0 && toDelete.length === 0) {
+      log(`🔎 Found ${apps.length} programs. No changes since last scan, skipping upload.`)
+      return
+    }
+
+    log(`🔎 Found ${apps.length} programs. Uploading ${toUpdate.length} updates and ${toDelete.length} deletions...`)
 
     const col = collection(db, 'users', parentUid, 'devices', deviceId, 'installedApps')
     
     // Chunk upload to respect Firestore batch limit of 500 writes
+    const ops = [...toUpdate.map(app => ({ type: 'update', app })), ...toDelete.map(id => ({ type: 'delete', id }))]
     const chunks = []
-    for (let i = 0; i < apps.length; i += 400) {
-      chunks.push(apps.slice(i, i + 400))
+    for (let i = 0; i < ops.length; i += 400) {
+      chunks.push(ops.slice(i, i + 400))
     }
 
     for (const chunk of chunks) {
       const batch = writeBatch(db)
-      for (const app of chunk) {
-        const ref = doc(col, app.id)
-        batch.set(ref, {
-          name: app.name,
-          path: app.path,
-          publisher: app.publisher,
-          version: app.version,
-          uninstallCmd: app.uninstallCmd,
-          running: false
-        }, { merge: true })
+      for (const op of chunk) {
+        if (op.type === 'update') {
+          const ref = doc(col, op.app.id)
+          batch.set(ref, {
+            name: op.app.name,
+            path: op.app.path,
+            publisher: op.app.publisher,
+            version: op.app.version,
+            uninstallCmd: op.app.uninstallCmd,
+            running: false
+          }, { merge: true })
+        } else if (op.type === 'delete') {
+          const ref = doc(col, op.id)
+          batch.delete(ref)
+        }
       }
       await batch.commit()
     }
-    log(`📤 Program list successfully uploaded (${apps.length} items)`)
+    
+    // Save new cache
+    fs.writeFileSync(cacheFile, JSON.stringify(currentAppsMap), 'utf8')
+    log(`📤 Program list successfully updated in Firestore.`)
   } catch (err) {
     log(`⚠️  Error during scanning/uploading: ${err.message}`)
   }
@@ -453,7 +511,7 @@ async function enforceRules() {
       if (penaltyAttempts >= 5) {
         // Use old widget for shutdown message or maybe we don't need a widget, just alert parent and shutdown
         await sendAlert('agent_error', 'Слишком много попыток запуска заблокированных программ. Выключение ПК.')
-        import('child_process').then(cp => cp.exec('shutdown /s /t 0'))
+        exec('shutdown /s /t 0')
         return
       }
 
@@ -463,8 +521,7 @@ async function enforceRules() {
 
       const msg = `Не открывай ${lastPenaltyProgName}! Родители её запретили!`
       
-      const { spawn } = await import('child_process')
-      const path = await import('path')
+      
       const widgetExe = process.env.NODE_ENV === 'development' 
         ? path.join(process.cwd(), 'dist', 'ScreenBlockerWidget.exe')
         : path.join(process.cwd(), 'ScreenBlockerWidget.exe')
@@ -562,8 +619,6 @@ function subscribeToCommands() {
           try {
             await updateDoc(cmdDoc.ref, { status: 'processing' })
             
-            const { exec } = await import('child_process')
-            const { promisify } = await import('util')
             const execAsync = promisify(exec)
 
             if (action === 'uninstall' && cmd.uninstallCmd) {
