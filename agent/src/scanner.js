@@ -73,11 +73,6 @@ foreach ($p in $paths) {
   if ($items) { $apps += $items }
 }
 
-try {
-  $appx = Get-AppxPackage -ErrorAction SilentlyContinue | Where-Object { $_.InstallLocation } | Select-Object @{Name="DisplayName";Expression={$_.Name}}, InstallLocation, @{Name="DisplayIcon";Expression={""}}, @{Name="Publisher";Expression={$_.Publisher}}, @{Name="DisplayVersion";Expression={$_.Version}}, @{Name="QuietUninstallString";Expression={"powershell.exe -WindowStyle Hidden -Command \`"Remove-AppxPackage -Package $($_.PackageFullName)\`""}}, @{Name="UninstallString";Expression={""}}, @{Name="SystemComponent";Expression={0}}, @{Name="ParentKeyName";Expression={$null}}
-  if ($appx) { $apps += $appx }
-} catch {}
-
 $result = $apps |
   Where-Object { $_.DisplayName -and $_.DisplayName.Trim() -ne '' -and $_.SystemComponent -ne 1 -and -not $_.ParentKeyName } |
   Select-Object DisplayName, InstallLocation, DisplayIcon, Publisher, DisplayVersion, QuietUninstallString, UninstallString |

@@ -6,8 +6,8 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Runtime.InteropServices;
-
 using System.Media;
+using System.Speech.Synthesis;
 
 namespace KidsControl
 {
@@ -24,6 +24,10 @@ namespace KidsControl
         private bool isLocked = false;
         private string lockPin = "";
         
+        private bool playSound = true;
+        private bool readMessage = false;
+        private bool readMessageRepeat = false;
+        private string currentLockMessage = "";
 
         // Hook variables
         private const int WH_KEYBOARD_LL = 13;
@@ -151,6 +155,11 @@ namespace KidsControl
                 string text = parts.Length > 1 ? parts[1] : "Время вышло! Компьютер заблокирован.";
                 string hexColor = parts.Length > 2 ? parts[2] : "#000000";
                 lockPin = parts.Length > 3 ? parts[3] : "";
+                
+                playSound = parts.Length > 4 ? (parts[4] == "1") : true;
+                readMessage = parts.Length > 5 ? (parts[5] == "1") : false;
+                readMessageRepeat = parts.Length > 6 ? (parts[6] == "1") : false;
+                currentLockMessage = text;
 
                 this.TransparencyKey = Color.Empty;
                 try {
@@ -241,11 +250,47 @@ namespace KidsControl
 
         private void PlaySiren()
         {
+            SpeechSynthesizer synth = null;
+            if (readMessage && !string.IsNullOrEmpty(currentLockMessage))
+            {
+                try
+                {
+                    synth = new SpeechSynthesizer();
+                }
+                catch { }
+            }
+
+            bool hasReadOnce = false;
+
             while (isLocked && isRunning)
             {
-                Console.Beep(1000, 500);
+                if (readMessage && synth != null && (!hasReadOnce || readMessageRepeat))
+                {
+                    try
+                    {
+                        synth.Speak(currentLockMessage);
+                        hasReadOnce = true;
+                    }
+                    catch { }
+                }
+
                 if (!isLocked || !isRunning) break;
-                Console.Beep(800, 500);
+
+                if (playSound)
+                {
+                    Console.Beep(1000, 500);
+                    if (!isLocked || !isRunning) break;
+                    Console.Beep(800, 500);
+                }
+                else
+                {
+                    Thread.Sleep(1000);
+                }
+            }
+
+            if (synth != null)
+            {
+                try { synth.Dispose(); } catch { }
             }
         }
 

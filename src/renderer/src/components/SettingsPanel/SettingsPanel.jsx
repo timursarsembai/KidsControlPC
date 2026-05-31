@@ -149,7 +149,12 @@ function DeviceCard({ device, onRemove, onRename, deleting }) {
   const [name, setName]       = useState(device.alias || device.hostname || device.id)
 
   const lastSeen = device?.lastSeen?.toDate?.()
-  const isOnline = device?.status !== 'offline' && lastSeen && (Date.now() - lastSeen.getTime()) < 2 * 60 * 1000
+  const [now, setNow] = React.useState(Date.now())
+  React.useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 15000)
+    return () => clearInterval(timer)
+  }, [])
+  const isOnline = device?.status !== 'offline' && lastSeen && (now - lastSeen.getTime()) < 2 * 60 * 1000
 
   const saveRename = () => {
     if (name.trim()) onRename(name.trim())

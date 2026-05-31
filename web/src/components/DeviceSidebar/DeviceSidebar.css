@@ -136,3 +136,23 @@
   color: var(--accent);
   background: var(--accent-dim);
 }
+
+/* ── Settings btn ── */
+.device-sidebar-settings-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-2) 8px 8px;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--dur-base) var(--ease);
+}
+.device-sidebar-settings-btn:hover  { background: var(--bg-hover); color: var(--text-primary); }
+.device-sidebar-settings-btn.active { background: var(--accent-dim); color: var(--accent); }

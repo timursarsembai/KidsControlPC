@@ -7,9 +7,16 @@ export default function Header({ onSignOut }) {
   const unreadAlertsList = alerts.filter(a => !a.acknowledged)
   const unreadAlerts = unreadAlertsList.length
 
+  const [now, setNow] = React.useState(Date.now())
+
+  React.useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 15000)
+    return () => clearInterval(timer)
+  }, [])
+
   const activeDevice = devices.find(d => d.id === selectedDeviceId)
   const lastSeen = activeDevice?.lastSeen?.toDate?.() || (activeDevice?.lastSeen ? new Date(activeDevice.lastSeen.seconds ? activeDevice.lastSeen.seconds * 1000 : activeDevice.lastSeen) : null)
-  const isOnline = activeDevice ? (activeDevice.status !== 'offline' && lastSeen && (Date.now() - lastSeen.getTime()) < 2 * 60 * 1000) : false
+  const isOnline = activeDevice ? (activeDevice.status !== 'offline' && lastSeen && (now - lastSeen.getTime()) < 2 * 60 * 1000) : false
 
   const [showAlerts, setShowAlerts] = useState(false)
   const bellRef = useRef(null)
