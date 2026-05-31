@@ -23,10 +23,12 @@ namespace KidsControl
 
             this.Text = "Экран заблокирован";
             this.FormBorderStyle = FormBorderStyle.None;
-            this.WindowState = FormWindowState.Maximized;
+            this.StartPosition = FormStartPosition.Manual;
+            this.WindowState = FormWindowState.Normal;
             this.TopMost = true;
             this.BackColor = Color.DarkRed;
             this.ShowInTaskbar = false;
+            ApplyVirtualScreenBounds();
 
             TableLayoutPanel layout = new TableLayoutPanel();
             layout.Dock = DockStyle.Fill;
@@ -73,12 +75,18 @@ namespace KidsControl
             voiceThread.Start();
         }
 
+        private void ApplyVirtualScreenBounds()
+        {
+            this.Bounds = SystemInformation.VirtualScreen;
+        }
+
         private void CountdownTimer_Tick(object sender, EventArgs e)
         {
             durationSeconds--;
             if (durationSeconds > 0)
             {
                 lblTimer.Text = string.Format("Разблокировка через {0} сек...", durationSeconds);
+                ApplyVirtualScreenBounds();
                 this.TopMost = true; // enforce topmost
                 this.BringToFront();
             }

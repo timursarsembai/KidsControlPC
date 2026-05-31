@@ -46,9 +46,7 @@ namespace KidsControl
             this.TransparencyKey = Color.Black; 
             this.StartPosition = FormStartPosition.Manual;
             this.Size = new Size(200, 70);
-            
-            Rectangle screen = Screen.PrimaryScreen.Bounds;
-            this.Location = new Point((screen.Width - this.Width) / 2, 10);
+            PositionMiniWidgetOnPrimaryTop();
 
             lblPhase = new Label();
             lblPhase.ForeColor = Color.White;
@@ -72,8 +70,8 @@ namespace KidsControl
             lblLockMessage.ForeColor = Color.White;
             lblLockMessage.Font = new Font("Segoe UI", 36, FontStyle.Bold);
             lblLockMessage.AutoSize = false;
-            lblLockMessage.Size = new Size(screen.Width, 200);
-            lblLockMessage.Location = new Point(0, (screen.Height - 200) / 2 - 50);
+            lblLockMessage.Size = new Size(Screen.PrimaryScreen.Bounds.Width, 200);
+            lblLockMessage.Location = new Point(0, (Screen.PrimaryScreen.Bounds.Height - 200) / 2 - 50);
             lblLockMessage.TextAlign = ContentAlignment.MiddleCenter;
             lblLockMessage.Visible = false;
             this.Controls.Add(lblLockMessage);
@@ -82,7 +80,7 @@ namespace KidsControl
             txtPin.Font = new Font("Segoe UI", 24, FontStyle.Bold);
             txtPin.PasswordChar = '*';
             txtPin.Size = new Size(300, 50);
-            txtPin.Location = new Point((screen.Width - txtPin.Width) / 2, (screen.Height - 200) / 2 + 150);
+            txtPin.Location = new Point((Screen.PrimaryScreen.Bounds.Width - txtPin.Width) / 2, (Screen.PrimaryScreen.Bounds.Height - 200) / 2 + 150);
             txtPin.TextAlign = HorizontalAlignment.Center;
             txtPin.Visible = false;
             txtPin.TextChanged += TxtPin_TextChanged;
@@ -93,6 +91,33 @@ namespace KidsControl
             serverThread = new Thread(StartServer);
             serverThread.IsBackground = true;
             serverThread.Start();
+        }
+
+        private void PositionMiniWidgetOnPrimaryTop()
+        {
+            Rectangle primary = Screen.PrimaryScreen.Bounds;
+            this.Size = new Size(200, 70);
+            this.Location = new Point(primary.Left + (primary.Width - this.Width) / 2, primary.Top + 10);
+        }
+
+        private void ApplyLockLayoutForAllMonitors()
+        {
+            Rectangle virtualScreen = SystemInformation.VirtualScreen;
+            Rectangle primary = Screen.PrimaryScreen.Bounds;
+
+            this.Bounds = virtualScreen;
+            this.TopMost = true;
+            this.Opacity = 1;
+
+            // Keep lock message and PIN centered on the primary monitor,
+            // while the overlay itself covers the entire virtual desktop.
+            int primaryX = primary.Left - virtualScreen.Left;
+            int primaryY = primary.Top - virtualScreen.Top;
+
+            lblLockMessage.Size = new Size(primary.Width, 200);
+            lblLockMessage.Location = new Point(primaryX, primaryY + (primary.Height - 200) / 2 - 50);
+
+            txtPin.Location = new Point(primaryX + (primary.Width - txtPin.Width) / 2, primaryY + (primary.Height - 200) / 2 + 150);
         }
 
         private void StartServer()
@@ -136,9 +161,7 @@ namespace KidsControl
             {
                 isLocked = false;
                 this.TransparencyKey = Color.Black;
-                this.Size = new Size(200, 70);
-                Rectangle screen = Screen.PrimaryScreen.Bounds;
-                this.Location = new Point((screen.Width - this.Width) / 2, 10);
+                PositionMiniWidgetOnPrimaryTop();
                 this.Opacity = 0;
                 lblLockMessage.Visible = false;
                 txtPin.Visible = false;
@@ -168,11 +191,7 @@ namespace KidsControl
                     this.BackColor = Color.Black;
                 }
 
-                Rectangle screen = Screen.PrimaryScreen.Bounds;
-                this.Size = screen.Size;
-                this.Location = new Point(0, 0);
-                this.Opacity = 1;
-                this.TopMost = true;
+                ApplyLockLayoutForAllMonitors();
 
                 lblPhase.Visible = false;
                 lblTime.Visible = false;
