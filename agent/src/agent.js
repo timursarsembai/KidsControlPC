@@ -88,9 +88,20 @@ async function sendHeartbeat() {
   }
 }
 
+const lastAlerts = {} // { [alertKey]: timestamp }
+
 // ─── Send alert to parent ──────────────────────────────────────────────────────
 async function sendAlert(type, details = '') {
   if (!parentUid) return
+  
+  // Debounce duplicate alerts for 60 seconds to prevent spam
+  const alertKey = `${type}|${details}`
+  const now = Date.now()
+  if (lastAlerts[alertKey] && (now - lastAlerts[alertKey]) < 60000) {
+    return // Skip sending if same alert was sent recently
+  }
+  lastAlerts[alertKey] = now
+
   try {
     await addDoc(collection(db, 'users', parentUid, 'alerts'), {
       type,
