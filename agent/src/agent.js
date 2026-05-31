@@ -35,18 +35,23 @@ const db  = getFirestore(app)
 
 let parentUid = null
 let deviceId  = null
-let activeRules = []           // current rules from Firestore
-let unsubRules  = null         // Firestore listener unsubscribe
 let heartbeatTimer = null
-let enforceTimer   = null
-const crypto = require('crypto')
-const net = require('net')
+let enforceTimer = null
+let updateTimer = null
+let unsubRules = null
+let unsubCommands = null
+let unsubDevice = null
 
+let activeRules = []
 let isShuttingDown = false
-
-// Cached installed programs and their running states to minimize Firestore writes
 let installedAppsCached = []
 let runningStateCache = {}
+
+let deviceConfig = null
+let isWidgetLocked = false
+
+const crypto = require('crypto')
+const net = require('net')
 
 // ─── Logging helper ───────────────────────────────────────────────────────────
 function log(msg) {
@@ -181,12 +186,17 @@ async function updateRunningStatuses(processes) {
 }
 
 function sendToWidget(message) {
-  const client = new net.Socket()
-  client.connect(49152, '127.0.0.1', () => {
-    client.write(message)
-    client.destroy()
+  return new Promise((resolve) => {
+    const client = new net.Socket()
+    client.connect(49152, '127.0.0.1', () => {
+      client.write(message)
+      client.destroy()
+      resolve(true)
+    })
+    client.on('error', () => {
+      resolve(false)
+    })
   })
-  client.on('error', () => { /* ignore */ })
 }
 
 let widgetServer = null
@@ -216,6 +226,10 @@ function startWidgetListener() {
 // ─── Enforce rules ─────────────────────────────────────────────────────────────
 async function enforceRules() {
   if (isShuttingDown) return
+  
+  if (deviceConfig?.isLocked && !isWidgetLocked) {
+    await ensureWidgetLocked()
+  }
 
   // 1. Get running processes once to save CPU
   const processes = await getRunningProcesses()
@@ -404,7 +418,43 @@ function subscribeToRules() {
   )
 }
 
-let unsubCommands = null
+function subscribeToDevice() {
+  if (!parentUid || !deviceId) return
+  log('📡 Subscribing to device config from Firestore...')
+  
+  const deviceRef = doc(db, 'users', parentUid, 'devices', deviceId)
+  unsubDevice = onSnapshot(deviceRef, async (snap) => {
+    if (!snap.exists()) return
+    deviceConfig = snap.data()
+    
+    if (deviceConfig.isLocked && !isWidgetLocked) {
+      await ensureWidgetLocked()
+    } else if (!deviceConfig.isLocked && isWidgetLocked) {
+      const success = await sendToWidget('unlock')
+      if (success) isWidgetLocked = false
+    }
+  }, (err) => {
+    log(`❌ Firestore device config error: ${err.message}`)
+  })
+}
+
+async function ensureWidgetLocked() {
+  if (!deviceConfig || !deviceConfig.isLocked) return
+  const msg = deviceConfig.lockMessage || 'Время вышло! Компьютер заблокирован.'
+  const color = deviceConfig.lockColor || '#000000'
+  const pin = deviceConfig.lockPin || ''
+  const playSound = deviceConfig.playSound !== false ? '1' : '0'
+  const readMessage = deviceConfig.readMessage ? '1' : '0'
+  const readMessageRepeat = deviceConfig.readMessageRepeat ? '1' : '0'
+  
+  const success = await sendToWidget(`lock|${msg}|${color}|${pin}|${playSound}|${readMessage}|${readMessageRepeat}`)
+  if (success) {
+    isWidgetLocked = true
+  } else {
+    isWidgetLocked = false
+  }
+}
+
 function subscribeToCommands() {
   if (!parentUid || !deviceId) return
 
@@ -456,7 +506,10 @@ function subscribeToCommands() {
               const msg = cmd.message || 'Время вышло! Компьютер заблокирован.'
               const color = cmd.color || '#000000'
               const pin = cmd.pin || ''
-              sendToWidget(`lock|${msg}|${color}|${pin}`)
+              const playSound = cmd.playSound !== false ? '1' : '0'
+              const readMessage = cmd.readMessage ? '1' : '0'
+              const readMessageRepeat = cmd.readMessageRepeat ? '1' : '0'
+              sendToWidget(`lock|${msg}|${color}|${pin}|${playSound}|${readMessage}|${readMessageRepeat}`)
             }
             else if (action === 'unlock') {
               log(`🔓 Unlocking screen...`)
@@ -571,7 +624,8 @@ async function main() {
   // 3. Scan and upload installed programs
   await performProgramScan()
 
-  // 4. Subscribe to rules
+  // 4. Subscribe to rules and device
+  subscribeToDevice()
   subscribeToRules()
   
   // Subscribe to remote commands
