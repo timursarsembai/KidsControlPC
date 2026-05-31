@@ -71,6 +71,19 @@ export default function RemindersPanel() {
   const { rules, addReminderRule, updateReminderRule, removeRule } = useRulesStore()
   const reminders = rules.filter(r => r.type === 'reminder')
 
+  const [listTab, setListTab] = useState('active') // 'active', 'executed'
+
+  const executedReminders = reminders.filter(r => {
+    if (r.mode !== 'date') return false
+    const rDate = new Date(r.date.date)
+    const [h, m] = r.date.timeFrom.split(':').map(Number)
+    rDate.setHours(h, m, 0, 0)
+    return rDate < new Date()
+  })
+
+  const activeReminders = reminders.filter(r => !executedReminders.includes(r))
+  const displayedReminders = listTab === 'active' ? activeReminders : executedReminders
+
   const [editingId, setEditingId] = useState(null)
 
   const [message, setMessage] = useState('')
@@ -265,12 +278,28 @@ export default function RemindersPanel() {
           </div>
         </div>
       </div>
+      <div className="reminders-list-header" style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+        <button 
+          className={`schedule-tab ${listTab === 'active' ? 'active' : ''}`} 
+          style={{ flex: 'none', padding: '6px 16px', borderRadius: '20px' }}
+          onClick={() => setListTab('active')}
+        >
+          Активные ({activeReminders.length})
+        </button>
+        <button 
+          className={`schedule-tab ${listTab === 'executed' ? 'active' : ''}`} 
+          style={{ flex: 'none', padding: '6px 16px', borderRadius: '20px' }}
+          onClick={() => setListTab('executed')}
+        >
+          Исполненные ({executedReminders.length})
+        </button>
+      </div>
 
       <div className="reminders-list">
-        {reminders.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)' }}>Нет активных напоминаний</p>
+        {displayedReminders.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)' }}>Нет {listTab === 'active' ? 'активных' : 'исполненных'} напоминаний</p>
         ) : (
-          reminders.map(r => (
+          displayedReminders.map(r => (
             <div key={r.id} className="reminder-card">
               <div className="reminder-top">
                 <div className="reminder-info">
