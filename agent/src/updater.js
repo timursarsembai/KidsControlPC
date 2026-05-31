@@ -5,7 +5,7 @@ import { spawn } from 'child_process'
 import { tmpdir } from 'os'
 import { AGENT_VERSION } from './config.js'
 
-export async function checkAndUpdateSilently(logFunc = console.log) {
+export async function checkAndUpdateSilently(logFunc = console.log, force = false) {
   try {
     const url = 'https://api.github.com/repos/timursarsembai/KidsControlPC/releases/latest'
     const release = await fetchJson(url)
@@ -13,8 +13,8 @@ export async function checkAndUpdateSilently(logFunc = console.log) {
     if (!release || !release.tag_name) return
 
     const latestVersion = release.tag_name.replace('v', '')
-    if (isNewerVersion(AGENT_VERSION, latestVersion)) {
-      logFunc(`[Updater] Найден новый релиз: v${latestVersion}. Текущая версия: v${AGENT_VERSION}`)
+    if (force || isNewerVersion(AGENT_VERSION, latestVersion)) {
+      logFunc(`[Updater] Найден релиз: v${latestVersion}. Текущая версия: v${AGENT_VERSION}${force ? ' (Принудительное обновление)' : ''}`)
       
       const asset = release.assets.find(a => a.name === 'KidsControlAgent_Setup.exe')
       if (asset) {

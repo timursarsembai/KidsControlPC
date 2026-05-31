@@ -592,9 +592,8 @@ function subscribeToCommands() {
             }
             else if (action === 'update_agent') {
               log(`🔄 Force updating agent...`)
-              const { checkAndUpdateSilently } = require('./updater.js')
               // Do not wait, because it might call process.exit()
-              checkAndUpdateSilently(log)
+              checkAndUpdateSilently(log, true)
             }
             else {
               throw new Error(`Unknown command action: ${action}`)
