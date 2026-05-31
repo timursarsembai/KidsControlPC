@@ -67,7 +67,7 @@ function triggerReminder(rule) {
 
   if (rule.systemNotification) {
     try {
-      exec(`powershell -Command "& { Add-Type -AssemblyName System.Windows.Forms; $notify = New-Object System.Windows.Forms.NotifyIcon; $notify.Icon = [System.Drawing.SystemIcons]::Information; $notify.BalloonTipTitle = 'Напоминание'; $notify.BalloonTipText = '${rule.message.replace(/'/g, "''")}'; $notify.Visible = $True; $notify.ShowBalloonTip(10000); Start-Sleep -s 10; $notify.Dispose() }"`, { windowsHide: true })
+      exec(`powershell -Command "[console]::beep(1000,300); [console]::beep(1500,300); [console]::beep(1000,300); [console]::beep(1500,300)"`, { windowsHide: true })
     } catch (e) {
       log(`⚠️ Notification error: ${e.message}`)
     }
