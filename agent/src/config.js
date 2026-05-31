@@ -1,7 +1,7 @@
 import { join } from 'path'
 
 // Current version of the agent
-export const AGENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.1.11'
+export const AGENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.1.12'
 
 // Firebase config — same project as parent app
 export const firebaseConfig = {
