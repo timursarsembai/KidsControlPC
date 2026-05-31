@@ -10,7 +10,7 @@ import {
   getDocs, doc, getDoc, setDoc, updateDoc, serverTimestamp, Timestamp
 } from 'firebase/firestore'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
-import { firebaseConfig, PAIRING_FILE } from './config.js'
+import { firebaseConfig, PAIRING_FILE, AGENT_VERSION } from './config.js'
 import { hostname, type as osType } from 'os'
 import { createInterface } from 'readline'
 
@@ -92,8 +92,9 @@ export async function runPairingFlow() {
         osType: osType(),
         pairedAt: serverTimestamp(),
         lastSeen: serverTimestamp(),
-        status: 'online',
-        agentVersion: '1.0.0'
+        deviceName: hostname(),
+        agentVersion: AGENT_VERSION,
+        status: 'online'
       })
 
       // Mark pairing code as used
