@@ -114,6 +114,10 @@ export default function PowerPanel({ mode = 'power' }) {
               {sendingAction === 'hibernate' ? <span className="power-spinner" /> : successAction === 'hibernate' ? <span className="power-action-icon">✅</span> : <span className="power-action-icon">❄️</span>}
               <span className="power-action-label">{successAction === 'hibernate' ? 'Отправлено' : 'Гибернация'}</span>
             </button>
+            <button className={`power-action-btn update_agent ${successAction === 'update_agent' ? 'success' : ''}`} onClick={() => handleCommand('update_agent')} disabled={sendingAction} style={{ gridColumn: '1 / -1' }}>
+              {sendingAction === 'update_agent' ? <span className="power-spinner" /> : successAction === 'update_agent' ? <span className="power-action-icon">✅</span> : <span className="power-action-icon">📦</span>}
+              <span className="power-action-label">{successAction === 'update_agent' ? 'Команда отправлена' : 'Принудительно обновить Агента (тихая установка)'}</span>
+            </button>
           </div>
         </div>
       </div>

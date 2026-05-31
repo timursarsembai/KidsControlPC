@@ -73,15 +73,12 @@ foreach ($p in $paths) {
   if ($items) { $apps += $items }
 }
 
-$startApps = Get-StartApps -ErrorAction SilentlyContinue
-$appx = Get-AppxPackage -User $env:USERNAME -ErrorAction SilentlyContinue
-foreach ($sa in $startApps) {
-    if ($sa.AppID -match "!") {
-        $pfn = ($sa.AppID -split "!")[0]
-        $pkg = $appx | Where-Object { $_.PackageFamilyName -eq $pfn } | Select-Object -First 1
-        if ($pkg) {
+$appx = Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+if ($appx) {
+    foreach ($pkg in $appx) {
+        if ($pkg.IsFramework -eq $false -and $pkg.NonRemovable -eq $false) {
             $uwp = [PSCustomObject]@{
-                DisplayName = $sa.Name
+                DisplayName = $pkg.Name
                 InstallLocation = $pkg.InstallLocation
                 DisplayIcon = ""
                 Publisher = $pkg.Publisher
