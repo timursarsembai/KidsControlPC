@@ -128,6 +128,8 @@ Section "Install"
   
   ; Install service
   nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" install'
+  ; Start as delayed auto-start to reduce startup race conditions
+  nsExec::ExecToLog 'sc config KidsControlPCAgent start= delayed-auto'
   
   ; Add TimerWidget to Run registry for all users (HKLM)
   WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "KidsControlTimerWidget" '"$INSTDIR\\TimerWidget.exe"'

@@ -69,6 +69,29 @@ function log(msg) {
   console.log(`[${ts}] ${msg}`)
 }
 
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+async function scanInstalledProgramsWithRetry(maxAttempts = 3, retryDelayMs = 30000) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const apps = await getInstalledPrograms()
+    if (apps.length > 0) {
+      if (attempt > 1) {
+        log(`Program scan recovered on attempt ${attempt}/${maxAttempts} (${apps.length} apps).`)
+      }
+      return apps
+    }
+
+    if (attempt < maxAttempts) {
+      log(`Program scan returned 0 apps (attempt ${attempt}/${maxAttempts}). Retrying in ${Math.round(retryDelayMs / 1000)}s...`)
+      await delay(retryDelayMs)
+    }
+  }
+
+  return []
+}
+
 let consecutiveFailures = 0
 
 // ─── Heartbeat — update lastSeen in Firestore ─────────────────────────────────
@@ -139,9 +162,6 @@ async function sendAlert(type, details = '') {
 async function performProgramScan() {
   log('🔍 Scanning installed programs...')
   try {
-    const apps = await getInstalledPrograms()
-    installedAppsCached = apps
-    
     const cacheFile = path.join(process.cwd(), 'programs_cache.json')
     let cachedApps = {}
     if (fs.existsSync(cacheFile)) {
@@ -151,6 +171,19 @@ async function performProgramScan() {
         log('⚠️  Failed to read programs_cache.json: ' + e.message)
       }
     }
+
+    const apps = await scanInstalledProgramsWithRetry(3, 30000)
+    const cachedCount = Object.keys(cachedApps).length
+    if (apps.length === 0) {
+      if (cachedCount > 0) {
+        log(`⚠️  Program scan returned 0 apps, but cache has ${cachedCount}. Skipping sync to avoid accidental cleanup.`)
+      } else {
+        log('⚠️  Program scan returned 0 apps and cache is empty. Skipping sync, will retry later.')
+      }
+      return
+    }
+
+    installedAppsCached = apps
 
     const currentAppsMap = {}
     apps.forEach(a => { currentAppsMap[a.id] = a })
@@ -774,6 +807,14 @@ async function main() {
 
   // 3. Scan and upload installed programs
   await performProgramScan()
+  
+  // Re-scan after startup burst to avoid empty scan results on cold boot
+  setTimeout(() => {
+    if (!isShuttingDown) {
+      log('🔁 Running delayed startup program re-scan...')
+      performProgramScan().catch(err => log(`⚠️  Delayed scan failed: ${err.message}`))
+    }
+  }, 3 * 60 * 1000)
 
   // 4. Subscribe to rules and device
   subscribeToDevice()
