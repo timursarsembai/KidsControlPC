@@ -28,6 +28,7 @@ namespace KidsControl
         private bool readMessage = false;
         private bool readMessageRepeat = false;
         private string currentLockMessage = "";
+        private ReminderPopup activeReminderPopup = null;
 
         // Hook variables
         private const int WH_KEYBOARD_LL = 13;
@@ -118,6 +119,165 @@ namespace KidsControl
             lblLockMessage.Location = new Point(primaryX, primaryY + (primary.Height - 200) / 2 - 50);
 
             txtPin.Location = new Point(primaryX + (primary.Width - txtPin.Width) / 2, primaryY + (primary.Height - 200) / 2 + 150);
+        }
+
+        private void ShowReminderPopup(string reminderId, string message, bool voiceLoop)
+        {
+            if (activeReminderPopup != null)
+            {
+                try { activeReminderPopup.SafeClose(); } catch { }
+                activeReminderPopup = null;
+            }
+
+            activeReminderPopup = new ReminderPopup(reminderId, message, voiceLoop, (id) => {
+                NotifyReminderDismissed(id);
+            });
+            activeReminderPopup.FormClosed += (s, e) => {
+                if (ReferenceEquals(activeReminderPopup, s))
+                {
+                    activeReminderPopup = null;
+                }
+            };
+            activeReminderPopup.Show(this);
+            activeReminderPopup.BringToFront();
+            activeReminderPopup.Activate();
+        }
+
+        private void NotifyReminderDismissed(string reminderId)
+        {
+            new Thread(() => {
+                try
+                {
+                    using (TcpClient c = new TcpClient("127.0.0.1", 49153))
+                    using (NetworkStream s = c.GetStream())
+                    {
+                        byte[] data = Encoding.UTF8.GetBytes("reminder_dismissed|" + reminderId);
+                        s.Write(data, 0, data.Length);
+                    }
+                }
+                catch { }
+            }).Start();
+        }
+
+        private sealed class ReminderPopup : Form
+        {
+            private readonly string reminderId;
+            private readonly Action<string> onDismiss;
+            private readonly bool voiceLoop;
+            private readonly string text;
+            private readonly Label lblMessage;
+            private readonly Button btnDismiss;
+            private Thread voiceThread;
+            private volatile bool isRunning = true;
+
+            public ReminderPopup(string reminderId, string message, bool voiceLoop, Action<string> onDismiss)
+            {
+                this.reminderId = reminderId ?? "";
+                this.onDismiss = onDismiss;
+                this.voiceLoop = voiceLoop;
+                this.text = string.IsNullOrWhiteSpace(message) ? "Напоминание" : message;
+
+                this.Text = "Напоминание";
+                this.FormBorderStyle = FormBorderStyle.FixedDialog;
+                this.MaximizeBox = false;
+                this.MinimizeBox = false;
+                this.StartPosition = FormStartPosition.CenterScreen;
+                this.Size = new Size(560, 320);
+                this.TopMost = true;
+                this.ShowInTaskbar = true;
+                this.BackColor = Color.White;
+
+                lblMessage = new Label();
+                lblMessage.Text = this.text;
+                lblMessage.Font = new Font("Segoe UI", 18, FontStyle.Regular);
+                lblMessage.TextAlign = ContentAlignment.MiddleCenter;
+                lblMessage.Dock = DockStyle.Fill;
+                lblMessage.Padding = new Padding(20);
+                this.Controls.Add(lblMessage);
+
+                var bottomPanel = new Panel();
+                bottomPanel.Height = 72;
+                bottomPanel.Dock = DockStyle.Bottom;
+                bottomPanel.BackColor = Color.WhiteSmoke;
+                this.Controls.Add(bottomPanel);
+
+                btnDismiss = new Button();
+                btnDismiss.Text = "Понятно";
+                btnDismiss.Font = new Font("Segoe UI", 12, FontStyle.Bold);
+                btnDismiss.Size = new Size(180, 44);
+                btnDismiss.Location = new Point((this.ClientSize.Width - btnDismiss.Width) / 2, 14);
+                btnDismiss.BackColor = Color.DodgerBlue;
+                btnDismiss.ForeColor = Color.White;
+                btnDismiss.FlatStyle = FlatStyle.Flat;
+                btnDismiss.Cursor = Cursors.Hand;
+                btnDismiss.Click += (s, e) => Dismiss();
+                bottomPanel.Controls.Add(btnDismiss);
+
+                this.FormClosing += (s, e) => { isRunning = false; };
+                this.KeyPreview = true;
+                this.KeyDown += (s, e) => {
+                    if (e.KeyCode == Keys.Escape || e.KeyCode == Keys.Enter)
+                    {
+                        e.Handled = true;
+                        Dismiss();
+                    }
+                };
+
+                this.Shown += (s, e) =>
+                {
+                    this.BringToFront();
+                    this.Activate();
+                    btnDismiss.Focus();
+                };
+
+                if (voiceLoop)
+                {
+                    voiceThread = new Thread(VoiceLoopWorker);
+                    voiceThread.IsBackground = true;
+                    voiceThread.Start();
+                }
+            }
+
+            public void SafeClose()
+            {
+                if (this.IsDisposed) return;
+                if (this.InvokeRequired)
+                {
+                    try { this.BeginInvoke(new MethodInvoker(SafeClose)); } catch { }
+                    return;
+                }
+                isRunning = false;
+                try { this.Close(); } catch { }
+            }
+
+            private void Dismiss()
+            {
+                isRunning = false;
+                try
+                {
+                    if (onDismiss != null) onDismiss(reminderId);
+                }
+                catch { }
+                this.Close();
+            }
+
+            private void VoiceLoopWorker()
+            {
+                try
+                {
+                    using (var synth = new SpeechSynthesizer())
+                    {
+                        synth.SetOutputToDefaultAudioDevice();
+                        while (isRunning)
+                        {
+                            try { synth.Speak(text); } catch { }
+                            if (!isRunning || !voiceLoop) break;
+                            Thread.Sleep(1000);
+                        }
+                    }
+                }
+                catch { }
+            }
         }
 
         private void StartServer()
@@ -223,6 +383,25 @@ namespace KidsControl
                     SystemSounds.Asterisk.Play();
                     
                 } catch {}
+            }
+            else if (message.StartsWith("reminder|"))
+            {
+                string[] parts = message.Split('|');
+                if (parts.Length >= 4)
+                {
+                    string reminderId = parts[1];
+                    string reminderText = "";
+                    try
+                    {
+                        reminderText = Encoding.UTF8.GetString(Convert.FromBase64String(parts[2]));
+                    }
+                    catch
+                    {
+                        reminderText = parts[2];
+                    }
+                    bool loopVoice = parts[3] == "1";
+                    ShowReminderPopup(reminderId, reminderText, loopVoice);
+                }
             }
             else if (message.StartsWith("show|"))
             {
@@ -367,6 +546,11 @@ namespace KidsControl
                 return;
             }
             isRunning = false;
+            if (activeReminderPopup != null)
+            {
+                try { activeReminderPopup.SafeClose(); } catch { }
+                activeReminderPopup = null;
+            }
             RemoveKeyboardHook();
             if (listener != null) listener.Stop();
             base.OnFormClosing(e);

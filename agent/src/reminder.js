@@ -1,4 +1,5 @@
 import { exec } from 'child_process'
+import net from 'net'
 import path from 'path'
 
 const widgetExe = process.env.NODE_ENV === 'development' 
@@ -6,6 +7,8 @@ const widgetExe = process.env.NODE_ENV === 'development'
   : path.join(process.cwd(), 'ReminderWidget.exe')
 
 const lastTriggered = {}
+const WIDGET_HOST = '127.0.0.1'
+const WIDGET_PORT = 49152
 
 function log(msg) {
   const ts = new Date().toLocaleTimeString('ru-RU')
@@ -51,14 +54,50 @@ export async function processReminders(rules) {
         if (lastRunStr !== todayStr) {
           lastTriggered[rule.id] = todayStr
           log(`🔔 Triggering reminder: ${rule.message}`)
-          triggerReminder(rule)
+          await triggerReminder(rule)
         }
       }
     }
   }
 }
 
-function triggerReminder(rule) {
+function sendReminderToWidget(rule) {
+  const msgBase64 = Buffer.from(rule.message || '', 'utf8').toString('base64')
+  const loopArg = rule.voiceLoop ? '1' : '0'
+  const payload = `reminder|${rule.id}|${msgBase64}|${loopArg}`
+
+  return new Promise((resolve) => {
+    const client = new net.Socket()
+    let done = false
+
+    const finish = (ok) => {
+      if (done) return
+      done = true
+      try { client.destroy() } catch {}
+      resolve(ok)
+    }
+
+    client.setTimeout(1500)
+    client.once('connect', () => {
+      try {
+        client.write(payload)
+        finish(true)
+      } catch {
+        finish(false)
+      }
+    })
+    client.once('timeout', () => finish(false))
+    client.once('error', () => finish(false))
+
+    try {
+      client.connect(WIDGET_PORT, WIDGET_HOST)
+    } catch {
+      finish(false)
+    }
+  })
+}
+
+async function triggerReminder(rule) {
   const msgBase64 = Buffer.from(rule.message || '').toString('base64')
   const loopArg = rule.voiceLoop ? '1' : '0'
 
@@ -70,8 +109,12 @@ function triggerReminder(rule) {
     }
   }
 
-  // Always show ReminderWidget (which also plays looping TTS if enabled)
-  exec(`"${widgetExe}" "${rule.id}" "${msgBase64}" "${loopArg}"`, { windowsHide: false }, (err) => {
-    if (err) log(`⚠️ Error launching ReminderWidget: ${err.message}`)
-  })
+  // Prefer sending reminder to TimerWidget (runs in interactive user session).
+  // If widget is unavailable, fallback to standalone reminder window.
+  const sent = await sendReminderToWidget(rule)
+  if (!sent) {
+    exec(`"${widgetExe}" "${rule.id}" "${msgBase64}" "${loopArg}"`, { windowsHide: false }, (err) => {
+      if (err) log(`⚠️ Error launching ReminderWidget: ${err.message}`)
+    })
+  }
 }
