@@ -99,9 +99,57 @@
   border-radius: var(--radius-lg);
   padding: var(--space-4);
   margin-bottom: var(--space-4);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+@media (max-width: 768px) {
+  .reminder-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+.reminder-form-left {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+.reminder-form-right {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.schedule-tabs {
+  display: flex;
+  gap: var(--space-1);
+  background: var(--bg);
+  padding: var(--space-1);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.schedule-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: var(--space-2);
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: 0.2s ease;
+  white-space: nowrap;
+}
+
+.schedule-tab.active {
+  background: var(--surface);
+  color: var(--text-main);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .form-group {
@@ -118,7 +166,8 @@
 
 .message-textarea {
   width: 100%;
-  min-height: 80px;
+  flex: 1;
+  min-height: 100px;
   resize: vertical;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
@@ -135,7 +184,14 @@
 }
 
 .form-actions {
+  grid-column: 1 / -1;
   display: flex;
   justify-content: flex-end;
-  gap: var(--space-2);
+}
+
+.reminder-add-btn {
+  width: 100%;
+  justify-content: center;
+  padding: var(--space-3);
+  font-size: 1rem;
 }

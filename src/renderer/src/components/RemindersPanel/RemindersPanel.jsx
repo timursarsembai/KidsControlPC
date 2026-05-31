@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
-import Select from '../Select/Select'
 import './RemindersPanel.css'
 
 const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
@@ -28,14 +27,12 @@ function ScheduleInput({ value, onChange }) {
   )
 }
 
-function DateInput({ value, onChange }) {
+function TimeOnlyInput({ value, onChange }) {
   return (
     <div className="schedule-input-wrap">
-      <input type="date" className="input date-input" value={value?.date || ''}
-        onChange={e => onChange({ ...value, date: e.target.value })} />
       <div className="time-range">
-        <input type="time" className="input time-input" value={value?.timeFrom || ''}
-          onChange={e => onChange({ ...value, timeFrom: e.target.value })} />
+        <input type="time" className="input time-input" value={value || ''}
+          onChange={e => onChange(e.target.value)} />
       </div>
     </div>
   )
@@ -66,8 +63,9 @@ export default function RemindersPanel() {
   const [voiceLoop, setVoiceLoop] = useState(false)
   const [systemNotification, setSystemNotification] = useState(false)
   
-  const [mode, setMode] = useState('date') // 'date', 'schedule', 'monthly_date'
-  const [dateVal, setDateVal] = useState({ date: '', timeFrom: '' })
+  const [mode, setMode] = useState('once') // 'once', 'daily', 'weekly', 'monthly'
+  const [timeOnce, setTimeOnce] = useState('')
+  const [timeDaily, setTimeDaily] = useState('')
   const [schedVal, setSchedVal] = useState({ weekdays: [], timeFrom: '' })
   const [monthlyVal, setMonthlyVal] = useState({ day: '', timeFrom: '' })
 
@@ -75,18 +73,38 @@ export default function RemindersPanel() {
     if (!message.trim()) return alert('Введите текст напоминания')
     
     let modeConfig = {}
-    if (mode === 'date') {
-      if (!dateVal.date || !dateVal.timeFrom) return alert('Укажите дату и время')
-      modeConfig.date = dateVal
-    } else if (mode === 'schedule') {
+    if (mode === 'once') {
+      if (!timeOnce) return alert('Укажите время')
+      
+      // Calculate today or tomorrow based on time
+      const now = new Date()
+      const [h, m] = timeOnce.split(':').map(Number)
+      const cur = now.getHours() * 60 + now.getMinutes()
+      const schedTime = h * 60 + m
+      
+      const targetDate = new Date(now)
+      if (schedTime <= cur) {
+        targetDate.setDate(targetDate.getDate() + 1) // tomorrow
+      }
+      
+      const y = targetDate.getFullYear()
+      const mo = String(targetDate.getMonth() + 1).padStart(2, '0')
+      const d = String(targetDate.getDate()).padStart(2, '0')
+      
+      modeConfig.date = { date: `${y}-${mo}-${d}`, timeFrom: timeOnce, timeTo: timeOnce }
+    } else if (mode === 'daily') {
+      if (!timeDaily) return alert('Укажите время')
+      modeConfig.schedule = { weekdays: [0, 1, 2, 3, 4, 5, 6], timeFrom: timeDaily, timeTo: timeDaily }
+    } else if (mode === 'weekly') {
       if (schedVal.weekdays.length === 0 || !schedVal.timeFrom) return alert('Укажите дни недели и время')
-      modeConfig.schedule = schedVal
-    } else if (mode === 'monthly_date') {
+      modeConfig.schedule = { ...schedVal, timeTo: schedVal.timeFrom }
+    } else if (mode === 'monthly') {
       if (!monthlyVal.day || !monthlyVal.timeFrom) return alert('Укажите число и время')
-      modeConfig.monthly_date = monthlyVal
+      modeConfig.monthly_date = { ...monthlyVal, timeTo: monthlyVal.timeFrom }
     }
 
-    await addReminderRule(message, { voiceLoop, systemNotification }, modeConfig)
+    const payloadMode = mode === 'once' ? 'date' : mode === 'monthly' ? 'monthly_date' : 'schedule'
+    await addReminderRule(message, { voiceLoop, systemNotification }, { [payloadMode]: modeConfig[payloadMode] })
     setMessage('')
   }
 
@@ -100,7 +118,10 @@ export default function RemindersPanel() {
     if (r.mode === 'date' && r.date) {
       return `Разово: ${r.date.date} в ${r.date.timeFrom}`
     } else if (r.mode === 'schedule' && r.schedule) {
-      const daysStr = r.schedule.weekdays.map(d => DAYS[d]).join(', ')
+      if (r.schedule.weekdays?.length === 7) {
+        return `Ежедневно в ${r.schedule.timeFrom}`
+      }
+      const daysStr = (r.schedule.weekdays || []).map(d => DAYS[d]).join(', ')
       return `Каждую неделю: ${daysStr} в ${r.schedule.timeFrom}`
     } else if (r.mode === 'monthly_date' && r.monthly_date) {
       return `Каждый месяц: ${r.monthly_date.day}-го числа в ${r.monthly_date.timeFrom}`
@@ -111,48 +132,50 @@ export default function RemindersPanel() {
   return (
     <div className="reminders-panel">
       <div className="reminders-header">
-        <h2 className="reminders-title">Напоминания и будильники 🔔</h2>
+        <h2 className="reminders-title">Напоминания 🔔</h2>
       </div>
 
       <div className="reminder-form">
-        <div className="form-group">
-          <label>Текст напоминания</label>
-          <textarea 
-            className="message-textarea" 
-            placeholder="Например: Пора делать уроки!"
-            value={message}
-            onChange={e => setMessage(e.target.value)}
-          />
+        <div className="reminder-form-left">
+          <div className="form-group" style={{ height: '100%', display: 'flex' }}>
+            <label>Текст напоминания</label>
+            <textarea 
+              className="message-textarea" 
+              placeholder="Например: Пора делать уроки!"
+              value={message}
+              onChange={e => setMessage(e.target.value)}
+            />
+          </div>
         </div>
         
-        <div className="reminder-settings">
-          <label className="setting-row" style={{cursor:'pointer'}}>
-            <input type="checkbox" checked={voiceLoop} onChange={e => setVoiceLoop(e.target.checked)} />
-            Непрерывная голосовая озвучка (ребёнку придется нажать кнопку Отключить, чтобы звук прекратился)
-          </label>
-          <label className="setting-row" style={{cursor:'pointer'}}>
-            <input type="checkbox" checked={systemNotification} onChange={e => setSystemNotification(e.target.checked)} />
-            Показывать системное уведомление Windows
-          </label>
-        </div>
+        <div className="reminder-form-right">
+          <div className="form-group">
+            <label>Тип расписания</label>
+            <div className="schedule-tabs">
+              <button className={`schedule-tab ${mode === 'once' ? 'active' : ''}`} onClick={() => setMode('once')}>Разово</button>
+              <button className={`schedule-tab ${mode === 'daily' ? 'active' : ''}`} onClick={() => setMode('daily')}>Ежедневно</button>
+              <button className={`schedule-tab ${mode === 'weekly' ? 'active' : ''}`} onClick={() => setMode('weekly')}>Еженедельно</button>
+              <button className={`schedule-tab ${mode === 'monthly' ? 'active' : ''}`} onClick={() => setMode('monthly')}>Ежемесячно</button>
+            </div>
+          </div>
 
-        <div className="form-group">
-          <label>Тип расписания</label>
-          <Select 
-            value={mode} 
-            onChange={setMode} 
-            options={[
-              { value: 'date', label: 'Разово (в точную дату и время)' },
-              { value: 'schedule', label: 'Еженедельно (по дням недели)' },
-              { value: 'monthly_date', label: 'Ежемесячно (по числам)' }
-            ]} 
-          />
-        </div>
+          <div className="form-group">
+            {mode === 'once' && <TimeOnlyInput value={timeOnce} onChange={setTimeOnce} />}
+            {mode === 'daily' && <TimeOnlyInput value={timeDaily} onChange={setTimeDaily} />}
+            {mode === 'weekly' && <ScheduleInput value={schedVal} onChange={setSchedVal} />}
+            {mode === 'monthly' && <MonthlyDateInput value={monthlyVal} onChange={setMonthlyVal} />}
+          </div>
 
-        <div className="form-group">
-          {mode === 'date' && <DateInput value={dateVal} onChange={setDateVal} />}
-          {mode === 'schedule' && <ScheduleInput value={schedVal} onChange={setSchedVal} />}
-          {mode === 'monthly_date' && <MonthlyDateInput value={monthlyVal} onChange={setMonthlyVal} />}
+          <div className="reminder-settings">
+            <label className="setting-row" style={{cursor:'pointer'}}>
+              <input type="checkbox" checked={voiceLoop} onChange={e => setVoiceLoop(e.target.checked)} />
+              Непрерывная голосовая озвучка
+            </label>
+            <label className="setting-row" style={{cursor:'pointer'}}>
+              <input type="checkbox" checked={systemNotification} onChange={e => setSystemNotification(e.target.checked)} />
+              Показывать системное уведомление Windows
+            </label>
+          </div>
         </div>
 
         <div className="form-actions">
@@ -180,8 +203,8 @@ export default function RemindersPanel() {
                 </div>
               </div>
               <div className="setting-row" style={{ marginTop: 8 }}>
-                {r.voiceLoop && <span title="Голосовая озвучка">🔊 Озвучка</span>}
-                {r.systemNotification && <span title="Уведомление Windows">💬 Системное уведомление</span>}
+                {r.voiceLoop && <span title="Голосовая озвучка">🔊 Непрерывная озвучка</span>}
+                {r.systemNotification && <span title="Уведомление Windows">💬 Системное уведомление Windows</span>}
               </div>
             </div>
           ))

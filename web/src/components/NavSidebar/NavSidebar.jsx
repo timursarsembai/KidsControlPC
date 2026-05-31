@@ -125,7 +125,7 @@ export default function Sidebar() {
               </span>
               <span className="nav-sidebar-labels">
                 <span className="nav-sidebar-label">Напоминания</span>
-                <span className="nav-sidebar-sub">Будильники и сообщения</span>
+                <span className="nav-sidebar-sub">Сообщения по расписанию</span>
               </span>
               {activeTab === 'reminders' && <span className="nav-sidebar-active-bar" />}
             </button>
