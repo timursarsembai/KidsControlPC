@@ -1,12 +1,9 @@
 import { exec } from 'child_process'
 import path from 'path'
-import { fileURLToPath } from 'url'
 
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const widgetExe = process.env.NODE_ENV === 'development' 
-  ? path.join(__dirname, '..', 'dist', 'ReminderWidget.exe') // assuming built manually in dev
-  : path.join(__dirname, '..', 'ReminderWidget.exe')
+  ? path.join(process.cwd(), 'dist', 'ReminderWidget.exe')
+  : path.join(process.cwd(), 'ReminderWidget.exe')
 
 const lastTriggered = {}
 
