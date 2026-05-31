@@ -12,16 +12,22 @@ function ScheduleInput({ value, onChange }) {
     onChange({ ...value, weekdays: next })
   }
   return (
-    <div className="schedule-input-wrap">
-      <div className="checkbox-group">
-        {DAYS.map((d, i) => (
-          <label key={i} className={`day-label ${days.includes(i) ? 'checked' : ''}`}
-            onClick={() => toggleDay(i)}>{d}</label>
-        ))}
+    <div className="schedule-input-wrap" style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 4 }}>Дни недели</div>
+        <div className="checkbox-group" style={{ flexWrap: 'wrap' }}>
+          {DAYS.map((d, i) => (
+            <label key={i} className={`day-label ${days.includes(i) ? 'checked' : ''}`}
+              onClick={() => toggleDay(i)}>{d}</label>
+          ))}
+        </div>
       </div>
-      <div className="time-range">
-        <input type="time" className="input time-input" value={value?.timeFrom || ''}
-          onChange={e => onChange({ ...value, timeFrom: e.target.value })} />
+      <div>
+        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 4 }}>Время</div>
+        <div className="time-range">
+          <input type="time" className="input time-input" value={value?.timeFrom || ''}
+            onChange={e => onChange({ ...value, timeFrom: e.target.value })} />
+        </div>
       </div>
     </div>
   )
@@ -41,15 +47,21 @@ function TimeOnlyInput({ value, onChange }) {
 function MonthlyDateInput({ value, onChange }) {
   const { t } = useTranslation()
   return (
-    <div className="schedule-input-wrap">
-      <div className="time-range">
-        <input type="number" className="input timer-input" min="1" max="31" placeholder={t('programs.day_placeholder', 'Число (1-31)')}
-          value={value?.day || ''}
-          onChange={e => onChange({ ...value, day: Number(e.target.value) })} />
+    <div className="schedule-input-wrap" style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 4 }}>Число месяца</div>
+        <div className="time-range">
+          <input type="number" className="input timer-input" min="1" max="31" placeholder={t('programs.day_placeholder', 'Число (1-31)')}
+            value={value?.day || ''}
+            onChange={e => onChange({ ...value, day: Number(e.target.value) })} />
+        </div>
       </div>
-      <div className="time-range" style={{ marginTop: 8 }}>
-        <input type="time" className="input time-input" value={value?.timeFrom || ''}
-          onChange={e => onChange({ ...value, timeFrom: e.target.value })} />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 4 }}>Время</div>
+        <div className="time-range">
+          <input type="time" className="input time-input" value={value?.timeFrom || ''}
+            onChange={e => onChange({ ...value, timeFrom: e.target.value })} />
+        </div>
       </div>
     </div>
   )
