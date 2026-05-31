@@ -1,6 +1,6 @@
 {
   "name": "kids-control-pc",
-  "version": "1.0.1",
+  "version": "1.1.6",
   "description": "Parental control desktop application",
   "main": "out/main/index.js",
   "workspaces": [
