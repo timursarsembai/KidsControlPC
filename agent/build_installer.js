@@ -41,7 +41,7 @@ async function build() {
     execSync('npx pkg dist/agent.cjs -t node18-win-x64 -o dist/agent.exe', { stdio: 'inherit' })
 
     console.log('📦 2.5/5 Compiling TimerWidget.cs...')
-    execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /target:winexe /out:dist\\TimerWidget.exe src\\widget\\TimerWidget.cs', { stdio: 'inherit' })
+    execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /reference:"C:\\Program Files\\Reference Assemblies\\Microsoft\\Framework\\v3.0\\System.Speech.dll" /target:winexe /out:dist\\TimerWidget.exe src\\widget\\TimerWidget.cs', { stdio: 'inherit' })
 
     console.log('📦 3/5 Downloading WinSW...')
     const winswPath = path.join(distDir, 'WinSW.exe')
@@ -93,7 +93,16 @@ Section "Install"
   ; Stop service if exists
   nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" stop'
   nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" uninstall'
+  
+  ; Force stop and delete old node-windows service just in case
+  nsExec::ExecToLog 'net stop kidscontrolpcagent'
+  nsExec::ExecToLog 'sc delete kidscontrolpcagent'
   nsExec::ExecToLog 'taskkill /F /IM TimerWidget.exe'
+  nsExec::ExecToLog 'taskkill /F /IM node.exe'
+  
+  ; Delete old node-windows files
+  RMDir /r "$INSTDIR\\daemon"
+  Delete "$INSTDIR\\agent.js"
   
   File "agent.exe"
   File "TimerWidget.exe"

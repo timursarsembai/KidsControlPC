@@ -1,7 +1,7 @@
 import { join } from 'path'
 
 // Current version of the agent
-export const AGENT_VERSION = '1.1.1'
+export const AGENT_VERSION = '1.1.4'
 
 // Firebase config — same project as parent app
 export const firebaseConfig = {
