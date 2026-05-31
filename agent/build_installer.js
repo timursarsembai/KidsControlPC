@@ -33,9 +33,12 @@ function download(url, dest) {
 
 async function build() {
   try {
+    const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+    const version = pkg.version
+
     console.log('📦 1/5 Bundling agent with esbuild...')
     // Fix import.meta.url issue for CommonJS by injecting a define
-    execSync('npx esbuild src/agent.js --bundle --platform=node --target=node18 --outfile=dist/agent.cjs --define:import.meta.url=\\"file://\\" ', { stdio: 'inherit' })
+    execSync(`npx esbuild src/agent.js --bundle --platform=node --target=node18 --outfile=dist/agent.cjs --define:import.meta.url=\\"file://\\" --define:__APP_VERSION__=\\"'${version}'\\"`, { stdio: 'inherit' })
 
     console.log('📦 2/5 Packaging to agent.exe with pkg...')
     execSync('npx pkg dist/agent.cjs -t node18-win-x64 -o dist/agent.exe', { stdio: 'inherit' })

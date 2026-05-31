@@ -22,12 +22,13 @@ import {
 } from 'firebase/firestore'
 import { hostname } from 'os'
 
-import { firebaseConfig, HEARTBEAT_INTERVAL_MS, ENFORCE_INTERVAL_MS } from './config.js'
+import { firebaseConfig, HEARTBEAT_INTERVAL_MS, ENFORCE_INTERVAL_MS, AGENT_VERSION } from './config.js'
 import { loadPairing, runPairingFlow }    from './pairing.js'
 import { applyHostsBlock, clearHostsBlock, extractDomains } from './hostsBlocker.js'
 import { enforceProcessRules }            from './processEnforcer.js'
 import { getInstalledPrograms, getRunningProcesses } from './scanner.js'
 import { checkAndUpdateSilently }         from './updater.js'
+import { processReminders }               from './reminder.js'
 
 // ─── Init Firebase ────────────────────────────────────────────────────────────
 const app = initializeApp(firebaseConfig)
@@ -77,7 +78,7 @@ async function sendHeartbeat() {
     await Promise.race([
       updateDoc(
         doc(db, 'users', parentUid, 'devices', deviceId),
-        { lastSeen: serverTimestamp(), status: 'online' }
+        { lastSeen: serverTimestamp(), status: 'online', agentVersion: AGENT_VERSION }
       ),
       timeoutPromise
     ])
@@ -288,8 +289,11 @@ async function enforceRules() {
   let hasPomodoro = false
 
   // Process reminders
-  import('./reminder.js').then(m => m.processReminders(activeRules)).catch(e => log(`⚠️ Reminder error: ${e.message}`))
-
+  try {
+    processReminders(activeRules)
+  } catch (e) {
+    log(`⚠️ Reminder error: ${e.message}`)
+  }
   const effectiveRules = activeRules.flatMap(rule => {
     if (rule.status !== 'active') return []
 
@@ -655,7 +659,7 @@ process.on('uncaughtException', async (err) => {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 async function main() {
-  log('🛡️  KidsControlPC Agent v1.0.0 starting...')
+  log(`🛡️  KidsControlPC Agent v${AGENT_VERSION} starting...`)
   log(`💻 Host: ${hostname()}`)
 
   // 1. Load or run pairing

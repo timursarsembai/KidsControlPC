@@ -123,6 +123,10 @@ export default function DeviceSidebar() {
         </svg>
         Настройки
       </button>
+
+      <div style={{ textAlign: 'center', color: 'var(--text-disabled)', fontSize: '9px', marginTop: '4px', marginBottom: '8px' }}>
+        v{__APP_VERSION__}
+      </div>
     </aside>
   )
 }
