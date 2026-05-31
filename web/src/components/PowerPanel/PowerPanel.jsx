@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
+import ConfirmModal from '../ConfirmModal'
 import './PowerPanel.css'
 
 const COLORS = [
@@ -44,13 +45,25 @@ export default function PowerPanel({ mode = 'power' }) {
   const isOnline = selectedDevice?.status !== 'offline' && selectedDevice?.lastSeen && 
     (now - selectedDevice.lastSeen.toDate().getTime()) < 2 * 60 * 1000
 
+  const [offlineConfirmAction, setOfflineConfirmAction] = React.useState(null)
+
   const handleCommand = async (action) => {
     if (!isOnline) {
-      if (!window.confirm('Агент сейчас оффлайн. Команда будет выполнена, когда ПК снова появится в сети. Продолжить?')) {
-        return
-      }
+      setOfflineConfirmAction(action)
+      return
     }
-    
+    await executeCommand(action)
+  }
+
+  const handleConfirmOffline = async () => {
+    const action = offlineConfirmAction
+    setOfflineConfirmAction(null)
+    if (action) {
+      await executeCommand(action)
+    }
+  }
+
+  const executeCommand = async (action) => {
     setSendingAction(action)
     try {
       if (action === 'lock') {
@@ -120,6 +133,14 @@ export default function PowerPanel({ mode = 'power' }) {
             </button>
           </div>
         </div>
+        <ConfirmModal
+          isOpen={!!offlineConfirmAction}
+          title="Устройство оффлайн"
+          message="Агент сейчас оффлайн. Команда будет выполнена, когда ПК снова появится в сети. Продолжить?"
+          confirmText="Продолжить"
+          onConfirm={handleConfirmOffline}
+          onCancel={() => setOfflineConfirmAction(null)}
+        />
       </div>
     )
   }
@@ -200,6 +221,14 @@ export default function PowerPanel({ mode = 'power' }) {
           </button>
         )}
       </div>
+      <ConfirmModal
+        isOpen={!!offlineConfirmAction}
+        title="Устройство оффлайн"
+        message="Агент сейчас оффлайн. Команда будет выполнена, когда ПК снова появится в сети. Продолжить?"
+        confirmText="Продолжить"
+        onConfirm={handleConfirmOffline}
+        onCancel={() => setOfflineConfirmAction(null)}
+      />
     </div>
   )
 }

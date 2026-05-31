@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import ConfirmModal from '../ConfirmModal'
 import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import './RemindersPanel.css'
@@ -72,6 +73,7 @@ export default function RemindersPanel() {
   const reminders = rules.filter(r => r.type === 'reminder')
 
   const [listTab, setListTab] = useState('active') // 'active', 'executed'
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null)
 
   const executedReminders = reminders.filter(r => {
     if (r.mode !== 'date') return false
@@ -183,8 +185,13 @@ export default function RemindersPanel() {
   }
 
   const handleDelete = (id) => {
-    if (confirm('Удалить напоминание?')) {
-      removeRule(id)
+    setDeleteConfirmId(id)
+  }
+
+  const handleConfirmDelete = () => {
+    if (deleteConfirmId) {
+      removeRule(deleteConfirmId)
+      setDeleteConfirmId(null)
     }
   }
 
@@ -297,7 +304,7 @@ export default function RemindersPanel() {
 
       <div className="reminders-list">
         {displayedReminders.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)' }}>Нет {listTab === 'active' ? 'активных' : 'исполненных'} напоминаний</p>
+          <div className="empty-state">Нет напоминаний в этой категории</div>
         ) : (
           displayedReminders.map(r => (
             <div key={r.id} className="reminder-card">
@@ -321,6 +328,16 @@ export default function RemindersPanel() {
           ))
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={!!deleteConfirmId}
+        title="Удаление"
+        message="Вы уверены, что хотите удалить это напоминание?"
+        confirmText="Удалить"
+        confirmDanger={true}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteConfirmId(null)}
+      />
     </div>
   )
 }

@@ -1,4 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react'
+import { Trash2, Lock, Unlock, RefreshCw, XCircle, Search, Calendar, ChevronDown, ChevronUp } from 'lucide-react'
+import ConfirmModal from '../ConfirmModal'
 import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import { evaluateRule } from '@kidscontrol/shared/utils/timeHelpers'
@@ -143,6 +145,10 @@ export default function ProgramsPanel({ mode }) {
 
   const [ruleData, setRuleData]         = useState({})
   const [pendingBlocks, setPendingBlocks] = useState(new Set()) // IDs being saved
+  const [page, setPage] = useState(1)
+  const [uninstallConfirmApp, setUninstallConfirmApp] = useState(null)
+  
+  const LIMIT = 50
   const [now, setNow] = useState(new Date())
 
   // Update clock every second for real-time countdowns
@@ -228,8 +234,13 @@ export default function ProgramsPanel({ mode }) {
       alert(t('programs.no_uninstall_cmd', 'Для этой программы не найдена команда удаления. Скорее всего она является системной или портативной.'))
       return
     }
-    const confirmMsg = t('programs.confirm_uninstall', 'Вы уверены, что хотите УДАЛЕННО УДАЛИТЬ программу "{{name}}" с компьютера ребенка?\\n\\nВнимание: Это действие может быть необратимым!', { name: app.name }).replace(/\\n/g, '\n')
-    if (!window.confirm(confirmMsg)) return
+    setUninstallConfirmApp(app)
+  }, [t])
+
+  const handleConfirmUninstall = useCallback(async () => {
+    const app = uninstallConfirmApp
+    setUninstallConfirmApp(null)
+    if (!app) return
 
     try {
       await sendDeviceCommand({
@@ -242,7 +253,7 @@ export default function ProgramsPanel({ mode }) {
     } catch (err) {
       alert('Ошибка при отправке команды: ' + err.message)
     }
-  }, [sendDeviceCommand, t])
+  }, [uninstallConfirmApp, sendDeviceCommand, t])
 
   const colSpan = mode === 'permanent' ? 3 : 4
 
@@ -419,6 +430,16 @@ export default function ProgramsPanel({ mode }) {
           </span>
         )}
       </div>
+      
+      <ConfirmModal
+        isOpen={!!uninstallConfirmApp}
+        title="Удаление программы"
+        message={t('programs.confirm_uninstall', 'Вы уверены, что хотите УДАЛЕННО УДАЛИТЬ программу "{{name}}" с компьютера ребенка?\n\nВнимание: Это действие может быть необратимым!', { name: uninstallConfirmApp?.name })}
+        confirmText="Удалить"
+        confirmDanger={true}
+        onConfirm={handleConfirmUninstall}
+        onCancel={() => setUninstallConfirmApp(null)}
+      />
     </div>
   )
 }
