@@ -34,7 +34,12 @@ function ruleMatchesProcess(rule, proc) {
     : ruleNameLow.replace(/\s+/g, '')
 
   // Match by exe path (most precise)
-  if (rulePathLow && procPath && rulePathLow === procPath) return true
+  if (rulePathLow && procPath) {
+    if (rulePathLow === procPath) return true
+    // UWP / Appx apps have folders as InstallLocation
+    if (procPath.startsWith(rulePathLow + '\\')) return true
+  }
+  
   // Match by exe basename
   if (ruleBaseLow && procBase && ruleBaseLow === procBase) return true
   // Match by name similarity

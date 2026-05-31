@@ -113,6 +113,23 @@ export default function Sidebar() {
               {activeTab === 'lock_screen' && <span className="nav-sidebar-active-bar" />}
             </button>
 
+            {/* Reminders */}
+            <button
+              className={`nav-sidebar-item ${activeTab === 'reminders' ? 'active' : ''}`}
+              onClick={() => handleMode('reminders')}
+            >
+              <span className="nav-sidebar-icon">
+                <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                  <path d="M7.5 1.5C5 1.5 3 3.5 3 6v3.5L2 11h11l-1-1.5V6c0-2.5-2-4.5-4.5-4.5z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </span>
+              <span className="nav-sidebar-labels">
+                <span className="nav-sidebar-label">Напоминания</span>
+                <span className="nav-sidebar-sub">Будильники и сообщения</span>
+              </span>
+              {activeTab === 'reminders' && <span className="nav-sidebar-active-bar" />}
+            </button>
+
             {/* Notifications */}
             <button
               className={`nav-sidebar-item ${activeTab === 'notifications' ? 'active' : ''}`}

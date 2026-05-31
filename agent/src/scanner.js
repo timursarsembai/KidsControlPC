@@ -73,6 +73,27 @@ foreach ($p in $paths) {
   if ($items) { $apps += $items }
 }
 
+$startApps = Get-StartApps -ErrorAction SilentlyContinue
+$appx = Get-AppxPackage -User $env:USERNAME -ErrorAction SilentlyContinue
+foreach ($sa in $startApps) {
+    if ($sa.AppID -match "!") {
+        $pfn = ($sa.AppID -split "!")[0]
+        $pkg = $appx | Where-Object { $_.PackageFamilyName -eq $pfn } | Select-Object -First 1
+        if ($pkg) {
+            $uwp = [PSCustomObject]@{
+                DisplayName = $sa.Name
+                InstallLocation = $pkg.InstallLocation
+                DisplayIcon = ""
+                Publisher = $pkg.Publisher
+                DisplayVersion = $pkg.Version
+                QuietUninstallString = ""
+                UninstallString = ""
+            }
+            $apps += $uwp
+        }
+    }
+}
+
 $result = $apps |
   Where-Object { $_.DisplayName -and $_.DisplayName.Trim() -ne '' -and $_.SystemComponent -ne 1 -and -not $_.ParentKeyName } |
   Select-Object DisplayName, InstallLocation, DisplayIcon, Publisher, DisplayVersion, QuietUninstallString, UninstallString |
