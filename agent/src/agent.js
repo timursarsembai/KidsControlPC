@@ -50,6 +50,11 @@ let runningStateCache = {}
 let deviceConfig = null
 let isWidgetLocked = false
 
+let penaltyLockUntil = 0
+let penaltyAttempts = 0
+let lastPenaltyTime = 0
+let lastPenaltyProgName = ''
+
 const crypto = require('crypto')
 const net = require('net')
 
@@ -243,8 +248,26 @@ function startWidgetListener() {
 async function enforceRules() {
   if (isShuttingDown) return
   
-  if (deviceConfig?.isLocked && !isWidgetLocked) {
-    await ensureWidgetLocked()
+  const nowMs = Date.now()
+  if (penaltyLockUntil > 0 && nowMs >= penaltyLockUntil) {
+    penaltyLockUntil = 0
+    if (!deviceConfig?.isLocked) {
+      await sendToWidget('unlock')
+      isWidgetLocked = false
+    } else {
+      await ensureWidgetLocked()
+    }
+  }
+
+  if ((deviceConfig?.isLocked || penaltyLockUntil > nowMs) && !isWidgetLocked) {
+    if (penaltyLockUntil > nowMs) {
+      const progName = lastPenaltyProgName || 'эту программу'
+      const msg = `Не открывай ${progName}! Родители её запретили!`
+      const success = await sendToWidget(`lock|${msg}|#cc0000||1|1|1`)
+      if (success) isWidgetLocked = true
+    } else {
+      await ensureWidgetLocked()
+    }
   }
 
   // 1. Get running processes once to save CPU
@@ -254,7 +277,9 @@ async function enforceRules() {
   await updateRunningStatuses(processes)
 
   if (activeRules.length === 0) {
-    sendToWidget('hide')
+    if (penaltyLockUntil <= Date.now()) {
+      sendToWidget('hide')
+    }
     return
   }
 
@@ -410,9 +435,34 @@ async function enforceRules() {
   if (killedNames.length > 0) {
     const uniqueNames = [...new Set(killedNames)]
     await sendAlert('process_killed', `Blocked: ${uniqueNames.join(', ')}`)
+
+    // Spam protection: penalty lock
+    const nowMs = Date.now()
+    if (nowMs >= penaltyLockUntil) {
+      if (nowMs - lastPenaltyTime <= 5 * 60 * 1000) {
+        penaltyAttempts++
+      } else {
+        penaltyAttempts = 1
+      }
+      lastPenaltyTime = nowMs
+
+      if (penaltyAttempts >= 5) {
+        await sendToWidget(`lock|Слишком много попыток! Выключение ПК...|#ff0000||1|1|0`)
+        import('child_process').then(cp => cp.exec('shutdown /s /t 0'))
+        return
+      }
+
+      const lockSeconds = penaltyAttempts * 30
+      penaltyLockUntil = nowMs + (lockSeconds * 1000)
+      lastPenaltyProgName = uniqueNames[0]
+
+      const msg = `Не открывай ${lastPenaltyProgName}! Родители её запретили!`
+      const success = await sendToWidget(`lock|${msg}|#cc0000||1|1|1`)
+      if (success) isWidgetLocked = true
+    }
   }
 
-  if (!hasPomodoro) {
+  if (!hasPomodoro && penaltyLockUntil <= Date.now()) {
     sendToWidget('hide')
   }
 }
@@ -450,6 +500,7 @@ function subscribeToDevice() {
     if (deviceConfig.isLocked && !isWidgetLocked) {
       await ensureWidgetLocked()
     } else if (!deviceConfig.isLocked && isWidgetLocked) {
+      if (Date.now() < penaltyLockUntil) return // Don't unlock if penalty is active
       const success = await sendToWidget('unlock')
       if (success) isWidgetLocked = false
     }
