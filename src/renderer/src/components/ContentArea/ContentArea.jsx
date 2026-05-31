@@ -65,6 +65,25 @@ export default function ContentArea() {
   const selectedDevice = devices.find(d => d.id === selectedDeviceId)
 
   if (!selectedDeviceId || !selectedDevice) {
+    if (activeTab === 'notifications') {
+      return (
+        <div className="content-area">
+          <div className="content-header">
+            <div className="content-title-row">
+              <span className="content-mode-icon">{meta.icon}</span>
+              <div>
+                <h1 className="content-title">{meta.label}</h1>
+                <p className="content-desc">{meta.desc}</p>
+              </div>
+            </div>
+          </div>
+          <div className="content-body">
+            <NotificationsPanel />
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className="content-area">
         <NoDeviceState onAddDevice={() => setShowSettings(true)} />

@@ -36,11 +36,13 @@ function DeviceItem({ device, isSelected, onClick }) {
 }
 
 export default function DeviceSidebar() {
-  const { devices, selectedDeviceId, selectDevice, showSettings, setShowSettings } = useRulesStore()
+  const { devices, selectedDeviceId, selectDevice, showSettings, setShowSettings, activeTab, setActiveTab, alerts } = useRulesStore()
 
   const handleAddDevice = () => {
     setShowSettings(true)
   }
+
+  const unreadAlerts = alerts?.filter(a => !a.acknowledged).length || 0
 
   return (
     <aside className="device-sidebar">
@@ -73,8 +75,8 @@ export default function DeviceSidebar() {
               <DeviceItem
                 key={device.id}
                 device={device}
-                isSelected={selectedDeviceId === device.id}
-                onClick={() => { selectDevice(device.id); setShowSettings(false) }}
+                isSelected={selectedDeviceId === device.id && !showSettings && activeTab !== 'notifications'}
+                onClick={() => { selectDevice(device.id); setShowSettings(false); if(activeTab === 'notifications') setActiveTab('permanent'); }}
               />
             ))}
           </div>
@@ -90,6 +92,25 @@ export default function DeviceSidebar() {
 
       {/* ── Spacer ── */}
       <div style={{ flex: 1 }} />
+
+      {/* ── Notifications button ── */}
+      <button
+        className={`device-sidebar-settings-btn ${activeTab === 'notifications' && !showSettings ? 'active' : ''}`}
+        onClick={() => { setActiveTab('notifications'); setShowSettings(false); }}
+      >
+        <svg width="14" height="14" viewBox="0 0 15 15" fill="none">
+          <path d="M7.5 1.5C5 1.5 3 3.5 3 6v3.5L2 11h11l-1-1.5V6c0-2.5-2-4.5-4.5-4.5zM5.5 12.5a2 2 0 004 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        Уведомления
+        {unreadAlerts > 0 && (
+          <span style={{
+            background: 'var(--accent)', color: '#fff', fontSize: 10, padding: '2px 6px',
+            borderRadius: '10px', fontWeight: 700, lineHeight: 1, marginLeft: 'auto'
+          }}>
+            {unreadAlerts}
+          </span>
+        )}
+      </button>
 
       {/* ── Settings button ── */}
       <button

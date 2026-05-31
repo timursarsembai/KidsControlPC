@@ -130,30 +130,6 @@ export default function Sidebar() {
               {activeTab === 'reminders' && <span className="nav-sidebar-active-bar" />}
             </button>
 
-            {/* Notifications */}
-            <button
-              className={`nav-sidebar-item ${activeTab === 'notifications' ? 'active' : ''}`}
-              onClick={() => handleMode('notifications')}
-            >
-              <span className="nav-sidebar-icon">
-                <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-                  <path d="M7.5 1.5C5 1.5 3 3.5 3 6v3.5L2 11h11l-1-1.5V6c0-2.5-2-4.5-4.5-4.5zM5.5 12.5a2 2 0 004 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </span>
-              <span className="nav-sidebar-labels">
-                <span className="nav-sidebar-label">Уведомления</span>
-                <span className="nav-sidebar-sub">События и оповещения</span>
-              </span>
-              {activeTab === 'notifications' && <span className="nav-sidebar-active-bar" />}
-              {unreadAlerts > 0 && (
-                <span style={{
-                  background: 'var(--accent)', color: '#fff', fontSize: 10, padding: '2px 6px',
-                  borderRadius: '10px', fontWeight: 700, lineHeight: 1, flexShrink: 0
-                }}>
-                  {unreadAlerts}
-                </span>
-              )}
-            </button>
 
             <button
               className={`nav-sidebar-item ${activeTab === 'reminders' ? 'active' : ''}`}
