@@ -138,6 +138,23 @@ export default function Sidebar() {
               )}
             </button>
 
+            <button
+              className={`nav-sidebar-item ${activeTab === 'reminders' ? 'active' : ''}`}
+              onClick={() => handleMode('reminders')}
+            >
+              <span className="nav-sidebar-icon">
+                <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                  <path d="M7.5 1.5v3M10.5 4.5l2-2M4.5 4.5l-2-2M13.5 7.5h-3M4.5 7.5h-3M10.5 10.5l2 2M4.5 10.5l-2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <circle cx="7.5" cy="7.5" r="3" stroke="currentColor" strokeWidth="1.2"/>
+                </svg>
+              </span>
+              <span className="nav-sidebar-labels">
+                <span className="nav-sidebar-label">Напоминания</span>
+                <span className="nav-sidebar-sub">Будильники и сообщения</span>
+              </span>
+              {activeTab === 'reminders' && <span className="nav-sidebar-active-bar" />}
+            </button>
+
           </nav>
         </div>
       )}

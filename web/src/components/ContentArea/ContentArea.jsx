@@ -6,6 +6,7 @@ import WebPanel from '../WebPanel/WebPanel'
 import PomodoroPanel from '../PomodoroPanel/PomodoroPanel'
 import NotificationsPanel from '../NotificationsPanel/NotificationsPanel'
 import PowerPanel from '../PowerPanel/PowerPanel'
+import RemindersPanel from '../RemindersPanel/RemindersPanel'
 import './ContentArea.css'
 
 // ── Empty state: no devices ───────────────────────────────────────────────────
@@ -59,6 +60,7 @@ export default function ContentArea() {
     power:     { label: 'Питание', icon: '⚡', desc: 'Выключение, перезагрузка, спящий режим, гибернация' },
     lock_screen: { label: 'Блокировка экрана', icon: '🔒', desc: 'Цвет фона, ПИН-код, заставка' },
     notifications: { label: t('sidebar.notifications', 'Уведомления'), icon: '🔔', desc: t('sidebar.notifications_sub', 'История системных событий') },
+    reminders: { label: 'Напоминания', icon: '🔔', desc: 'Будильники и сообщения' },
   }[activeTab]
   const selectedDevice = devices.find(d => d.id === selectedDeviceId)
 
@@ -88,7 +90,7 @@ export default function ContentArea() {
         </div>
 
         {/* Sub-tabs */}
-        {activeTab !== 'notifications' && activeTab !== 'power' && activeTab !== 'lock_screen' && (
+        {activeTab !== 'notifications' && activeTab !== 'power' && activeTab !== 'lock_screen' && activeTab !== 'reminders' && (
           <div className="subtab-bar">
             <button
               id="subtab-programs"
@@ -127,6 +129,8 @@ export default function ContentArea() {
           <PowerPanel key={`${selectedDeviceId}-lock_screen`} mode="lock_screen" />
         ) : activeTab === 'pomodoro' ? (
           <PomodoroPanel key={`${selectedDeviceId}-pomodoro`} />
+        ) : activeTab === 'reminders' ? (
+          <RemindersPanel key={`${selectedDeviceId}-reminders`} />
         ) : activeSubTab === 'programs' ? (
           <ProgramsPanel key={`${selectedDeviceId}-${activeTab}`} mode={activeTab} />
         ) : (

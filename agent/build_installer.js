@@ -43,6 +43,9 @@ async function build() {
     console.log('📦 2.5/5 Compiling TimerWidget.cs...')
     execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /reference:"C:\\Program Files\\Reference Assemblies\\Microsoft\\Framework\\v3.0\\System.Speech.dll" /target:winexe /out:dist\\TimerWidget.exe src\\widget\\TimerWidget.cs', { stdio: 'inherit' })
 
+    console.log('📦 2.6/5 Compiling ReminderWidget.cs...')
+    execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /reference:"C:\\Program Files\\Reference Assemblies\\Microsoft\\Framework\\v3.0\\System.Speech.dll" /target:winexe /out:dist\\ReminderWidget.exe src\\widget\\ReminderWidget.cs', { stdio: 'inherit' })
+
     console.log('📦 3/5 Downloading WinSW...')
     const winswPath = path.join(distDir, 'WinSW.exe')
     if (!fs.existsSync(winswPath)) {
@@ -98,6 +101,7 @@ Section "Install"
   nsExec::ExecToLog 'net stop kidscontrolpcagent'
   nsExec::ExecToLog 'sc delete kidscontrolpcagent'
   nsExec::ExecToLog 'taskkill /F /IM TimerWidget.exe'
+  nsExec::ExecToLog 'taskkill /F /IM ReminderWidget.exe'
   nsExec::ExecToLog 'taskkill /F /IM node.exe'
   
   ; Delete old node-windows files
@@ -106,6 +110,7 @@ Section "Install"
   
   File "agent.exe"
   File "TimerWidget.exe"
+  File "ReminderWidget.exe"
   File "WinSW.exe"
   File "WinSW.xml"
   
@@ -141,6 +146,7 @@ Section "Uninstall"
   ; Delete files
   Delete "$INSTDIR\\agent.exe"
   Delete "$INSTDIR\\TimerWidget.exe"
+  Delete "$INSTDIR\\ReminderWidget.exe"
   Delete "$INSTDIR\\WinSW.exe"
   Delete "$INSTDIR\\WinSW.xml"
   Delete "$INSTDIR\\pairing.json"

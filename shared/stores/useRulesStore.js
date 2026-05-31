@@ -251,7 +251,24 @@ export const useRulesStore = create((set, get) => ({
     })
   },
 
-  // ── Remove rule ──
+  // ── Add reminder rule ──
+  addReminderRule: async (message, settings, modeConfig) => {
+    const { user, selectedDeviceId } = get()
+    if (!user || !selectedDeviceId) return
+    const mode = modeConfig.date ? 'date' : modeConfig.monthly_date ? 'monthly_date' : modeConfig.schedule ? 'schedule' : 'once'
+    await addRule(user.uid, selectedDeviceId, {
+      type: 'reminder',
+      mode: mode,
+      message: message || '',
+      voiceLoop: settings.voiceLoop || false,
+      systemNotification: settings.systemNotification || false,
+      ...(modeConfig.schedule && { schedule: modeConfig.schedule }),
+      ...(modeConfig.date     && { date: modeConfig.date }),
+      ...(modeConfig.monthly_date && { monthly_date: modeConfig.monthly_date }),
+    })
+  },
+
+  // ── Delete rule ──
   removeRule: async (ruleId) => {
     const { user, selectedDeviceId } = get()
     if (!user || !selectedDeviceId) return

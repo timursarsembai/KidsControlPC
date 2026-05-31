@@ -1,0 +1,141 @@
+.reminders-panel {
+  padding: var(--space-4);
+  animation: fadeIn 0.3s ease;
+}
+
+.reminders-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-4);
+}
+
+.reminders-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.reminder-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.reminders-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.reminder-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  position: relative;
+}
+
+.reminder-card.inactive {
+  opacity: 0.7;
+}
+
+.reminder-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.reminder-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.reminder-message {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: pre-wrap;
+}
+
+.reminder-schedule {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.reminder-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.reminder-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--border);
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.reminder-form {
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.form-group label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.message-textarea {
+  width: 100%;
+  min-height: 80px;
+  resize: vertical;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.message-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

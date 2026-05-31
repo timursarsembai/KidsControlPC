@@ -216,6 +216,11 @@ function startWidgetListener() {
         } catch (err) {
           log('❌ Error updating isLocked state: ' + err.message)
         }
+      } else if (msg.startsWith('reminder_dismissed|')) {
+        const parts = msg.split('|')
+        const ruleId = parts[1]
+        log(`🔔 Reminder dismissed: ${ruleId}`)
+        await sendAlert('reminder_dismissed', `Напоминание прочитано`)
       }
     })
   })
@@ -245,6 +250,10 @@ async function enforceRules() {
   // 3. Determine active rules (status === 'active' and within schedule/timer/date)
   const now = new Date()
   let hasPomodoro = false
+
+  // Process reminders
+  import('./reminder.js').then(m => m.processReminders(activeRules)).catch(e => log(`⚠️ Reminder error: ${e.message}`))
+
   const effectiveRules = activeRules.flatMap(rule => {
     if (rule.status !== 'active') return []
 
