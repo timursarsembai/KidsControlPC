@@ -68,8 +68,10 @@ function MonthlyDateInput({ value, onChange }) {
 }
 
 export default function RemindersPanel() {
-  const { rules, addReminderRule, removeRule } = useRulesStore()
+  const { rules, addReminderRule, updateReminderRule, removeRule } = useRulesStore()
   const reminders = rules.filter(r => r.type === 'reminder')
+
+  const [editingId, setEditingId] = useState(null)
 
   const [message, setMessage] = useState('')
   const [voiceLoop, setVoiceLoop] = useState(false)
@@ -80,6 +82,43 @@ export default function RemindersPanel() {
   const [repeatDaily, setRepeatDaily] = useState(false)
   const [schedVal, setSchedVal] = useState({ weekdays: [], timeFrom: '' })
   const [monthlyVal, setMonthlyVal] = useState({ day: '', timeFrom: '' })
+
+  const resetForm = () => {
+    setEditingId(null)
+    setMessage('')
+    setVoiceLoop(false)
+    setSystemNotification(false)
+    setMode('once')
+    setTimeOnce('')
+    setRepeatDaily(false)
+    setSchedVal({ weekdays: [], timeFrom: '' })
+    setMonthlyVal({ day: '', timeFrom: '' })
+  }
+
+  const handleEdit = (r) => {
+    setEditingId(r.id)
+    setMessage(r.message || '')
+    setVoiceLoop(r.voiceLoop || false)
+    setSystemNotification(r.systemNotification || false)
+    
+    if (r.mode === 'date') {
+      setMode('once')
+      setTimeOnce(r.date?.timeFrom || '')
+      setRepeatDaily(false)
+    } else if (r.mode === 'schedule') {
+      if (r.schedule?.weekdays?.length === 7) {
+        setMode('once')
+        setRepeatDaily(true)
+        setTimeOnce(r.schedule?.timeFrom || '')
+      } else {
+        setMode('weekly')
+        setSchedVal({ weekdays: r.schedule?.weekdays || [], timeFrom: r.schedule?.timeFrom || '' })
+      }
+    } else if (r.mode === 'monthly_date') {
+      setMode('monthly')
+      setMonthlyVal({ day: r.monthly_date?.day || '', timeFrom: r.monthly_date?.timeFrom || '' })
+    }
+  }
 
   const handleAdd = async () => {
     if (!message.trim()) return alert('Введите текст напоминания')
@@ -122,8 +161,12 @@ export default function RemindersPanel() {
       modeConfig.monthly_date = { ...monthlyVal, timeTo: monthlyVal.timeFrom }
     }
 
-    await addReminderRule(message, { voiceLoop, systemNotification }, { [payloadMode]: modeConfig[payloadMode] })
-    setMessage('')
+    if (editingId) {
+      await updateReminderRule(editingId, message, { voiceLoop, systemNotification }, { [payloadMode]: modeConfig[payloadMode] })
+    } else {
+      await addReminderRule(message, { voiceLoop, systemNotification }, { [payloadMode]: modeConfig[payloadMode] })
+    }
+    resetForm()
   }
 
   const handleDelete = (id) => {
@@ -211,8 +254,13 @@ export default function RemindersPanel() {
           </div>
 
           <div className="form-actions">
+            {editingId && (
+              <button className="btn" style={{ marginRight: '8px' }} onClick={resetForm}>
+                Отмена
+              </button>
+            )}
             <button className="btn btn-primary reminder-add-btn" onClick={handleAdd}>
-              + Создать напоминание
+              {editingId ? 'Сохранить изменения' : '+ Создать напоминание'}
             </button>
           </div>
         </div>
@@ -232,6 +280,7 @@ export default function RemindersPanel() {
                   </div>
                 </div>
                 <div className="reminder-actions">
+                  <button className="btn" style={{ padding: '4px 8px', fontSize: '0.8rem', marginRight: '4px' }} onClick={() => handleEdit(r)}>Изменить</button>
                   <button className="btn btn-danger" style={{ padding: '4px 8px', fontSize: '0.8rem' }} onClick={() => handleDelete(r.id)}>Удалить</button>
                 </div>
               </div>

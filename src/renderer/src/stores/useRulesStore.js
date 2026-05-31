@@ -5,8 +5,8 @@ import {
   subscribeToInstalledApps,
   subscribeToAlerts, acknowledgeAlert, acknowledgeAllAlerts,
   initUserProfile, serverTimestamp, savePomodoroRule,
-  sendDeviceCommand as fsSendDeviceCommand
-} from '@kidscontrol/shared/firebase/firestore'
+  sendDeviceCommand as fsSendDeviceCommand, updateDeviceSettings as fsUpdateDeviceSettings
+} from '../firebase/firestore'
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 export const useRulesStore = create((set, get) => ({
@@ -219,7 +219,75 @@ export const useRulesStore = create((set, get) => ({
     })
   },
 
-  // ── Remove rule ──
+  // ── Add power rule (shutdown, restart, sleep, hibernate) ──
+  addPowerRule: async (action, mode, modeConfig = {}) => {
+    const { user, selectedDeviceId } = get()
+    if (!user || !selectedDeviceId) return
+    const timerConfig = modeConfig.timer ? { ...modeConfig.timer, startedAt: serverTimestamp() } : undefined
+    await addRule(user.uid, selectedDeviceId, {
+      type: 'power',
+      mode: mode,
+      action: action, // 'shutdown', 'restart', 'sleep', 'hibernate'
+      ...(timerConfig && { timer: timerConfig }),
+      ...(modeConfig.schedule && { schedule: modeConfig.schedule }),
+      ...(modeConfig.date     && { date: modeConfig.date }),
+      ...(modeConfig.monthly_date && { monthly_date: modeConfig.monthly_date }),
+    })
+  },
+
+  // ── Add lock rule (custom lock screen) ──
+  addLockRule: async (message, mode, modeConfig = {}) => {
+    const { user, selectedDeviceId } = get()
+    if (!user || !selectedDeviceId) return
+    const timerConfig = modeConfig.timer ? { ...modeConfig.timer, startedAt: serverTimestamp() } : undefined
+    await addRule(user.uid, selectedDeviceId, {
+      type: 'lock',
+      mode: mode,
+      message: message || '',
+      ...(timerConfig && { timer: timerConfig }),
+      ...(modeConfig.schedule && { schedule: modeConfig.schedule }),
+      ...(modeConfig.date     && { date: modeConfig.date }),
+      ...(modeConfig.monthly_date && { monthly_date: modeConfig.monthly_date }),
+    })
+  },
+
+  // ── Add reminder rule ──
+  addReminderRule: async (message, settings, modeConfig) => {
+    const { user, selectedDeviceId } = get()
+    if (!user || !selectedDeviceId) return
+    const mode = modeConfig.date ? 'date' : modeConfig.monthly_date ? 'monthly_date' : modeConfig.schedule ? 'schedule' : 'once'
+    await addRule(user.uid, selectedDeviceId, {
+      type: 'reminder',
+      mode: mode,
+      message: message || '',
+      voiceLoop: settings.voiceLoop || false,
+      systemNotification: settings.systemNotification || false,
+      ...(modeConfig.schedule && { schedule: modeConfig.schedule }),
+      ...(modeConfig.date     && { date: modeConfig.date }),
+      ...(modeConfig.monthly_date && { monthly_date: modeConfig.monthly_date }),
+    })
+  },
+
+  // ── Update reminder rule ──
+  updateReminderRule: async (ruleId, message, settings, modeConfig) => {
+    const { user, selectedDeviceId } = get()
+    if (!user || !selectedDeviceId) return
+    const mode = modeConfig.date ? 'date' : modeConfig.monthly_date ? 'monthly_date' : modeConfig.schedule ? 'schedule' : 'once'
+    
+    // Create updates object and explicitly null out unused mode configs so they get cleared
+    const updates = {
+      mode: mode,
+      message: message || '',
+      voiceLoop: settings.voiceLoop || false,
+      systemNotification: settings.systemNotification || false,
+      schedule: modeConfig.schedule || null,
+      date: modeConfig.date || null,
+      monthly_date: modeConfig.monthly_date || null,
+    }
+    await updateRule(user.uid, selectedDeviceId, ruleId, updates)
+  },
+
+  // ── Delete rule ──
   removeRule: async (ruleId) => {
     const { user, selectedDeviceId } = get()
     if (!user || !selectedDeviceId) return
@@ -276,6 +344,12 @@ export const useRulesStore = create((set, get) => ({
     const { user, selectedDeviceId } = get()
     if (!user || !selectedDeviceId) throw new Error('No device selected')
     await fsSendDeviceCommand(user.uid, selectedDeviceId, commandData)
+  },
+
+  updateDeviceSettings: async (settings) => {
+    const { user, selectedDeviceId } = get()
+    if (!user || !selectedDeviceId) throw new Error('No device selected')
+    await fsUpdateDeviceSettings(user.uid, selectedDeviceId, settings)
   },
 
   // ── Derived: programs from installedApps merged with rules ──
@@ -343,4 +417,3 @@ export const useRulesStore = create((set, get) => ({
     })
   },
 }))
-

@@ -268,6 +268,25 @@ export const useRulesStore = create((set, get) => ({
     })
   },
 
+  // ── Update reminder rule ──
+  updateReminderRule: async (ruleId, message, settings, modeConfig) => {
+    const { user, selectedDeviceId } = get()
+    if (!user || !selectedDeviceId) return
+    const mode = modeConfig.date ? 'date' : modeConfig.monthly_date ? 'monthly_date' : modeConfig.schedule ? 'schedule' : 'once'
+    
+    // Create updates object and explicitly null out unused mode configs so they get cleared
+    const updates = {
+      mode: mode,
+      message: message || '',
+      voiceLoop: settings.voiceLoop || false,
+      systemNotification: settings.systemNotification || false,
+      schedule: modeConfig.schedule || null,
+      date: modeConfig.date || null,
+      monthly_date: modeConfig.monthly_date || null,
+    }
+    await updateRule(user.uid, selectedDeviceId, ruleId, updates)
+  },
+
   // ── Delete rule ──
   removeRule: async (ruleId) => {
     const { user, selectedDeviceId } = get()
