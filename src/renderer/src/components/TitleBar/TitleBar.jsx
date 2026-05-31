@@ -49,7 +49,11 @@ export default function TitleBar({ onSignOut }) {
         {activeDevice && (
           <div className="sync-indicator">
             <span className={`status-dot ${isOnline ? 'active' : 'inactive'}`} />
-            <span className="sync-text">{isOnline ? 'Синхронизировано' : 'Агент отключен'}</span>
+            <span className="sync-text">
+              {isOnline 
+                ? (activeDevice.agentVersion ? `Синхронизировано (v${activeDevice.agentVersion})` : 'Синхронизировано') 
+                : 'Агент отключен'}
+            </span>
           </div>
         )}
       </div>

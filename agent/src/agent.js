@@ -56,8 +56,8 @@ let penaltyAttempts = 0
 let lastPenaltyTime = 0
 let lastPenaltyProgName = ''
 
-const crypto = require('crypto')
-const net = require('net')
+import crypto from 'crypto'
+import net from 'net'
 
 // ─── Logging helper ───────────────────────────────────────────────────────────
 function log(msg) {
@@ -451,7 +451,8 @@ async function enforceRules() {
       lastPenaltyTime = nowMs
 
       if (penaltyAttempts >= 5) {
-        await sendToWidget(`lock|Слишком много попыток! Выключение ПК...|#ff0000||1|1|0`)
+        // Use old widget for shutdown message or maybe we don't need a widget, just alert parent and shutdown
+        await sendAlert('agent_error', 'Слишком много попыток запуска заблокированных программ. Выключение ПК.')
         import('child_process').then(cp => cp.exec('shutdown /s /t 0'))
         return
       }
@@ -461,13 +462,24 @@ async function enforceRules() {
       lastPenaltyProgName = uniqueNames[0]
 
       const msg = `Не открывай ${lastPenaltyProgName}! Родители её запретили!`
-      const success = await sendToWidget(`lock|${msg}|#cc0000||1|1|1`)
-      if (success) isWidgetLocked = true
-    }
-  }
+      
+      const { spawn } = await import('child_process')
+      const path = await import('path')
+      const widgetExe = process.env.NODE_ENV === 'development' 
+        ? path.join(process.cwd(), 'dist', 'ScreenBlockerWidget.exe')
+        : path.join(process.cwd(), 'ScreenBlockerWidget.exe')
 
-  if (!hasPomodoro && penaltyLockUntil <= Date.now()) {
-    sendToWidget('hide')
+      const msgBase64 = Buffer.from(msg, 'utf8').toString('base64')
+      try {
+        const child = spawn(widgetExe, [msgBase64, lockSeconds.toString()], {
+          detached: true,
+          stdio: 'ignore'
+        })
+        child.unref()
+      } catch (err) {
+        log('❌ Failed to spawn ScreenBlockerWidget: ' + err.message)
+      }
+    }
   }
 }
 
@@ -550,8 +562,8 @@ function subscribeToCommands() {
           try {
             await updateDoc(cmdDoc.ref, { status: 'processing' })
             
-            const { exec } = require('child_process')
-            const { promisify } = require('util')
+            const { exec } = await import('child_process')
+            const { promisify } = await import('util')
             const execAsync = promisify(exec)
 
             if (action === 'uninstall' && cmd.uninstallCmd) {
@@ -595,8 +607,12 @@ function subscribeToCommands() {
               // Do not wait, because it might call process.exit()
               checkAndUpdateSilently(log, true)
             }
+            else if (action === 'force_update') {
+              log(`🔄 Force update requested from parent...`)
+              checkAndUpdateSilently(log)
+            }
             else {
-              throw new Error(`Unknown command action: ${action}`)
+              log(`⚠️ Unknown command action: ${action}`)
             }
 
             await updateDoc(cmdDoc.ref, { status: 'completed', completedAt: serverTimestamp() })

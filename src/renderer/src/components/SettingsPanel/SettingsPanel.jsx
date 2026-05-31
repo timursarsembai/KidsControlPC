@@ -62,6 +62,14 @@ function DevicesSection({ uid }) {
     }
   }
 
+  const forceUpdateDevice = async (deviceId) => {
+    try {
+      await useRulesStore.getState().sendDeviceCommand(deviceId, 'force_update')
+    } catch (err) {
+      console.error('Error forcing update:', err)
+    }
+  }
+
   return (
     <section className="settings-section">
       <div className="settings-section-header">
@@ -87,6 +95,7 @@ function DevicesSection({ uid }) {
               device={device}
               onRemove={() => removeDevice(device.id)}
               onRename={(name) => renameDevice(device.id, name)}
+              onForceUpdate={() => forceUpdateDevice(device.id)}
               deleting={deleteId === device.id}
             />
           ))}
@@ -144,9 +153,10 @@ function DevicesSection({ uid }) {
   )
 }
 
-function DeviceCard({ device, onRemove, onRename, deleting }) {
+function DeviceCard({ device, onRemove, onRename, onForceUpdate, deleting }) {
   const [editing, setEditing] = useState(false)
   const [name, setName]       = useState(device.alias || device.hostname || device.id)
+  const [forcing, setForcing] = useState(false)
 
   const lastSeen = device?.lastSeen?.toDate?.()
   const [now, setNow] = React.useState(Date.now())
@@ -190,6 +200,7 @@ function DeviceCard({ device, onRemove, onRename, deleting }) {
             {isOnline ? '● Онлайн' : '● Оффлайн'}
           </span>
           {device.hostname && <span className="device-hostname">{device.hostname}</span>}
+          {device.agentVersion && <span className="device-hostname">v{device.agentVersion}</span>}
           {lastSeen && (
             <span className="device-lastseen">
               Последний раз: {lastSeen.toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}
@@ -197,19 +208,34 @@ function DeviceCard({ device, onRemove, onRename, deleting }) {
           )}
         </div>
       </div>
-      <button
-        className="btn btn-ghost btn-icon btn-sm device-remove"
-        onClick={onRemove}
-        disabled={deleting}
-        title="Отвязать устройство"
-      >
-        {deleting
-          ? <span className="btn-spinner-sm" />
-          : <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-              <path d="M2 11L11 2M2 2l9 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-        }
-      </button>
+      <div className="device-actions-row">
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={async () => {
+            setForcing(true)
+            await onForceUpdate()
+            setTimeout(() => setForcing(false), 2000)
+          }}
+          disabled={forcing || !isOnline}
+          title="Принудительное обновление агента"
+          style={{ marginRight: 8, fontSize: '0.8rem', padding: '4px 8px' }}
+        >
+          {forcing ? 'Отправлено...' : '🔄 Обновить агент'}
+        </button>
+        <button
+          className="btn btn-ghost btn-icon btn-sm device-remove"
+          onClick={onRemove}
+          disabled={deleting}
+          title="Отвязать устройство"
+        >
+          {deleting
+            ? <span className="btn-spinner-sm" />
+            : <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                <path d="M2 11L11 2M2 2l9 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+          }
+        </button>
+      </div>
     </div>
   )
 }

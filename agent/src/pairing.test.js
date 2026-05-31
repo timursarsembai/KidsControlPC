@@ -11,11 +11,11 @@ vi.mock('fs', () => ({
   writeFileSync: vi.fn()
 }))
 
-vi.mock('readline', () => ({
-  createInterface: vi.fn(() => ({
-    question: vi.fn((q, cb) => cb('')),
-    close: vi.fn()
-  }))
+vi.mock('child_process', () => ({
+  execFile: vi.fn((file, args, cb) => {
+    // We will dynamically override this per test
+    cb(null, { stdout: '', stderr: '' })
+  })
 }))
 
 vi.mock('firebase/app', () => ({
@@ -60,20 +60,20 @@ describe('pairing', () => {
   })
 
   it('runPairingFlow should prompt and handle valid code', async () => {
-    // Mock user input
+    const { execFile } = await import('child_process')
     let callCount = 0
-    const rlMock = {
-      question: vi.fn((q, cb) => {
-        if (callCount === 0) {
-          callCount++
-          cb('1') // language
-        } else {
-          cb('ABCDEF') // pairing code
-        }
-      }),
-      close: vi.fn()
-    }
-    createInterface.mockReturnValue(rlMock)
+    execFile.mockImplementation((file, args, cb) => {
+      if (callCount === 0) {
+        callCount++
+        cb(null, { stdout: '1', stderr: '' }) // language
+      } else if (callCount === 1) {
+        callCount++
+        cb(null, { stdout: 'OK', stderr: '' }) // info message
+      } else {
+        callCount++
+        cb(null, { stdout: 'ABCDEF', stderr: '' }) // pairing code
+      }
+    })
 
     firestore.getDoc.mockImplementation(async (ref) => {
       // Mock code finding
@@ -99,23 +99,26 @@ describe('pairing', () => {
   })
 
   it('runPairingFlow should reject expired code', async () => {
-    // Mock user input
+    const { execFile } = await import('child_process')
     let callCount = 0
-    const rlMock = {
-      question: vi.fn((q, cb) => {
-        if (callCount === 0) {
-          callCount++
-          cb('1') // language
-        } else if (callCount === 1) {
-          callCount++
-          cb('EXPIRE') // pairing code
-        } else {
-          cb('VALID1') // stop infinite loop
-        }
-      }),
-      close: vi.fn()
-    }
-    createInterface.mockReturnValue(rlMock)
+    execFile.mockImplementation((file, args, cb) => {
+      if (callCount === 0) {
+        callCount++
+        cb(null, { stdout: '1', stderr: '' }) // language
+      } else if (callCount === 1) {
+        callCount++
+        cb(null, { stdout: 'OK', stderr: '' }) // info message
+      } else if (callCount === 2) {
+        callCount++
+        cb(null, { stdout: 'EXPIRE', stderr: '' }) // expired pairing code
+      } else if (callCount === 3) {
+        callCount++
+        cb(null, { stdout: 'OK', stderr: '' }) // error message
+      } else {
+        callCount++
+        cb(null, { stdout: 'VALID1', stderr: '' }) // valid pairing code
+      }
+    })
 
     firestore.getDoc.mockImplementation(async (ref) => {
       if (ref === 'mocked_doc_pairingCodes_EXPIRE') {

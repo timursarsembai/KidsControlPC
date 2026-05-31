@@ -49,6 +49,12 @@ async function build() {
     console.log('📦 2.6/5 Compiling ReminderWidget.cs...')
     execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /reference:"C:\\Program Files\\Reference Assemblies\\Microsoft\\Framework\\v3.0\\System.Speech.dll" /target:winexe /out:dist\\ReminderWidget.exe src\\widget\\ReminderWidget.cs', { stdio: 'inherit' })
 
+    console.log('📦 2.7/5 Compiling ScreenBlockerWidget.cs...')
+    execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /reference:"C:\\Program Files\\Reference Assemblies\\Microsoft\\Framework\\v3.0\\System.Speech.dll" /target:winexe /out:dist\\ScreenBlockerWidget.exe src\\widget\\ScreenBlockerWidget.cs', { stdio: 'inherit' })
+
+    console.log('📦 2.8/5 Compiling CustomDialogWidget.cs...')
+    execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /target:winexe /out:dist\\CustomDialogWidget.exe src\\widget\\CustomDialogWidget.cs', { stdio: 'inherit' })
+
     console.log('📦 3/5 Downloading WinSW...')
     const winswPath = path.join(distDir, 'WinSW.exe')
     if (!fs.existsSync(winswPath)) {
@@ -114,6 +120,8 @@ Section "Install"
   File "agent.exe"
   File "TimerWidget.exe"
   File "ReminderWidget.exe"
+  File "ScreenBlockerWidget.exe"
+  File "CustomDialogWidget.exe"
   File "WinSW.exe"
   File "WinSW.xml"
   

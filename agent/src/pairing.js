@@ -12,17 +12,30 @@ import {
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { firebaseConfig, PAIRING_FILE, AGENT_VERSION } from './config.js'
 import { hostname, type as osType } from 'os'
-import { createInterface } from 'readline'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
+import path from 'path'
+
+const execFileAsync = promisify(execFile)
+const widgetExe = process.env.NODE_ENV === 'development' 
+  ? path.join(process.cwd(), 'dist', 'CustomDialogWidget.exe')
+  : path.join(process.cwd(), 'CustomDialogWidget.exe')
 
 const app = initializeApp(firebaseConfig)
 const db  = getFirestore(app)
 
 // ─── Prompt helper ────────────────────────────────────────────────────────────
-function prompt(question) {
-  const rl = createInterface({ input: process.stdin, output: process.stdout })
-  return new Promise(resolve => {
-    rl.question(question, answer => { rl.close(); resolve(answer.trim()) })
-  })
+async function promptUI(title, message, requireInput) {
+  try {
+    const titleB64 = Buffer.from(title, 'utf8').toString('base64')
+    const msgB64 = Buffer.from(message, 'utf8').toString('base64')
+    const reqInp = requireInput ? '1' : '0'
+    const { stdout } = await execFileAsync(widgetExe, [titleB64, msgB64, reqInp])
+    return stdout.trim()
+  } catch (err) {
+    console.error('Prompt error:', err)
+    return ''
+  }
 }
 
 // ─── Load saved pairing ───────────────────────────────────────────────────────
@@ -46,26 +59,27 @@ export async function runPairingFlow() {
   console.log('║     KidsControlPC — Agent (Child PC)     ║')
   console.log('╚══════════════════════════════════════════╝\n')
 
-  const langChoice = await prompt('Choose language / Выберите язык (1 - English, 2 - Русский) [1]: ')
-  const isRu = langChoice.trim() === '2'
+  const langChoice = await promptUI('Language / Язык', 'Choose language / Выберите язык\n(1 - English, 2 - Русский)', true)
+  const isRu = langChoice === '2'
 
   if (isRu) {
-    console.log('\n🔗 Первый запуск — необходима привязка к аккаунту родителя.')
-    console.log('   Откройте родительское приложение → Настройки → Устройства')
-    console.log('   → нажмите "Сгенерировать код привязки"\n')
+    await promptUI('KidsControlPC', 'Первый запуск — необходима привязка к аккаунту родителя.\nОткройте родительское приложение → Настройки → Устройства\n→ нажмите "Сгенерировать код привязки"', false)
   } else {
-    console.log('\n🔗 First run — pairing with parent account required.')
-    console.log('   Open parent app → Settings → Devices')
-    console.log('   → click "Generate pairing code"\n')
+    await promptUI('KidsControlPC', 'First run — pairing with parent account required.\nOpen parent app → Settings → Devices\n→ click "Generate pairing code"', false)
   }
 
   let attempts = 0
   while (attempts < 3) {
-    const code = await prompt(isRu ? 'Введите 6-символьный код: ' : 'Enter 6-character code: ')
+    const code = await promptUI(isRu ? 'Привязка' : 'Pairing', isRu ? 'Введите 6-символьный код:' : 'Enter 6-character code:', true)
+    
+    if (code === 'CANCEL' || !code) {
+      throw new Error('Pairing cancelled')
+    }
+
     const normalized = code.toUpperCase().replace(/\s/g, '')
 
     if (normalized.length !== 6) {
-      console.log(isRu ? '❌ Код должен быть ровно 6 символов. Попробуйте ещё раз.\n' : '❌ Code must be exactly 6 characters. Try again.\n')
+      await promptUI(isRu ? 'Ошибка' : 'Error', isRu ? 'Код должен быть ровно 6 символов. Попробуйте ещё раз.' : 'Code must be exactly 6 characters. Try again.', false)
       attempts++
       continue
     }
@@ -77,7 +91,7 @@ export async function runPairingFlow() {
       const result = await findPairingCode(normalized, isRu)
 
       if (!result) {
-        console.log(isRu ? '❌ Код не найден или истёк срок действия (15 минут). Попробуйте ещё раз.\n' : '❌ Code not found or expired (15 mins). Try again.\n')
+        await promptUI(isRu ? 'Ошибка' : 'Error', isRu ? 'Код не найден или истёк срок действия (15 минут). Попробуйте ещё раз.' : 'Code not found or expired (15 mins). Try again.', false)
         attempts++
         continue
       }
@@ -108,14 +122,13 @@ export async function runPairingFlow() {
       const pairingData = { parentUid, deviceId, deviceHostname, pairedAt: new Date().toISOString() }
       savePairing(pairingData)
 
-      console.log(isRu ? `\n✅ Привязка успешна!` : `\n✅ Pairing successful!`)
-      console.log(isRu ? `   ПК "${deviceHostname}" привязан к аккаунту родителя.` : `   PC "${deviceHostname}" paired to parent account.`)
-      console.log(isRu ? '   Агент запускается в фоновом режиме...\n' : '   Agent starting in background...\n')
+      await promptUI(isRu ? 'Успешно' : 'Success', isRu ? `ПК "${deviceHostname}" привязан к аккаунту родителя.\nАгент запускается в фоновом режиме...` : `PC "${deviceHostname}" paired to parent account.\nAgent starting in background...`, false)
 
       return pairingData
 
     } catch (err) {
-      console.error(isRu ? '❌ Ошибка при проверке кода:' : '❌ Error checking code:', err.message)
+      console.error('TEST ERROR:', err)
+      await promptUI(isRu ? 'Ошибка' : 'Error', isRu ? `Ошибка при проверке кода: ${err.message}` : `Error checking code: ${err.message}`, false)
       attempts++
     }
   }
