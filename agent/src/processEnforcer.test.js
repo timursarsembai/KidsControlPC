@@ -36,14 +36,14 @@ describe('processEnforcer', () => {
       }
     ]
     const processes = [
-      { pid: 1234, path: 'c:\\program files\\testapp\\app.exe', name: 'Test App', base: 'app' },
-      { pid: 5678, path: 'c:\\windows\\system32\\notepad.exe', name: 'Notepad', base: 'notepad' }
+      { pid: 1234, path: 'c:\\program files\\testapp\\app.exe', name: 'Test App', base: 'app', hasWindow: true },
+      { pid: 5678, path: 'c:\\windows\\system32\\notepad.exe', name: 'Notepad', base: 'notepad', hasWindow: true }
     ]
 
     const killed = await enforceProcessRules(rules, processes)
     
     expect(killed).toHaveLength(1)
-    expect(killed[0]).toBe('Test App')
+    expect(killed[0]).toEqual({ name: 'Test App', interactive: true })
     expect(exec).toHaveBeenCalledTimes(1)
     expect(exec).toHaveBeenCalledWith(
       'taskkill /F /PID 1234',
@@ -64,7 +64,7 @@ describe('processEnforcer', () => {
       }
     ]
     const processes = [
-      { pid: 1234, path: 'c:\\program files\\testapp\\app.exe', name: 'Test App', base: 'app' }
+      { pid: 1234, path: 'c:\\program files\\testapp\\app.exe', name: 'Test App', base: 'app', hasWindow: true }
     ]
 
     const killed = await enforceProcessRules(rules, processes)

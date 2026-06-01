@@ -9,7 +9,7 @@
   overflow-y: auto;
 }
 
-/* ── Groups ── */
+/* в”Ђв”Ђ Groups в”Ђв”Ђ */
 .nav-sidebar-group {
   display: flex;
   flex-direction: column;
@@ -26,7 +26,56 @@
   padding: var(--space-2) 20px var(--space-1);
 }
 
-/* ── Back button ── */
+.nav-sidebar-dropdown-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  padding: var(--space-2) 20px var(--space-1);
+  transition: background var(--dur-base) var(--ease), color var(--dur-base) var(--ease);
+}
+
+.nav-sidebar-dropdown-toggle:hover {
+  background: var(--bg-hover);
+}
+
+.nav-sidebar-dropdown-toggle.active .nav-sidebar-group-label {
+  color: var(--accent);
+}
+
+.nav-sidebar-dropdown-toggle .nav-sidebar-group-label {
+  padding: 0;
+}
+
+.nav-sidebar-dropdown-chevron {
+  color: var(--text-tertiary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  transform: rotate(-90deg);
+  transition: transform var(--dur-base) var(--ease), color var(--dur-base) var(--ease);
+}
+
+.nav-sidebar-dropdown-chevron svg {
+  display: block;
+}
+
+.nav-sidebar-dropdown-toggle.open .nav-sidebar-dropdown-chevron {
+  transform: rotate(0deg);
+}
+
+.nav-sidebar-dropdown-toggle.active .nav-sidebar-dropdown-chevron {
+  color: var(--accent);
+}
+
+/* в”Ђв”Ђ Back button в”Ђв”Ђ */
 .nav-sidebar-back-btn {
   display: flex;
   align-items: center;
@@ -48,14 +97,14 @@
   color: var(--text-primary);
 }
 
-/* ── Divider ── */
+/* в”Ђв”Ђ Divider в”Ђв”Ђ */
 .nav-sidebar-divider {
   height: 1px;
   background: var(--border);
   margin: var(--space-3) var(--space-4);
 }
 
-/* ── Mode nav ── */
+/* в”Ђв”Ђ Mode nav в”Ђв”Ђ */
 .nav-sidebar-nav {
   display: flex;
   flex-direction: column;
@@ -115,5 +164,5 @@
   border-radius: var(--radius-pill) 0 0 var(--radius-pill);
 }
 
-/* ── Spacer + settings ── */
+/* в”Ђв”Ђ Spacer + settings в”Ђв”Ђ */
 .nav-sidebar-spacer { flex: 1; }

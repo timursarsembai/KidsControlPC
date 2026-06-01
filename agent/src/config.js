@@ -1,9 +1,9 @@
 import { join } from 'path'
 
 // Current version of the agent
-export const AGENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.1.16'
+export const AGENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.1.17'
 
-// Firebase config — same project as parent app
+// Firebase config вЂ” same project as parent app
 export const firebaseConfig = {
   apiKey:            "AIzaSyA" + "FYWqbatuvU0qQOpe7cphvVwN7_hSeui0",
   authDomain:        "kidscontrolpc.firebaseapp.com",
@@ -14,7 +14,7 @@ export const firebaseConfig = {
   measurementId:     "G-QND5RJ7JPH"
 }
 
-// Pairing state file — stores linked parentUid + deviceId after first setup
+// Pairing state file вЂ” stores linked parentUid + deviceId after first setup
 export const PAIRING_FILE = join(process.cwd(), 'pairing.json')
 
 // How often to send heartbeat to Firebase (ms)

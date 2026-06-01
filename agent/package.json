@@ -1,7 +1,7 @@
 {
   "name": "kidscontrol-agent",
-  "version": "1.1.16",
-  "description": "KidsControlPC — Child background agent",
+  "version": "1.1.17",
+  "description": "KidsControlPC вЂ” Child background agent",
   "main": "src/agent.js",
   "bin": "src/agent.js",
   "type": "module",

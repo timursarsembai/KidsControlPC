@@ -526,12 +526,17 @@ async function enforceRules() {
 
   // ── Process killer ──
   const programRules = effectiveRules.filter(r => r.type === 'program')
-  const killedNames  = await enforceProcessRules(programRules, processes)
-  if (killedNames.length > 0) {
-    const uniqueNames = [...new Set(killedNames)]
+  const killedEvents = await enforceProcessRules(programRules, processes)
+  if (killedEvents.length > 0) {
+    const uniqueNames = [...new Set(killedEvents.map(k => k.name))]
     await sendAlert('process_killed', `Blocked: ${uniqueNames.join(', ')}`)
 
-    // Spam protection: penalty lock
+    // Spam protection: penalty lock (only for interactive launches with visible windows)
+    const interactiveKills = killedEvents.filter(k => k.interactive)
+    if (interactiveKills.length === 0) {
+      return
+    }
+
     const nowMs = Date.now()
     if (nowMs >= penaltyLockUntil) {
       if (nowMs - lastPenaltyTime <= 5 * 60 * 1000) {
@@ -550,7 +555,7 @@ async function enforceRules() {
 
       const lockSeconds = penaltyAttempts * 30
       penaltyLockUntil = nowMs + (lockSeconds * 1000)
-      lastPenaltyProgName = uniqueNames[0]
+      lastPenaltyProgName = interactiveKills[0].name || uniqueNames[0]
 
       const msg = `Не открывай ${lastPenaltyProgName}! Родители её запретили!`
       

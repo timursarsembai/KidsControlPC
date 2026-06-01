@@ -54,22 +54,27 @@ function ruleMatchesProcess(rule, proc) {
 /**
  * @param {Array} activeBlockedRules - Rules from Firestore where type='program' and status='active'
  * @param {Array} processes - Pre-scanned running processes from scanner.js
- * @returns {number} - Number of processes killed
+ * @returns {Array<{name: string, interactive: boolean}>}
  */
 export async function enforceProcessRules(activeBlockedRules, processes) {
   if (!activeBlockedRules || activeBlockedRules.length === 0) return []
   if (!processes || processes.length === 0) return []
 
-  let killedNames = []
+  let killedEvents = []
   for (const proc of processes) {
     for (const rule of activeBlockedRules) {
       if (ruleMatchesProcess(rule, proc)) {
         const ok = await killPid(proc.pid, proc.name)
-        if (ok) killedNames.push(rule.program?.name || proc.name)
+        if (ok) {
+          killedEvents.push({
+            name: rule.program?.name || proc.name,
+            interactive: Boolean(proc.hasWindow)
+          })
+        }
         break  // Don't check more rules for this process
       }
     }
   }
 
-  return killedNames
+  return killedEvents
 }
