@@ -320,6 +320,7 @@ export const useRulesStore = create((set, get) => ({
     }
     if (active) {
       payload.startedAt = serverTimestamp()
+      payload.startedAtClientMs = Date.now()
     }
     await savePomodoroRule(user.uid, selectedDeviceId, payload)
   },

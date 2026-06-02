@@ -146,6 +146,7 @@ describe('reminder', () => {
         type: 'reminder',
         status: 'active',
         message: 'Read a book',
+        voiceLoop: true,
         mode: 'schedule',
         schedule: {
           weekdays: [now.getDay() === 0 ? 6 : now.getDay() - 1],
@@ -162,5 +163,6 @@ describe('reminder', () => {
       expect.any(Object),
       expect.any(Function)
     )
+    expect(exec.mock.calls[0][0]).toContain('"0"')
   })
 })

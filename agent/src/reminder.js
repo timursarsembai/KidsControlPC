@@ -99,7 +99,6 @@ function sendReminderToWidget(rule) {
 
 async function triggerReminder(rule) {
   const msgBase64 = Buffer.from(rule.message || '').toString('base64')
-  const loopArg = rule.voiceLoop ? '1' : '0'
 
   if (rule.systemNotification) {
     try {
@@ -109,11 +108,11 @@ async function triggerReminder(rule) {
     }
   }
 
-  // Prefer sending reminder to TimerWidget (runs in interactive user session).
-  // If widget is unavailable, fallback to standalone reminder window.
+  // Prefer TimerWidget because it normally runs in the interactive user session.
+  // Keep fallback non-looping to avoid endless speech from an invisible service session.
   const sent = await sendReminderToWidget(rule)
   if (!sent) {
-    exec(`"${widgetExe}" "${rule.id}" "${msgBase64}" "${loopArg}"`, { windowsHide: false }, (err) => {
+    exec(`"${widgetExe}" "${rule.id}" "${msgBase64}" "0"`, { windowsHide: false }, (err) => {
       if (err) log(`⚠️ Error launching ReminderWidget: ${err.message}`)
     })
   }

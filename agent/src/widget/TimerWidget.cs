@@ -138,9 +138,19 @@ namespace KidsControl
                     activeReminderPopup = null;
                 }
             };
-            activeReminderPopup.Show(this);
+            activeReminderPopup.Show();
             activeReminderPopup.BringToFront();
             activeReminderPopup.Activate();
+        }
+
+        private static void PositionBottomRight(Form form)
+        {
+            Rectangle area = Screen.PrimaryScreen.WorkingArea;
+            int margin = 18;
+            form.Location = new Point(
+                area.Right - form.Width - margin,
+                area.Bottom - form.Height - margin
+            );
         }
 
         private void NotifyReminderDismissed(string reminderId)
@@ -167,7 +177,9 @@ namespace KidsControl
             private readonly string text;
             private readonly Label lblMessage;
             private readonly Button btnDismiss;
+            private readonly Button btnStopVoice;
             private Thread voiceThread;
+            private SpeechSynthesizer synth;
             private volatile bool isRunning = true;
 
             public ReminderPopup(string reminderId, string message, bool voiceLoop, Action<string> onDismiss)
@@ -178,40 +190,72 @@ namespace KidsControl
                 this.text = string.IsNullOrWhiteSpace(message) ? "Напоминание" : message;
 
                 this.Text = "Напоминание";
-                this.FormBorderStyle = FormBorderStyle.FixedDialog;
+                this.FormBorderStyle = FormBorderStyle.None;
                 this.MaximizeBox = false;
                 this.MinimizeBox = false;
-                this.StartPosition = FormStartPosition.CenterScreen;
-                this.Size = new Size(560, 320);
+                this.StartPosition = FormStartPosition.Manual;
+                this.Size = new Size(430, 230);
                 this.TopMost = true;
-                this.ShowInTaskbar = true;
-                this.BackColor = Color.White;
+                this.ShowInTaskbar = false;
+                this.BackColor = Color.FromArgb(24, 28, 38);
+                this.ForeColor = Color.White;
+
+                var title = new Label();
+                title.Text = "Напоминание";
+                title.Font = new Font("Segoe UI", 12, FontStyle.Bold);
+                title.ForeColor = Color.White;
+                title.Location = new Point(18, 14);
+                title.Size = new Size(320, 26);
+                this.Controls.Add(title);
+
+                var closeButton = new Button();
+                closeButton.Text = "x";
+                closeButton.Font = new Font("Segoe UI", 10, FontStyle.Bold);
+                closeButton.Size = new Size(30, 28);
+                closeButton.Location = new Point(this.Width - 44, 12);
+                closeButton.FlatStyle = FlatStyle.Flat;
+                closeButton.FlatAppearance.BorderSize = 0;
+                closeButton.BackColor = Color.Transparent;
+                closeButton.ForeColor = Color.FromArgb(150, 160, 180);
+                closeButton.Cursor = Cursors.Hand;
+                closeButton.Click += (s, e) => Dismiss();
+                this.Controls.Add(closeButton);
 
                 lblMessage = new Label();
                 lblMessage.Text = this.text;
-                lblMessage.Font = new Font("Segoe UI", 18, FontStyle.Regular);
-                lblMessage.TextAlign = ContentAlignment.MiddleCenter;
-                lblMessage.Dock = DockStyle.Fill;
-                lblMessage.Padding = new Padding(20);
+                lblMessage.Font = new Font("Segoe UI", 13, FontStyle.Regular);
+                lblMessage.ForeColor = Color.FromArgb(226, 232, 240);
+                lblMessage.TextAlign = ContentAlignment.MiddleLeft;
+                lblMessage.Location = new Point(18, 52);
+                lblMessage.Size = new Size(394, 92);
                 this.Controls.Add(lblMessage);
 
-                var bottomPanel = new Panel();
-                bottomPanel.Height = 72;
-                bottomPanel.Dock = DockStyle.Bottom;
-                bottomPanel.BackColor = Color.WhiteSmoke;
-                this.Controls.Add(bottomPanel);
+                btnStopVoice = new Button();
+                btnStopVoice.Text = "Остановить звук";
+                btnStopVoice.Font = new Font("Segoe UI", 10, FontStyle.Bold);
+                btnStopVoice.Size = new Size(164, 40);
+                btnStopVoice.Location = new Point(18, 166);
+                btnStopVoice.BackColor = Color.FromArgb(45, 52, 70);
+                btnStopVoice.ForeColor = Color.White;
+                btnStopVoice.FlatStyle = FlatStyle.Flat;
+                btnStopVoice.FlatAppearance.BorderColor = Color.FromArgb(70, 78, 100);
+                btnStopVoice.Cursor = Cursors.Hand;
+                btnStopVoice.Enabled = voiceLoop;
+                btnStopVoice.Click += (s, e) => StopVoice();
+                this.Controls.Add(btnStopVoice);
 
                 btnDismiss = new Button();
                 btnDismiss.Text = "Понятно";
                 btnDismiss.Font = new Font("Segoe UI", 12, FontStyle.Bold);
-                btnDismiss.Size = new Size(180, 44);
-                btnDismiss.Location = new Point((this.ClientSize.Width - btnDismiss.Width) / 2, 14);
-                btnDismiss.BackColor = Color.DodgerBlue;
+                btnDismiss.Size = new Size(136, 40);
+                btnDismiss.Location = new Point(this.Width - btnDismiss.Width - 18, 166);
+                btnDismiss.BackColor = Color.FromArgb(99, 102, 241);
                 btnDismiss.ForeColor = Color.White;
                 btnDismiss.FlatStyle = FlatStyle.Flat;
+                btnDismiss.FlatAppearance.BorderSize = 0;
                 btnDismiss.Cursor = Cursors.Hand;
                 btnDismiss.Click += (s, e) => Dismiss();
-                bottomPanel.Controls.Add(btnDismiss);
+                this.Controls.Add(btnDismiss);
 
                 this.FormClosing += (s, e) => { isRunning = false; };
                 this.KeyPreview = true;
@@ -225,6 +269,7 @@ namespace KidsControl
 
                 this.Shown += (s, e) =>
                 {
+                    PositionBottomRight(this);
                     this.BringToFront();
                     this.Activate();
                     btnDismiss.Focus();
@@ -247,12 +292,14 @@ namespace KidsControl
                     return;
                 }
                 isRunning = false;
+                StopVoice();
                 try { this.Close(); } catch { }
             }
 
             private void Dismiss()
             {
                 isRunning = false;
+                StopVoice();
                 try
                 {
                     if (onDismiss != null) onDismiss(reminderId);
@@ -261,16 +308,39 @@ namespace KidsControl
                 this.Close();
             }
 
+            private void StopVoice()
+            {
+                isRunning = false;
+                try
+                {
+                    if (synth != null) synth.SpeakAsyncCancelAll();
+                }
+                catch { }
+                if (btnStopVoice != null)
+                {
+                    btnStopVoice.Enabled = false;
+                    btnStopVoice.Text = "Звук остановлен";
+                }
+            }
+
             private void VoiceLoopWorker()
             {
                 try
                 {
-                    using (var synth = new SpeechSynthesizer())
+                    using (synth = new SpeechSynthesizer())
                     {
                         synth.SetOutputToDefaultAudioDevice();
                         while (isRunning)
                         {
-                            try { synth.Speak(text); } catch { }
+                            try
+                            {
+                                synth.SpeakAsync(text);
+                                while (isRunning && synth.State == SynthesizerState.Speaking)
+                                {
+                                    Thread.Sleep(100);
+                                }
+                            }
+                            catch { }
                             if (!isRunning || !voiceLoop) break;
                             Thread.Sleep(1000);
                         }
@@ -413,7 +483,8 @@ namespace KidsControl
                     string time = parts[2];
                     lblPhase.Text = phase;
                     lblTime.Text = time;
-                    if (phase.ToLower().Contains("�����") || phase.ToLower().Contains("�������") || phase.ToLower().Contains("break"))
+                    string lowPhase = phase.ToLower();
+                    if (lowPhase.Contains("пауза") || lowPhase.Contains("отдых") || lowPhase.Contains("break"))
                     {
                         lblTime.ForeColor = Color.LimeGreen;
                         lblPhase.ForeColor = Color.LimeGreen;

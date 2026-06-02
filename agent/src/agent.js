@@ -55,6 +55,7 @@ let penaltyLockUntil = 0
 let penaltyAttempts = 0
 let lastPenaltyTime = 0
 let lastPenaltyProgName = ''
+let lastPomodoroStateKey = ''
 
 import crypto from 'crypto'
 import net from 'net'
@@ -126,6 +127,50 @@ async function sendHeartbeat() {
         process.exit(1)
       }
     }
+  }
+}
+
+async function publishPomodoroState(state) {
+  if (!parentUid || !deviceId) return
+
+  const key = state
+    ? [
+        'active',
+        state.phase,
+        state.phaseEndsAtMs,
+        state.startedAtMs,
+        state.workDuration,
+        state.breakDuration,
+        state.longBreakDuration,
+        state.cyclesToLongBreak
+      ].join('|')
+    : 'inactive'
+
+  if (key === lastPomodoroStateKey) return
+
+  const pomodoroState = state
+    ? {
+        active: true,
+        phase: state.phase,
+        isWorkPhase: state.isWorkPhase,
+        phaseEndsAtMs: state.phaseEndsAtMs,
+        startedAtMs: state.startedAtMs,
+        workDuration: state.workDuration,
+        breakDuration: state.breakDuration,
+        longBreakDuration: state.longBreakDuration,
+        cyclesToLongBreak: state.cyclesToLongBreak,
+        updatedAt: serverTimestamp()
+      }
+    : {
+        active: false,
+        updatedAt: serverTimestamp()
+      }
+
+  try {
+    await updateDoc(doc(db, 'users', parentUid, 'devices', deviceId), { pomodoroState })
+    lastPomodoroStateKey = key
+  } catch (err) {
+    log(`⚠️  Pomodoro state sync error: ${err.message}`)
   }
 }
 
@@ -369,6 +414,7 @@ async function enforceRules() {
   await updateRunningStatuses(processes)
 
   if (activeRules.length === 0) {
+    await publishPomodoroState(null)
     if (penaltyLockUntil <= Date.now()) {
       sendToWidget('hide')
     }
@@ -378,6 +424,7 @@ async function enforceRules() {
   // 3. Determine active rules (status === 'active' and within schedule/timer/date)
   const now = new Date()
   let hasPomodoro = false
+  let pomodoroStateToPublish = null
 
   // Process reminders
   try {
@@ -403,11 +450,13 @@ async function enforceRules() {
 
       let currentElapsed = 0
       let isWorkPhase = false
+      let isLongBreak = false
       let phaseRemainingMs = 0
 
       for (let i = 0; i < cyclesToLongBreak; i++) {
         if (blockElapsed < currentElapsed + workMs) {
           isWorkPhase = true
+          isLongBreak = false
           phaseRemainingMs = (currentElapsed + workMs) - blockElapsed
           break
         }
@@ -416,6 +465,7 @@ async function enforceRules() {
         const currentBreakMs = (i === cyclesToLongBreak - 1) ? longBreakMs : breakMs
         if (blockElapsed < currentElapsed + currentBreakMs) {
           isWorkPhase = false
+          isLongBreak = i === cyclesToLongBreak - 1
           phaseRemainingMs = (currentElapsed + currentBreakMs) - blockElapsed
           break
         }
@@ -428,6 +478,16 @@ async function enforceRules() {
       const rSecStr = (rSec % 60).toString().padStart(2, '0')
       const phaseStr = isWorkPhase ? 'Фокус (Работа)' : 'Пауза (Отдых)'
       sendToWidget(`show|${phaseStr}|${rMinStr}:${rSecStr}`)
+      pomodoroStateToPublish = {
+        phase: isWorkPhase ? 'work' : (isLongBreak ? 'long-break' : 'break'),
+        isWorkPhase,
+        phaseEndsAtMs: now.getTime() + phaseRemainingMs,
+        startedAtMs: startedAt.getTime(),
+        workDuration: rule.workDuration,
+        breakDuration: rule.breakDuration,
+        longBreakDuration: rule.longBreakDuration || 15,
+        cyclesToLongBreak
+      }
 
       if (isWorkPhase) {
         const virtualRules = []
@@ -520,6 +580,8 @@ async function enforceRules() {
   })
 
   // ── Hosts file ──
+  await publishPomodoroState(hasPomodoro ? pomodoroStateToPublish : null)
+
   const webRules    = effectiveRules.filter(r => r.type === 'web')
   const domains     = webRules.flatMap(r => extractDomains(r.web || {}))
   applyHostsBlock(domains)

@@ -6,6 +6,7 @@ dist/
 agent/node_modules/
 agent/dist/
 agent/pairing.json
+.local-tools/
 *.exe
 *.log
 .DS_Store

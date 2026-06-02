@@ -2,6 +2,20 @@ import React, { useState, useRef, useEffect } from 'react'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import './TitleBar.css'
 
+function getDeviceName(alert, devices) {
+  return devices.find(d => d.id === alert.deviceId)?.alias || alert.deviceHostname || 'Устройство'
+}
+
+function getAlertTitle(alert, devices) {
+  if (alert.type === 'process_killed') {
+    return alert.details?.startsWith('Blocked: ') ? alert.details.replace('Blocked: ', '') : alert.details
+  }
+  if (alert.type === 'agent_stopped') return `Отключено: ${getDeviceName(alert, devices)}`
+  if (alert.type === 'agent_started') return `Подключено: ${getDeviceName(alert, devices)}`
+  if (alert.type === 'reminder_dismissed') return 'Напоминание прочитано'
+  return alert.type
+}
+
 export default function TitleBar({ onSignOut }) {
   const { user, alerts, acknowledgeAlert, acknowledgeAllAlerts, setActiveTab, selectedDeviceId, devices } = useRulesStore()
   const unreadAlertsList = alerts.filter(a => !a.acknowledged)
@@ -94,9 +108,7 @@ export default function TitleBar({ onSignOut }) {
                       <div className="alert-content">
                         <div className="alert-title-row">
                           <span className="alert-title">
-                            {a.type === 'process_killed' ? (a.details.startsWith('Blocked: ') ? a.details.replace('Blocked: ', '') : a.details) : 
-                             a.type === 'agent_stopped' ? `Отключено: ${devices.find(d => d.id === a.deviceId)?.alias || a.deviceHostname || 'Устройство'}` : 
-                             a.type === 'agent_started' ? `Подключено: ${devices.find(d => d.id === a.deviceId)?.alias || a.deviceHostname || 'Устройство'}` : a.type}
+                            {getAlertTitle(a, devices)}
                           </span>
                           <span className="alert-time">{timeStr}</span>
                         </div>

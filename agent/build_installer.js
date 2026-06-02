@@ -113,6 +113,7 @@ Section "Install"
   nsExec::ExecToLog 'taskkill /F /IM TimerWidget.exe'
   nsExec::ExecToLog 'taskkill /F /IM ReminderWidget.exe'
   nsExec::ExecToLog 'taskkill /F /IM node.exe'
+  nsExec::ExecToLog 'schtasks /Delete /TN "KidsControlTimerWidget" /F'
   
   ; Delete old node-windows files
   RMDir /r "$INSTDIR\\daemon"
@@ -133,6 +134,8 @@ Section "Install"
   
   ; Add TimerWidget to Run registry for all users (HKLM)
   WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "KidsControlTimerWidget" '"$INSTDIR\\TimerWidget.exe"'
+  ; Also add a logon scheduled task as a backup startup path for the visible widget
+  nsExec::ExecToLog 'schtasks /Create /TN "KidsControlTimerWidget" /SC ONLOGON /TR "$INSTDIR\\TimerWidget.exe" /RL LIMITED /F'
   
   ; Run agent.exe once to trigger pairing code prompt in foreground
   ExecWait '"$INSTDIR\\agent.exe"'
@@ -172,6 +175,7 @@ Section "Uninstall"
   ; Remove registry keys
   DeleteRegKey HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\KidsControlAgent"
   DeleteRegValue HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "KidsControlTimerWidget"
+  nsExec::ExecToLog 'schtasks /Delete /TN "KidsControlTimerWidget" /F'
 SectionEnd
 `
     fs.writeFileSync(path.join(distDir, 'installer.nsi'), nsi)

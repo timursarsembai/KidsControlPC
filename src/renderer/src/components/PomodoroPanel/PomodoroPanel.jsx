@@ -3,6 +3,21 @@ import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import Select from '../Select/Select'
 import './PomodoroPanel.css'
 
+function timestampToDate(value) {
+  if (!value) return null
+  if (typeof value.toDate === 'function') return value.toDate()
+  if (typeof value.seconds === 'number') return new Date(value.seconds * 1000)
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function formatPomodoroTime(ms) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000))
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
+
 export default function PomodoroPanel() {
   const { 
     installedApps, rules, getFilteredWebsites, togglePomodoroSession, getPomodoroSession,
@@ -16,7 +31,10 @@ export default function PomodoroPanel() {
   
   const allWebsites = useMemo(() => getFilteredWebsites(), [rules, getFilteredWebsites])
   const currentSession = getPomodoroSession()
-  const isActive = currentSession?.status === 'active'
+  const agentPomodoroState = selectedDevice?.pomodoroState
+  const isAgentPomodoroActive = Boolean(isOnline && agentPomodoroState?.active && agentPomodoroState?.phaseEndsAtMs)
+  const isRuleActive = currentSession?.status === 'active'
+  const isActive = isRuleActive || isAgentPomodoroActive
 
   const [workMins, setWorkMins] = useState(currentSession?.workDuration || 25)
   const [breakMins, setBreakMins] = useState(currentSession?.breakDuration || 5)
@@ -65,8 +83,15 @@ export default function PomodoroPanel() {
   // Calculate current phase
   let phase = 'idle'
   let timeLeft = ''
-  if (isActive && currentSession?.startedAt) {
-    const startedAt = currentSession.startedAt?.toDate?.() || new Date(currentSession.startedAt)
+  if (isAgentPomodoroActive) {
+    phase = agentPomodoroState.phase || (agentPomodoroState.isWorkPhase ? 'work' : 'break')
+    timeLeft = formatPomodoroTime(agentPomodoroState.phaseEndsAtMs - now.getTime())
+  } else if (isRuleActive) {
+    const startedAt = timestampToDate(currentSession.startedAt) || timestampToDate(currentSession.startedAtClientMs)
+    if (!startedAt) {
+      phase = 'idle'
+      timeLeft = ''
+    } else {
     const elapsed = now - startedAt
     const workMs = currentSession.workDuration * 60 * 1000
     const breakMs = currentSession.breakDuration * 60 * 1000
@@ -101,14 +126,11 @@ export default function PomodoroPanel() {
 
     if (isWork) {
       phase = 'work'
-      const m = Math.floor(phaseLeftMs / 60000)
-      const s = Math.floor((phaseLeftMs % 60000) / 1000)
-      timeLeft = `${m}:${s.toString().padStart(2, '0')}`
+      timeLeft = formatPomodoroTime(phaseLeftMs)
     } else {
       phase = isLong ? 'long-break' : 'break'
-      const m = Math.floor(phaseLeftMs / 60000)
-      const s = Math.floor((phaseLeftMs % 60000) / 1000)
-      timeLeft = `${m}:${s.toString().padStart(2, '0')}`
+      timeLeft = formatPomodoroTime(phaseLeftMs)
+    }
     }
   }
 

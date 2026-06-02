@@ -2,6 +2,20 @@ import React, { useState } from 'react'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import './NotificationsPanel.css'
 
+function getDeviceName(alert, devices) {
+  return devices.find(d => d.id === alert.deviceId)?.alias || alert.deviceHostname || 'Устройство'
+}
+
+function getAlertTitle(alert, devices) {
+  if (alert.type === 'process_killed') {
+    return alert.details?.startsWith('Blocked: ') ? alert.details.replace('Blocked: ', '') : alert.details
+  }
+  if (alert.type === 'agent_stopped') return `Отключено: ${getDeviceName(alert, devices)}`
+  if (alert.type === 'agent_started') return `Подключено: ${getDeviceName(alert, devices)}`
+  if (alert.type === 'reminder_dismissed') return 'Напоминание прочитано'
+  return alert.type
+}
+
 export default function NotificationsPanel() {
   const { alerts, acknowledgeAlert, acknowledgeAllAlerts, devices } = useRulesStore()
   const [activeTab, setActiveTab] = useState('unread')
@@ -58,9 +72,7 @@ export default function NotificationsPanel() {
                 <div className="notif-content">
                   <div className="notif-title-row">
                     <span className="notif-title">
-                      {a.type === 'process_killed' ? (a.details.startsWith('Blocked: ') ? a.details.replace('Blocked: ', '') : a.details) : 
-                       a.type === 'agent_stopped' ? `Отключено: ${devices.find(d => d.id === a.deviceId)?.alias || a.deviceHostname || 'Устройство'}` : 
-                       a.type === 'agent_started' ? `Подключено: ${devices.find(d => d.id === a.deviceId)?.alias || a.deviceHostname || 'Устройство'}` : a.type}
+                      {getAlertTitle(a, devices)}
                     </span>
                     <span className="notif-time">{timeStr}</span>
                   </div>
