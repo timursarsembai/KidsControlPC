@@ -354,6 +354,12 @@ function getTimerWidgetPath() {
     : path.join(process.cwd(), 'TimerWidget.exe')
 }
 
+function getSessionLauncherPath() {
+  return process.env.NODE_ENV === 'development'
+    ? path.join(process.cwd(), 'dist', 'SessionLauncher.exe')
+    : path.join(process.cwd(), 'SessionLauncher.exe')
+}
+
 function isWidgetPortOpen(timeoutMs = 800) {
   return new Promise((resolve) => {
     const client = new net.Socket()
@@ -407,6 +413,22 @@ async function startTimerWidgetIfNeeded() {
   lastTimerWidgetStartAttempt = now
 
   try {
+    if (process.argv.includes('--service')) {
+      const launcherExe = getSessionLauncherPath()
+      const widgetExe = getTimerWidgetPath()
+
+      if (fs.existsSync(launcherExe) && fs.existsSync(widgetExe)) {
+        try {
+          await execAsync(`"${launcherExe}" "${widgetExe}"`, { timeout: 5000, windowsHide: true })
+          if (await waitForWidgetPort()) return true
+        } catch (err) {
+          log(`⚠️ SessionLauncher failed to start TimerWidget: ${err.message}`)
+        }
+      } else {
+        log(`⚠️ SessionLauncher or TimerWidget missing: ${launcherExe}, ${widgetExe}`)
+      }
+    }
+
     try {
       await execAsync(`schtasks /Run /TN "${TIMER_WIDGET_TASK}"`, { timeout: 5000, windowsHide: true })
       if (await waitForWidgetPort()) return true
@@ -415,7 +437,7 @@ async function startTimerWidgetIfNeeded() {
     }
 
     if (process.argv.includes('--service')) {
-      log('❌ TimerWidget is unavailable in the interactive user session. Not starting GUI from service session.')
+      log('❌ TimerWidget is unavailable in the interactive user session.')
       return false
     }
 
