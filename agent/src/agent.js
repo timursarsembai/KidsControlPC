@@ -29,6 +29,7 @@ import { enforceProcessRules }            from './processEnforcer.js'
 import { getInstalledPrograms, getRunningProcesses } from './scanner.js'
 import { checkAndUpdateSilently }         from './updater.js'
 import { processReminders }               from './reminder.js'
+import { shouldBlockBySchedule }          from './ruleTiming.js'
 
 // ─── Init Firebase ────────────────────────────────────────────────────────────
 const app = initializeApp(firebaseConfig)
@@ -63,6 +64,15 @@ import fs from 'fs'
 import path from 'path'
 import { exec, spawn } from 'child_process'
 import { promisify } from 'util'
+
+const execAsync = promisify(exec)
+const WIDGET_HOST = '127.0.0.1'
+const WIDGET_PORT = 49152
+const TIMER_WIDGET_TASK = 'KidsControlTimerWidget'
+let isStartingTimerWidget = false
+let lastTimerWidgetStartAttempt = 0
+let ruleLockActive = false
+let executedPowerRuleIds = new Set()
 
 // ─── Logging helper ───────────────────────────────────────────────────────────
 function log(msg) {
@@ -203,91 +213,6 @@ async function sendAlert(type, details = '') {
   }
 }
 
-function getDayIndex(date) {
-  const day = date.getDay()
-  return day === 0 ? 6 : day - 1
-}
-
-function parseTimeToMinutes(value) {
-  if (!value || typeof value !== 'string') return null
-  const [hours, minutes] = value.split(':').map(Number)
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null
-  return hours * 60 + minutes
-}
-
-function getScheduleGroups(schedule) {
-  if (Array.isArray(schedule?.groups) && schedule.groups.length > 0) {
-    return schedule.groups.map(group => ({
-      ...group,
-      action: group.action || schedule.action || 'block'
-    }))
-  }
-  if (schedule?.weekdays?.length) {
-    return [{
-      action: schedule.action || 'block',
-      weekdays: schedule.weekdays,
-      ranges: Array.isArray(schedule.ranges) && schedule.ranges.length > 0
-        ? schedule.ranges
-        : [{ timeFrom: schedule.timeFrom, timeTo: schedule.timeTo }]
-    }]
-  }
-  return []
-}
-
-function isScheduleGroupActive(group, now = new Date()) {
-  if (!group?.weekdays?.length) return false
-  const today = getDayIndex(now)
-  const previousDay = today === 0 ? 6 : today - 1
-  const currentMinute = now.getHours() * 60 + now.getMinutes()
-  const ranges = Array.isArray(group.ranges) && group.ranges.length > 0
-    ? group.ranges
-    : []
-
-  return ranges.some((range) => {
-    const from = parseTimeToMinutes(range.timeFrom)
-    const rawTo = parseTimeToMinutes(range.timeTo)
-    if (from === null || rawTo === null) return false
-
-    if (from === rawTo) {
-      return group.weekdays.includes(today)
-    }
-
-    const to = rawTo === 0 && from > 0 ? 1440 : rawTo
-
-    if (from < to) {
-      return group.weekdays.includes(today) &&
-        currentMinute >= from &&
-        currentMinute < to
-    }
-
-    return (group.weekdays.includes(today) && currentMinute >= from) ||
-      (group.weekdays.includes(previousDay) && currentMinute < rawTo)
-  })
-}
-
-function isScheduleWindowActive(schedule, now = new Date()) {
-  return getScheduleGroups(schedule).some(group => isScheduleGroupActive(group, now))
-}
-
-function shouldBlockBySchedule(schedule, now = new Date()) {
-  const groups = getScheduleGroups(schedule)
-  if (groups.length === 0) return false
-  const today = getDayIndex(now)
-
-  if (groups.some(group => group.action === 'block' && isScheduleGroupActive(group, now))) {
-    return true
-  }
-
-  const allowGroups = groups.filter(group =>
-    group.action !== 'block' && group.weekdays?.includes(today)
-  )
-  if (allowGroups.length > 0) {
-    return !allowGroups.some(group => isScheduleGroupActive(group, now))
-  }
-
-  return false
-}
-
 // ─── Scan and upload installed programs ──────────────────────────────────────
 async function performProgramScan() {
   log('🔍 Scanning installed programs...')
@@ -423,18 +348,94 @@ async function updateRunningStatuses(processes) {
   }
 }
 
-function sendToWidget(message) {
+function getTimerWidgetPath() {
+  return process.env.NODE_ENV === 'development'
+    ? path.join(process.cwd(), 'dist', 'TimerWidget.exe')
+    : path.join(process.cwd(), 'TimerWidget.exe')
+}
+
+function isWidgetPortOpen(timeoutMs = 800) {
   return new Promise((resolve) => {
     const client = new net.Socket()
-    client.connect(49152, '127.0.0.1', () => {
-      client.write(message)
+    const finish = (ok) => {
       client.destroy()
-      resolve(true)
-    })
-    client.on('error', () => {
-      resolve(false)
-    })
+      resolve(ok)
+    }
+    client.setTimeout(timeoutMs)
+    client.connect(WIDGET_PORT, WIDGET_HOST, () => finish(true))
+    client.on('timeout', () => finish(false))
+    client.on('error', () => finish(false))
   })
+}
+
+function sendToWidgetOnce(message, timeoutMs = 1500) {
+  return new Promise((resolve) => {
+    const client = new net.Socket()
+    const finish = (ok) => {
+      client.destroy()
+      resolve(ok)
+    }
+    client.setTimeout(timeoutMs)
+    client.connect(WIDGET_PORT, WIDGET_HOST, () => {
+      client.write(message)
+      finish(true)
+    })
+    client.on('timeout', () => finish(false))
+    client.on('error', () => finish(false))
+  })
+}
+
+async function startTimerWidgetIfNeeded() {
+  if (await isWidgetPortOpen()) return true
+
+  const now = Date.now()
+  if (isStartingTimerWidget || now - lastTimerWidgetStartAttempt < 10000) {
+    await delay(800)
+    return isWidgetPortOpen()
+  }
+
+  isStartingTimerWidget = true
+  lastTimerWidgetStartAttempt = now
+
+  try {
+    try {
+      await execAsync(`schtasks /Run /TN "${TIMER_WIDGET_TASK}"`, { timeout: 5000, windowsHide: true })
+      await delay(800)
+      if (await isWidgetPortOpen()) return true
+    } catch (err) {
+      log(`⚠️ TimerWidget scheduled task start failed: ${err.message}`)
+    }
+
+    const widgetExe = getTimerWidgetPath()
+    if (fs.existsSync(widgetExe)) {
+      const child = spawn(widgetExe, [], {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: false
+      })
+      child.unref()
+      await delay(1000)
+      return isWidgetPortOpen()
+    }
+
+    log(`⚠️ TimerWidget executable not found: ${widgetExe}`)
+    return false
+  } catch (err) {
+    log(`❌ Failed to start TimerWidget: ${err.message}`)
+    return false
+  } finally {
+    isStartingTimerWidget = false
+  }
+}
+
+async function sendToWidget(message, options = {}) {
+  const success = await sendToWidgetOnce(message)
+  if (success || !options.ensureStarted) return success
+
+  const started = await startTimerWidgetIfNeeded()
+  if (!started) return false
+
+  return sendToWidgetOnce(message)
 }
 
 let widgetServer = null
@@ -467,6 +468,91 @@ function startWidgetListener() {
 }
 
 // ─── Enforce rules ─────────────────────────────────────────────────────────────
+function safeWidgetField(value) {
+  return String(value ?? '').replace(/\|/g, '｜')
+}
+
+function getLockPayload(rule = {}) {
+  return {
+    message: rule.message || deviceConfig?.lockMessage || 'Время вышло! Компьютер заблокирован.',
+    color: rule.color || deviceConfig?.lockColor || '#000000',
+    pin: rule.pin ?? deviceConfig?.lockPin ?? '',
+    playSound: rule.playSound !== undefined
+      ? rule.playSound
+      : deviceConfig?.playSound !== false,
+    readMessage: rule.readMessage !== undefined
+      ? rule.readMessage
+      : Boolean(deviceConfig?.readMessage),
+    readMessageRepeat: rule.readMessageRepeat !== undefined
+      ? rule.readMessageRepeat
+      : Boolean(deviceConfig?.readMessageRepeat)
+  }
+}
+
+async function lockWidget(payload) {
+  const playSound = payload.playSound !== false ? '1' : '0'
+  const readMessage = payload.readMessage ? '1' : '0'
+  const readMessageRepeat = payload.readMessageRepeat ? '1' : '0'
+  const success = await sendToWidget(
+    `lock|${safeWidgetField(payload.message)}|${safeWidgetField(payload.color)}|${safeWidgetField(payload.pin)}|${playSound}|${readMessage}|${readMessageRepeat}`,
+    { ensureStarted: true }
+  )
+  if (success) isWidgetLocked = true
+  return success
+}
+
+async function enforceLockRules(lockRules) {
+  if (lockRules.length > 0) {
+    const success = await lockWidget(getLockPayload(lockRules[0]))
+    if (success) ruleLockActive = true
+    return
+  }
+
+  if (!ruleLockActive) return
+  ruleLockActive = false
+
+  if (deviceConfig?.isLocked || Date.now() < penaltyLockUntil) return
+  const success = await sendToWidget('unlock')
+  if (success || !(await isWidgetPortOpen())) {
+    isWidgetLocked = false
+  }
+}
+
+async function executePowerAction(action) {
+  if (action === 'shutdown') {
+    log(`🔴 Shutting down...`)
+    await execAsync('shutdown /s /t 0')
+  } else if (action === 'restart') {
+    log(`🔄 Restarting...`)
+    await execAsync('shutdown /r /t 0')
+  } else if (action === 'sleep') {
+    log(`🌙 Sleeping...`)
+    await execAsync('rundll32.exe powrprof.dll,SetSuspendState 0,1,0')
+  } else if (action === 'hibernate') {
+    log(`❄️ Hibernating...`)
+    await execAsync('rundll32.exe powrprof.dll,SetSuspendState 1,1,0')
+  } else {
+    throw new Error(`Unknown power action: ${action}`)
+  }
+}
+
+async function enforcePowerRules(powerRules) {
+  const activeIds = new Set(powerRules.map(rule => rule.id || `${rule.action}:${rule.mode}`))
+  executedPowerRuleIds = new Set([...executedPowerRuleIds].filter(id => activeIds.has(id)))
+
+  for (const rule of powerRules) {
+    const ruleId = rule.id || `${rule.action}:${rule.mode}`
+    if (executedPowerRuleIds.has(ruleId)) continue
+    executedPowerRuleIds.add(ruleId)
+
+    try {
+      await executePowerAction(rule.action)
+    } catch (err) {
+      log(`❌ Power rule failed (${rule.action}): ${err.message}`)
+    }
+  }
+}
+
 async function enforceRules() {
   if (isShuttingDown) return
   
@@ -485,7 +571,7 @@ async function enforceRules() {
     if (penaltyLockUntil > nowMs) {
       const progName = lastPenaltyProgName || 'эту программу'
       const msg = `Не открывай ${progName}! Родители её запретили!`
-      const success = await sendToWidget(`lock|${msg}|#cc0000||1|1|1`)
+      const success = await sendToWidget(`lock|${safeWidgetField(msg)}|#cc0000||1|1|1`, { ensureStarted: true })
       if (success) isWidgetLocked = true
     } else {
       await ensureWidgetLocked()
@@ -500,6 +586,8 @@ async function enforceRules() {
 
   if (activeRules.length === 0) {
     await publishPomodoroState(null)
+    await enforceLockRules([])
+    await enforcePowerRules([])
     if (penaltyLockUntil <= Date.now()) {
       sendToWidget('hide')
     }
@@ -562,7 +650,7 @@ async function enforceRules() {
       const rMinStr = Math.floor(rSec / 60).toString().padStart(2, '0')
       const rSecStr = (rSec % 60).toString().padStart(2, '0')
       const phaseStr = isWorkPhase ? 'Фокус (Работа)' : 'Пауза (Отдых)'
-      sendToWidget(`show|${phaseStr}|${rMinStr}:${rSecStr}`)
+      sendToWidget(`show|${phaseStr}|${rMinStr}:${rSecStr}`, { ensureStarted: true })
       pomodoroStateToPublish = {
         phase: isWorkPhase ? 'work' : (isLongBreak ? 'long-break' : 'break'),
         isWorkPhase,
@@ -654,6 +742,12 @@ async function enforceRules() {
 
   // ── Hosts file ──
   await publishPomodoroState(hasPomodoro ? pomodoroStateToPublish : null)
+
+  const lockRules = effectiveRules.filter(r => r.type === 'lock')
+  await enforceLockRules(lockRules)
+
+  const powerRules = effectiveRules.filter(r => r.type === 'power')
+  await enforcePowerRules(powerRules)
 
   const webRules    = effectiveRules.filter(r => r.type === 'web')
   const domains     = webRules.flatMap(r => extractDomains(r.web || {}))
@@ -764,7 +858,10 @@ async function ensureWidgetLocked() {
   const readMessage = deviceConfig.readMessage ? '1' : '0'
   const readMessageRepeat = deviceConfig.readMessageRepeat ? '1' : '0'
   
-  const success = await sendToWidget(`lock|${msg}|${color}|${pin}|${playSound}|${readMessage}|${readMessageRepeat}`)
+  const success = await sendToWidget(
+    `lock|${safeWidgetField(msg)}|${safeWidgetField(color)}|${safeWidgetField(pin)}|${playSound}|${readMessage}|${readMessageRepeat}`,
+    { ensureStarted: true }
+  )
   if (success) {
     isWidgetLocked = true
   } else {
@@ -792,8 +889,6 @@ function subscribeToCommands() {
           try {
             await updateDoc(cmdDoc.ref, { status: 'processing' })
             
-            const execAsync = promisify(exec)
-
             if (action === 'uninstall' && cmd.uninstallCmd) {
               log(`🗑️  Uninstalling app: ${cmd.appId}...`)
               await execAsync(cmd.uninstallCmd, { timeout: 60000 })
@@ -802,19 +897,19 @@ function subscribeToCommands() {
             } 
             else if (action === 'shutdown') {
               log(`🔴 Shutting down...`)
-              await execAsync('shutdown /s /t 0')
+              await executePowerAction('shutdown')
             }
             else if (action === 'restart') {
               log(`🔄 Restarting...`)
-              await execAsync('shutdown /r /t 0')
+              await executePowerAction('restart')
             }
             else if (action === 'sleep') {
               log(`🌙 Sleeping...`)
-              await execAsync('rundll32.exe powrprof.dll,SetSuspendState 0,1,0')
+              await executePowerAction('sleep')
             }
             else if (action === 'hibernate') {
               log(`❄️ Hibernating...`)
-              await execAsync('rundll32.exe powrprof.dll,SetSuspendState 1,1,0')
+              await executePowerAction('hibernate')
             }
             else if (action === 'lock') {
               log(`🔒 Locking screen...`)
@@ -824,11 +919,16 @@ function subscribeToCommands() {
               const playSound = cmd.playSound !== false ? '1' : '0'
               const readMessage = cmd.readMessage ? '1' : '0'
               const readMessageRepeat = cmd.readMessageRepeat ? '1' : '0'
-              sendToWidget(`lock|${msg}|${color}|${pin}|${playSound}|${readMessage}|${readMessageRepeat}`)
+              const success = await sendToWidget(
+                `lock|${safeWidgetField(msg)}|${safeWidgetField(color)}|${safeWidgetField(pin)}|${playSound}|${readMessage}|${readMessageRepeat}`,
+                { ensureStarted: true }
+              )
+              if (success) isWidgetLocked = true
             }
             else if (action === 'unlock') {
               log(`🔓 Unlocking screen...`)
-              sendToWidget(`unlock`)
+              const success = await sendToWidget(`unlock`)
+              if (success) isWidgetLocked = false
             }
             else if (action === 'update_agent') {
               log(`🔄 Force updating agent...`)

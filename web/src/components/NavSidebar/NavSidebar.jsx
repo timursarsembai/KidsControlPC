@@ -322,7 +322,7 @@ export default function Sidebar() {
               aria-controls="nav-section-programs"
               type="button"
             >
-              <span className="nav-sidebar-group-label">Управление программами</span>
+              <span className="nav-sidebar-group-label">Блокировка программ</span>
               <span className="nav-sidebar-dropdown-chevron" aria-hidden="true">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                   <path d="M3.5 4.75L6 7.25L8.5 4.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -359,7 +359,7 @@ export default function Sidebar() {
               aria-controls="nav-section-websites"
               type="button"
             >
-              <span className="nav-sidebar-group-label">Управление сайтами</span>
+              <span className="nav-sidebar-group-label">Блокировка сайтов</span>
               <span className="nav-sidebar-dropdown-chevron" aria-hidden="true">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                   <path d="M3.5 4.75L6 7.25L8.5 4.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
