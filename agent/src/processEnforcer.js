@@ -6,6 +6,7 @@
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import { basename } from 'path'
+import { isProtectedProcess } from './selfProtection.js'
 
 const execAsync = promisify(exec)
 
@@ -62,6 +63,8 @@ export async function enforceProcessRules(activeBlockedRules, processes) {
 
   let killedEvents = []
   for (const proc of processes) {
+    if (isProtectedProcess(proc)) continue
+
     for (const rule of activeBlockedRules) {
       if (ruleMatchesProcess(rule, proc)) {
         const ok = await killPid(proc.pid, proc.name)

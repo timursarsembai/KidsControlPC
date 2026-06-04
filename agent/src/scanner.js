@@ -8,6 +8,7 @@ import { promisify } from 'util'
 import { writeFileSync, unlinkSync, existsSync } from 'fs'
 import { join, basename, extname } from 'path'
 import { tmpdir } from 'os'
+import { isProtectedProgramEntry, isProtectedProcess } from './selfProtection.js'
 
 const execAsync = promisify(exec)
 
@@ -112,6 +113,7 @@ if ($result) {
     return list
       .filter(app => app && app.DisplayName && app.DisplayName.trim())
       .filter(app => !isGarbled(app.DisplayName))
+      .filter(app => !isProtectedProgramEntry(app))
       .map(app => {
         let execPath = ''
         if (app.DisplayIcon) {
@@ -182,6 +184,7 @@ if ($procs) {
         base: p.Path ? basename(p.Path, extname(p.Path)).toLowerCase() : p.Name.toLowerCase(),
         hasWindow: Number(p.MainWindowHandle || 0) !== 0
       }))
+      .filter(p => !isProtectedProcess(p))
   } catch (err) {
     console.error('[Scanner] getRunningProcesses error:', err.message)
     return []

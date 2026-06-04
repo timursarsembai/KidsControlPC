@@ -72,4 +72,26 @@ describe('processEnforcer', () => {
     expect(killed).toHaveLength(0)
     expect(exec).not.toHaveBeenCalled()
   })
+
+  it('should never kill KidsControl agent processes', async () => {
+    const rules = [
+      {
+        type: 'program',
+        status: 'active',
+        program: {
+          executablePath: 'C:\\Program Files\\KidsControlAgent\\agent.exe',
+          name: 'KidsControlPC Agent'
+        }
+      }
+    ]
+    const processes = [
+      { pid: 1234, path: 'c:\\program files\\kidscontrolagent\\agent.exe', name: 'agent', base: 'agent', hasWindow: false },
+      { pid: 5678, path: 'c:\\program files\\kidscontrolagent\\timerwidget.exe', name: 'timerwidget', base: 'timerwidget', hasWindow: true }
+    ]
+
+    const killed = await enforceProcessRules(rules, processes)
+
+    expect(killed).toHaveLength(0)
+    expect(exec).not.toHaveBeenCalled()
+  })
 })

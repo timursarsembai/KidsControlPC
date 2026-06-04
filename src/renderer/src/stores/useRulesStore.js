@@ -8,6 +8,25 @@ import {
   sendDeviceCommand as fsSendDeviceCommand, updateDeviceSettings as fsUpdateDeviceSettings
 } from '../firebase/firestore'
 
+const PROTECTED_APP_NAME_PARTS = [
+  'kidscontrol agent',
+  'kidscontrolpc agent',
+  'kidscontrolpc child agent',
+  'kidscontrol pc agent'
+]
+
+const PROTECTED_APP_PATH_PARTS = [
+  '\\kidscontrolagent',
+  '\\kidscontrolpc agent'
+]
+
+function isProtectedInstalledApp(app = {}) {
+  const name = String(app.name || '').toLowerCase()
+  const path = String(app.path || '').toLowerCase().replace(/\//g, '\\')
+  return PROTECTED_APP_NAME_PARTS.some(part => name.includes(part))
+    || PROTECTED_APP_PATH_PARTS.some(part => path.includes(part))
+}
+
 // ─── Store ────────────────────────────────────────────────────────────────────
 export const useRulesStore = create((set, get) => ({
 
@@ -63,7 +82,7 @@ export const useRulesStore = create((set, get) => ({
     })
 
     const unsubApps = subscribeToInstalledApps(user.uid, deviceId, (apps) => {
-      set({ installedApps: apps, appsLoading: false })
+      set({ installedApps: apps.filter(app => !isProtectedInstalledApp(app)), appsLoading: false })
     })
 
     set({ _unsubRules: unsubRules, _unsubApps: unsubApps })
@@ -311,18 +330,57 @@ export const useRulesStore = create((set, get) => ({
   },
 
   togglePomodoroSession: async (active, data = {}) => {
-    const { user, selectedDeviceId } = get()
+    const { user, selectedDeviceId, rules } = get()
     if (!user || !selectedDeviceId) return
+    const currentSession = rules.find(r => r.id === 'global_pomodoro' && r.type === 'pomodoro')
     const payload = {
       type: 'pomodoro',
       status: active ? 'active' : 'inactive',
       ...data
     }
     if (active) {
-      payload.startedAt = serverTimestamp()
-      payload.startedAtClientMs = Date.now()
+      if (currentSession?.status !== 'active') {
+        payload.startedAt = serverTimestamp()
+        payload.startedAtClientMs = Date.now()
+        payload.elapsedBeforePauseMs = Number(data.elapsedBeforePauseMs ?? currentSession?.pausedElapsedMs ?? 0)
+        payload.pausedElapsedMs = null
+        payload.pausedAt = null
+      }
+    } else {
+      payload.startedAt = null
+      payload.startedAtClientMs = null
+      payload.elapsedBeforePauseMs = 0
+      payload.pausedElapsedMs = 0
+      payload.pausedAt = null
     }
     await savePomodoroRule(user.uid, selectedDeviceId, payload)
+  },
+
+  pausePomodoroSession: async (elapsedMs = 0) => {
+    const { user, selectedDeviceId } = get()
+    if (!user || !selectedDeviceId) return
+    const safeElapsedMs = Math.max(0, Math.floor(Number(elapsedMs) || 0))
+    await savePomodoroRule(user.uid, selectedDeviceId, {
+      type: 'pomodoro',
+      status: 'paused',
+      pausedElapsedMs: safeElapsedMs,
+      elapsedBeforePauseMs: safeElapsedMs,
+      pausedAt: serverTimestamp()
+    })
+  },
+
+  stopPomodoroSession: async () => {
+    const { user, selectedDeviceId } = get()
+    if (!user || !selectedDeviceId) return
+    await savePomodoroRule(user.uid, selectedDeviceId, {
+      type: 'pomodoro',
+      status: 'inactive',
+      startedAt: null,
+      startedAtClientMs: null,
+      elapsedBeforePauseMs: 0,
+      pausedElapsedMs: 0,
+      pausedAt: null
+    })
   },
 
   // ── Alert actions ──

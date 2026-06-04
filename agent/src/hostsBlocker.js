@@ -7,6 +7,32 @@
 import { readFileSync, writeFileSync } from 'fs'
 import { HOSTS_FILE, HOSTS_BLOCK_START, HOSTS_BLOCK_END } from './config.js'
 
+const PROTECTED_DOMAINS = new Set([
+  'api.github.com',
+  'github.com',
+  'objects.githubusercontent.com',
+  'release-assets.githubusercontent.com',
+  'firestore.googleapis.com',
+  'firebaseinstallations.googleapis.com',
+  'identitytoolkit.googleapis.com',
+  'securetoken.googleapis.com',
+  'kidscontrolpc.firebaseapp.com',
+  'kidscontrolpc.firebasestorage.app'
+])
+
+function normalizeDomain(domain) {
+  return String(domain || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .split('/')[0]
+}
+
+export function isProtectedDomain(domain) {
+  return PROTECTED_DOMAINS.has(normalizeDomain(domain))
+}
+
 // ─── Read current hosts ───────────────────────────────────────────────────────
 function readHosts() {
   try {
@@ -27,10 +53,17 @@ function stripOurSection(content) {
 // ─── Build block entries for a list of domains ────────────────────────────────
 function buildBlockSection(domains) {
   if (!domains || domains.length === 0) return ''
-  const lines = [...new Set(domains.filter(Boolean))].flatMap(domain => [
+  const safeDomains = domains
+    .map(normalizeDomain)
+    .filter(domain => domain && !isProtectedDomain(domain))
+
+  const lines = [...new Set(safeDomains)].flatMap(domain => [
     `0.0.0.0 ${domain}`,
     `0.0.0.0 www.${domain}`,
   ])
+
+  if (lines.length === 0) return ''
+
   return [
     '',
     HOSTS_BLOCK_START,

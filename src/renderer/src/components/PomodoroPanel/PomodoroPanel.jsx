@@ -7,8 +7,14 @@ function timestampToDate(value) {
   if (!value) return null
   if (typeof value.toDate === 'function') return value.toDate()
   if (typeof value.seconds === 'number') return new Date(value.seconds * 1000)
+  if (typeof value === 'number') return new Date(value)
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? null : date
+}
+
+function timestampToMs(value) {
+  const date = timestampToDate(value)
+  return date ? date.getTime() : null
 }
 
 function formatPomodoroTime(ms) {
@@ -18,9 +24,52 @@ function formatPomodoroTime(ms) {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
+function getPomodoroElapsedMs(session, nowMs) {
+  if (!session) return 0
+  if (session.status === 'paused') {
+    return Math.max(0, Number(session.pausedElapsedMs ?? session.elapsedBeforePauseMs ?? 0))
+  }
+
+  const startedAtMs = timestampToMs(session.startedAtClientMs) ?? timestampToMs(session.startedAt)
+  if (!startedAtMs) return Math.max(0, Number(session.elapsedBeforePauseMs || 0))
+  return Math.max(0, Number(session.elapsedBeforePauseMs || 0) + nowMs - startedAtMs)
+}
+
+function getPomodoroPhase(session, nowMs) {
+  if (!session) return { phase: 'idle', timeLeft: '', elapsedMs: 0 }
+
+  const elapsedMs = getPomodoroElapsedMs(session, nowMs)
+  const workMs = Number(session.workDuration || 25) * 60 * 1000
+  const breakMs = Number(session.breakDuration || 5) * 60 * 1000
+  const longBreakMs = Number(session.longBreakDuration || 15) * 60 * 1000
+  const cyclesToLongBreak = Number(session.cyclesToLongBreak || 3)
+  const blockMs = (workMs + breakMs) * (cyclesToLongBreak - 1) + (workMs + longBreakMs)
+  const blockElapsed = blockMs > 0 ? elapsedMs % blockMs : 0
+
+  let currentElapsed = 0
+  for (let i = 0; i < cyclesToLongBreak; i++) {
+    if (blockElapsed < currentElapsed + workMs) {
+      return { phase: 'work', timeLeft: formatPomodoroTime(currentElapsed + workMs - blockElapsed), elapsedMs }
+    }
+    currentElapsed += workMs
+
+    const currentBreakMs = i === cyclesToLongBreak - 1 ? longBreakMs : breakMs
+    if (blockElapsed < currentElapsed + currentBreakMs) {
+      return {
+        phase: i === cyclesToLongBreak - 1 ? 'long-break' : 'break',
+        timeLeft: formatPomodoroTime(currentElapsed + currentBreakMs - blockElapsed),
+        elapsedMs
+      }
+    }
+    currentElapsed += currentBreakMs
+  }
+
+  return { phase: 'idle', timeLeft: '', elapsedMs }
+}
+
 export default function PomodoroPanel() {
   const { 
-    installedApps, rules, getFilteredWebsites, togglePomodoroSession, getPomodoroSession,
+    installedApps, rules, getFilteredWebsites, togglePomodoroSession, pausePomodoroSession, stopPomodoroSession, getPomodoroSession,
     activeSubTab, addWebsite,
     selectedDeviceId, devices
   } = useRulesStore()
@@ -34,7 +83,9 @@ export default function PomodoroPanel() {
   const agentPomodoroState = selectedDevice?.pomodoroState
   const isAgentPomodoroActive = Boolean(isOnline && agentPomodoroState?.active && agentPomodoroState?.phaseEndsAtMs)
   const isRuleActive = currentSession?.status === 'active'
+  const isPaused = currentSession?.status === 'paused'
   const isActive = isRuleActive || isAgentPomodoroActive
+  const hasSession = isActive || isPaused
 
   const [workMins, setWorkMins] = useState(currentSession?.workDuration || 25)
   const [breakMins, setBreakMins] = useState(currentSession?.breakDuration || 5)
@@ -83,64 +134,27 @@ export default function PomodoroPanel() {
   // Calculate current phase
   let phase = 'idle'
   let timeLeft = ''
+  let elapsedMs = 0
   if (isAgentPomodoroActive) {
     phase = agentPomodoroState.phase || (agentPomodoroState.isWorkPhase ? 'work' : 'break')
     timeLeft = formatPomodoroTime(agentPomodoroState.phaseEndsAtMs - now.getTime())
-  } else if (isRuleActive) {
-    const startedAt = timestampToDate(currentSession.startedAt) || timestampToDate(currentSession.startedAtClientMs)
-    if (!startedAt) {
-      phase = 'idle'
-      timeLeft = ''
-    } else {
-    const elapsed = now - startedAt
-    const workMs = currentSession.workDuration * 60 * 1000
-    const breakMs = currentSession.breakDuration * 60 * 1000
-    const longBreakMs = (currentSession.longBreakDuration || 15) * 60 * 1000
-    const cyclesToLongBreak = currentSession.cyclesToLongBreak || 3
-
-    const blockMs = (workMs + breakMs) * (cyclesToLongBreak - 1) + (workMs + longBreakMs)
-    const blockElapsed = elapsed % blockMs
-
-    let currentElapsed = 0
-    let isWork = false
-    let phaseLeftMs = 0
-    let isLong = false
-
-    for (let i = 0; i < cyclesToLongBreak; i++) {
-      if (blockElapsed < currentElapsed + workMs) {
-        isWork = true
-        phaseLeftMs = currentElapsed + workMs - blockElapsed
-        break
-      }
-      currentElapsed += workMs
-      
-      const currentBreakMs = (i === cyclesToLongBreak - 1) ? longBreakMs : breakMs
-      if (blockElapsed < currentElapsed + currentBreakMs) {
-        isWork = false
-        isLong = (i === cyclesToLongBreak - 1)
-        phaseLeftMs = currentElapsed + currentBreakMs - blockElapsed
-        break
-      }
-      currentElapsed += currentBreakMs
-    }
-
-    if (isWork) {
-      phase = 'work'
-      timeLeft = formatPomodoroTime(phaseLeftMs)
-    } else {
-      phase = isLong ? 'long-break' : 'break'
-      timeLeft = formatPomodoroTime(phaseLeftMs)
-    }
-    }
+    elapsedMs = getPomodoroElapsedMs(currentSession, now.getTime())
+  } else if (isRuleActive || isPaused) {
+    const phaseState = getPomodoroPhase(currentSession, now.getTime())
+    phase = phaseState.phase
+    timeLeft = phaseState.timeLeft
+    elapsedMs = phaseState.elapsedMs
   }
 
-  const handleToggle = () => {
-    if (isActive) {
-      togglePomodoroSession(false)
-    } else {
-      const store = useRulesStore.getState()
-      const conflictPrograms = Array.from(selectedPrograms).filter(p => store.checkRuleConflict('program', p, 'pomodoro'))
-      const conflictWebsites = Array.from(selectedWebsites).filter(w => store.checkRuleConflict('web', w, 'pomodoro'))
+  const handleStartOrResume = () => {
+    if (isPaused) {
+      togglePomodoroSession(true, { elapsedBeforePauseMs: elapsedMs })
+      return
+    }
+
+    const store = useRulesStore.getState()
+    const conflictPrograms = Array.from(selectedPrograms).filter(p => store.checkRuleConflict('program', p, 'pomodoro'))
+    const conflictWebsites = Array.from(selectedWebsites).filter(w => store.checkRuleConflict('web', w, 'pomodoro'))
       
       if (conflictPrograms.length > 0 || conflictWebsites.length > 0) {
         alert('Конфликт правил!\n\nСледующие ресурсы уже блокируются в других режимах:\n' + 
@@ -149,17 +163,24 @@ export default function PomodoroPanel() {
         return
       }
 
-      togglePomodoroSession(true, {
-        workDuration: Number(workMins),
-        breakDuration: Number(breakMins),
-        longBreakDuration: Number(longBreakMins),
-        cyclesToLongBreak: Number(cycles),
-        targets: {
-          programs: Array.from(selectedPrograms),
-          websites: Array.from(selectedWebsites)
-        }
-      })
-    }
+    togglePomodoroSession(true, {
+      workDuration: Number(workMins),
+      breakDuration: Number(breakMins),
+      longBreakDuration: Number(longBreakMins),
+      cyclesToLongBreak: Number(cycles),
+      targets: {
+        programs: Array.from(selectedPrograms),
+        websites: Array.from(selectedWebsites)
+      }
+    })
+  }
+
+  const handlePause = () => {
+    pausePomodoroSession(elapsedMs)
+  }
+
+  const handleStop = () => {
+    stopPomodoroSession()
   }
 
   const toggleProgram = (name) => {
@@ -221,23 +242,26 @@ export default function PomodoroPanel() {
         <div className="pomodoro-settings">
           <div className="input-group">
             <label>Работа (мин)</label>
-            <input type="number" className="input" value={workMins} onChange={e => setWorkMins(e.target.value)} disabled={isActive} min="1" max="1440" />
+            <input type="number" className="input" value={workMins} onChange={e => setWorkMins(e.target.value)} disabled={hasSession} min="1" max="1440" />
           </div>
           <div className="input-group">
             <label>Пауза (мин)</label>
-            <input type="number" className="input" value={breakMins} onChange={e => setBreakMins(e.target.value)} disabled={isActive} min="1" max="1440" />
+            <input type="number" className="input" value={breakMins} onChange={e => setBreakMins(e.target.value)} disabled={hasSession} min="1" max="1440" />
           </div>
           <div className="input-group">
             <label>Длин. пауза (мин)</label>
-            <input type="number" className="input" value={longBreakMins} onChange={e => setLongBreakMins(e.target.value)} disabled={isActive} min="1" max="1440" />
+            <input type="number" className="input" value={longBreakMins} onChange={e => setLongBreakMins(e.target.value)} disabled={hasSession} min="1" max="1440" />
           </div>
           <div className="input-group">
             <label>Циклов до длин. паузы</label>
-            <input type="number" className="input" value={cycles} onChange={e => setCycles(e.target.value)} disabled={isActive} min="1" max="100" />
+            <input type="number" className="input" value={cycles} onChange={e => setCycles(e.target.value)} disabled={hasSession} min="1" max="100" />
           </div>
-          <button className={`btn ${isActive ? 'btn-danger' : 'btn-primary'}`} onClick={handleToggle}>
+          <button className={`btn ${isActive ? 'btn-danger' : 'btn-primary'}`} onClick={handleStartOrResume} style={{ display: hasSession ? 'none' : undefined }}>
             {isActive ? 'Остановить сессию' : 'Запустить сессию'}
           </button>
+          {isActive && <button className="btn btn-ghost" onClick={handlePause}>Пауза</button>}
+          {isPaused && <button className="btn btn-primary" onClick={handleStartOrResume}>Продолжить</button>}
+          {hasSession && <button className="btn btn-danger" onClick={handleStop}>Остановить</button>}
         </div>
 
         <div className={`pomodoro-status ${phase}`}>
@@ -247,19 +271,25 @@ export default function PomodoroPanel() {
               <div className="status-time" style={{ color: 'var(--text-tertiary)' }}>00:00:00</div>
             </>
           )}
-          {phase === 'work' && (
+          {isPaused && (
+            <>
+              <div className="status-label">Сессия на паузе</div>
+              <div className="status-time">{timeLeft || '00:00'}</div>
+            </>
+          )}
+          {!isPaused && phase === 'work' && (
             <>
               <div className="status-label">Блокировка активна</div>
               <div className="status-time">{timeLeft}</div>
             </>
           )}
-          {phase === 'break' && (
+          {!isPaused && phase === 'break' && (
             <>
               <div className="status-label">Пауза (доступ открыт)</div>
               <div className="status-time">{timeLeft}</div>
             </>
           )}
-          {phase === 'long-break' && (
+          {!isPaused && phase === 'long-break' && (
             <>
               <div className="status-label">Длинная пауза (доступ открыт)</div>
               <div className="status-time">{timeLeft}</div>
@@ -356,10 +386,10 @@ export default function PomodoroPanel() {
                   {app.path ? <div className="prog-path">{app.path}</div> : <div className="prog-path no-path">Путь неизвестен</div>}
                 </td>
                 <td>
-                  <label className={`custom-checkbox ${isActive ? 'disabled' : ''}`}>
+                  <label className={`custom-checkbox ${hasSession ? 'disabled' : ''}`}>
                     <input 
                       type="checkbox" 
-                      disabled={isActive}
+                      disabled={hasSession}
                       checked={selectedPrograms.has(app.name)}
                       onChange={() => toggleProgram(app.name)}
                     />
@@ -389,10 +419,10 @@ export default function PomodoroPanel() {
                     <div className="prog-name">{url}</div>
                   </td>
                   <td>
-                    <label className={`custom-checkbox ${isActive ? 'disabled' : ''}`}>
+                    <label className={`custom-checkbox ${hasSession ? 'disabled' : ''}`}>
                       <input 
                         type="checkbox" 
-                        disabled={isActive}
+                        disabled={hasSession}
                         checked={selectedWebsites.has(url)}
                         onChange={() => toggleWebsite(url)}
                       />

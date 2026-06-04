@@ -645,8 +645,9 @@ async function enforceRules() {
 
     if (rule.type === 'pomodoro') {
       if (!rule.startedAt || !rule.workDuration || !rule.breakDuration) return []
-      const startedAt = rule.startedAt?.toDate?.() || new Date(rule.startedAt)
-      const elapsed = now - startedAt
+      const startedAt = rule.startedAt?.toDate?.()
+        || (typeof rule.startedAtClientMs === 'number' ? new Date(rule.startedAtClientMs) : new Date(rule.startedAt))
+      const elapsed = Number(rule.elapsedBeforePauseMs || 0) + (now - startedAt)
       if (elapsed < 0) return []
       const workMs = rule.workDuration * 60 * 1000
       const breakMs = rule.breakDuration * 60 * 1000
@@ -777,6 +778,9 @@ async function enforceRules() {
 
   // ── Hosts file ──
   await publishPomodoroState(hasPomodoro ? pomodoroStateToPublish : null)
+  if (!hasPomodoro && penaltyLockUntil <= Date.now()) {
+    sendToWidget('hide')
+  }
 
   const lockRules = effectiveRules.filter(r => r.type === 'lock')
   await enforceLockRules(lockRules)
