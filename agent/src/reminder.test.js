@@ -86,8 +86,7 @@ describe('reminder', () => {
   })
 
   it('should send reminder to TimerWidget if time is past', async () => {
-    // Set current time to 12:30 PM
-    const now = new Date('2026-05-31T12:30:00')
+    const now = new Date('2026-05-31T12:05:00')
     vi.setSystemTime(now)
 
     const rules = [
@@ -99,7 +98,7 @@ describe('reminder', () => {
         mode: 'schedule',
         schedule: {
           weekdays: [now.getDay() === 0 ? 6 : now.getDay() - 1], // today
-          timeFrom: '12:00', // 12:00 PM (already passed)
+          timeFrom: '12:00',
           color: '#ffffff'
         }
       }
@@ -136,7 +135,7 @@ describe('reminder', () => {
   })
 
   it('should fallback to ReminderWidget.exe if TimerWidget socket is unavailable', async () => {
-    const now = new Date('2026-05-31T12:30:00')
+    const now = new Date('2026-05-31T12:05:00')
     vi.setSystemTime(now)
     mockState.socketConnectSucceeds = false
 
@@ -164,5 +163,29 @@ describe('reminder', () => {
       expect.any(Function)
     )
     expect(exec.mock.calls[0][0]).toContain('"0"')
+  })
+
+  it('should not replay old reminders long after their scheduled time', async () => {
+    const now = new Date('2026-05-31T13:30:00')
+    vi.setSystemTime(now)
+
+    const rules = [
+      {
+        id: 'rule4',
+        type: 'reminder',
+        status: 'active',
+        message: 'Old reminder',
+        mode: 'schedule',
+        schedule: {
+          weekdays: [now.getDay() === 0 ? 6 : now.getDay() - 1],
+          timeFrom: '12:00'
+        }
+      }
+    ]
+
+    await processReminders(rules)
+
+    expect(exec).not.toHaveBeenCalled()
+    expect(mockState.lastSocketPayload).toBe(null)
   })
 })

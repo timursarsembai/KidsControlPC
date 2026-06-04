@@ -152,8 +152,10 @@ Section "Install"
   
   ; Install service
   nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" install'
-  ; Start as delayed auto-start to reduce startup race conditions
-  nsExec::ExecToLog 'sc config KidsControlPCAgent start= delayed-auto'
+  ; Start immediately at boot. Parental controls must not wait for delayed auto-start.
+  nsExec::ExecToLog 'sc config KidsControlPCAgent start= auto'
+  nsExec::ExecToLog 'sc failure KidsControlPCAgent reset= 60 actions= restart/10000/restart/30000/restart/60000'
+  nsExec::ExecToLog 'sc failureflag KidsControlPCAgent 1'
   
   ; Add TimerWidget to Run registry for all users (HKLM)
   WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "KidsControlTimerWidget" '"$INSTDIR\\TimerWidget.exe"'

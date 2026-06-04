@@ -81,7 +81,7 @@ describe('updater', () => {
       ['/S'],
       { detached: true, stdio: 'ignore' }
     )
-    expect(exitMock).toHaveBeenCalledWith(0)
+    expect(exitMock).not.toHaveBeenCalled()
   })
 
   it('should respect force flag', async () => {
@@ -92,6 +92,6 @@ describe('updater', () => {
     const child_process = await import('child_process')
     const spawnMock = child_process.spawn || child_process.default.spawn
     expect(spawnMock).toHaveBeenCalledTimes(1)
-    expect(exitMock).toHaveBeenCalledWith(0)
+    expect(exitMock).not.toHaveBeenCalled()
   })
 })

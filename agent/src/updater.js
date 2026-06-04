@@ -29,10 +29,14 @@ export async function checkAndUpdateSilently(logFunc = console.log, force = fals
           detached: true,
           stdio: 'ignore'
         })
+        child.on('error', err => {
+          logFunc(`[Updater] Installer start error: ${err.message}`)
+        })
         child.unref()
         
-        // Exit this process so the installer can overwrite files and restart the service
-        process.exit(0)
+        // Do not exit immediately here. The installer stops/reinstalls/starts the
+        // service itself; exiting first can leave the agent offline if the installer
+        // fails before the service restart step.
       }
     }
   } catch (err) {
