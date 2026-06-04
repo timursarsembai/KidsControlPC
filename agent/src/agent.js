@@ -536,6 +536,11 @@ async function lockWidget(payload) {
   return success
 }
 
+async function hideWidgetIfUnlocked() {
+  if (deviceConfig?.isLocked || isWidgetLocked || Date.now() < penaltyLockUntil) return false
+  return sendToWidget('hide')
+}
+
 async function enforceLockRules(lockRules) {
   if (lockRules.length > 0) {
     const success = await lockWidget(getLockPayload(lockRules[0]))
@@ -623,9 +628,7 @@ async function enforceRules() {
     await publishPomodoroState(null)
     await enforceLockRules([])
     await enforcePowerRules([])
-    if (penaltyLockUntil <= Date.now()) {
-      sendToWidget('hide')
-    }
+    await hideWidgetIfUnlocked()
     return
   }
 
@@ -777,12 +780,12 @@ async function enforceRules() {
   })
 
   // ── Hosts file ──
+  const lockRules = effectiveRules.filter(r => r.type === 'lock')
   await publishPomodoroState(hasPomodoro ? pomodoroStateToPublish : null)
-  if (!hasPomodoro && penaltyLockUntil <= Date.now()) {
-    sendToWidget('hide')
+  if (!hasPomodoro && lockRules.length === 0) {
+    await hideWidgetIfUnlocked()
   }
 
-  const lockRules = effectiveRules.filter(r => r.type === 'lock')
   await enforceLockRules(lockRules)
 
   const powerRules = effectiveRules.filter(r => r.type === 'power')
