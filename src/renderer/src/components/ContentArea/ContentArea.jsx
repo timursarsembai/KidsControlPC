@@ -4,6 +4,7 @@ import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import ProgramsPanel from '../ProgramsPanel/ProgramsPanel'
 import WebPanel from '../WebPanel/WebPanel'
 import PomodoroPanel from '../PomodoroPanel/PomodoroPanel'
+import ProfilePanel from '../ProfilePanel/ProfilePanel'
 import NotificationsPanel from '../NotificationsPanel/NotificationsPanel'
 import PowerPanel from '../PowerPanel/PowerPanel'
 import RemindersPanel from '../RemindersPanel/RemindersPanel'
@@ -47,10 +48,16 @@ export default function ContentArea() {
   const { t } = useTranslation()
   const {
     activeTab, activeSubTab, setActiveSubTab,
-    selectedDeviceId, devices, setShowSettings
+    selectedDeviceId, devices, setShowSettings, rules
   } = useRulesStore()
 
-  const meta = {
+  const isProfileTab = activeTab?.startsWith('profile_')
+  const profileRule = isProfileTab
+    ? rules.find(rule => rule.mode === 'profile' && rule.profileId === activeTab && rule.type === 'profile_config')
+      || rules.find(rule => rule.mode === 'profile' && rule.profileId === activeTab)
+    : null
+
+  const baseMeta = {
     permanent: { label: t('sidebar.modes.permanent'), icon: '🔒', desc: t('sidebar.modes.permanent_sub') },
     timer:     { label: t('sidebar.modes.timer'), icon: '⏱️', desc: t('sidebar.modes.timer_sub') },
     schedule:  { label: t('sidebar.modes.schedule'), icon: '📅', desc: t('sidebar.modes.schedule_sub') },
@@ -62,6 +69,9 @@ export default function ContentArea() {
     notifications: { label: t('sidebar.notifications', 'Уведомления'), icon: '🔔', desc: t('sidebar.notifications_sub', 'История системных событий') },
     reminders: { label: 'Напоминания', icon: '🔔', desc: 'Будильники и сообщения' },
   }[activeTab]
+  const meta = isProfileTab
+    ? { label: profileRule?.profileName || 'Новый режим', icon: profileRule?.profileIcon || '🧩', desc: 'Свои списки программ, сайтов и расписание' }
+    : baseMeta
   const selectedDevice = devices.find(d => d.id === selectedDeviceId)
 
   if (!selectedDeviceId || !selectedDevice) {
@@ -148,6 +158,8 @@ export default function ContentArea() {
           <PowerPanel key={`${selectedDeviceId}-lock_screen`} mode="lock_screen" />
         ) : activeTab === 'pomodoro' ? (
           <PomodoroPanel key={`${selectedDeviceId}-pomodoro`} />
+        ) : isProfileTab ? (
+          <ProfilePanel key={`${selectedDeviceId}-${activeTab}`} profileId={activeTab} />
         ) : activeTab === 'reminders' ? (
           <RemindersPanel key={`${selectedDeviceId}-reminders`} />
         ) : activeSubTab === 'programs' ? (

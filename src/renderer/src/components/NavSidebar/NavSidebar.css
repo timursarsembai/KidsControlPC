@@ -131,6 +131,111 @@
 .nav-sidebar-item:hover  { background: var(--bg-hover); color: var(--text-primary); }
 .nav-sidebar-item.active { background: var(--accent-dim); color: var(--accent); }
 
+.nav-sidebar-delete-profile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0;
+  transition: all var(--dur-base) var(--ease);
+}
+
+.nav-sidebar-item:hover .nav-sidebar-delete-profile,
+.nav-sidebar-item.active .nav-sidebar-delete-profile {
+  opacity: 1;
+}
+
+.nav-sidebar-delete-profile:hover {
+  background: var(--danger-dim);
+  color: var(--danger);
+}
+
+.nav-sidebar-delete-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.nav-sidebar-delete-confirm-yes,
+.nav-sidebar-delete-confirm-no {
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nav-sidebar-delete-confirm-yes {
+  background: var(--danger-dim);
+  color: var(--danger);
+}
+
+.nav-sidebar-delete-confirm-no {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.nav-sidebar-add-profile {
+  margin-top: 4px;
+  border: 1px dashed var(--border);
+  color: var(--accent);
+}
+
+.nav-sidebar-add-profile:hover {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.nav-sidebar-create-profile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+}
+
+.nav-sidebar-profile-input {
+  width: 100%;
+  height: 34px;
+  font-size: 12px;
+}
+
+.nav-sidebar-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 5px;
+}
+
+.nav-sidebar-icon-choice {
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  cursor: pointer;
+  transition: all var(--dur-base) var(--ease);
+}
+
+.nav-sidebar-icon-choice:hover,
+.nav-sidebar-icon-choice.active {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.nav-sidebar-create-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
 .nav-sidebar-icon { flex-shrink: 0; display: flex; align-items: center; }
 
 .nav-sidebar-labels {
