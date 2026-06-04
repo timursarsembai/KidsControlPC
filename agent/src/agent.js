@@ -368,6 +368,15 @@ function isWidgetPortOpen(timeoutMs = 800) {
   })
 }
 
+async function waitForWidgetPort(timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (await isWidgetPortOpen()) return true
+    await delay(300)
+  }
+  return false
+}
+
 function sendToWidgetOnce(message, timeoutMs = 1500) {
   return new Promise((resolve) => {
     const client = new net.Socket()
@@ -400,10 +409,14 @@ async function startTimerWidgetIfNeeded() {
   try {
     try {
       await execAsync(`schtasks /Run /TN "${TIMER_WIDGET_TASK}"`, { timeout: 5000, windowsHide: true })
-      await delay(800)
-      if (await isWidgetPortOpen()) return true
+      if (await waitForWidgetPort()) return true
     } catch (err) {
       log(`⚠️ TimerWidget scheduled task start failed: ${err.message}`)
+    }
+
+    if (process.argv.includes('--service')) {
+      log('❌ TimerWidget is unavailable in the interactive user session. Not starting GUI from service session.')
+      return false
     }
 
     const widgetExe = getTimerWidgetPath()

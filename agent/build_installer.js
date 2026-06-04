@@ -74,6 +74,24 @@ async function build() {
 </service>`
     fs.writeFileSync(path.join(distDir, 'WinSW.xml'), xml)
 
+    const widgetTaskScript = `
+param(
+  [Parameter(Mandatory=$true)]
+  [string]$WidgetPath
+)
+
+$ErrorActionPreference = 'Stop'
+$TaskName = 'KidsControlTimerWidget'
+$Action = New-ScheduledTaskAction -Execute $WidgetPath
+$Trigger = New-ScheduledTaskTrigger -AtLogOn
+$Principal = New-ScheduledTaskPrincipal -GroupId 'BUILTIN\\Users' -RunLevel Limited
+$Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew
+
+Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Principal $Principal -Settings $Settings -Force | Out-Null
+Start-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+`
+    fs.writeFileSync(path.join(distDir, 'register_widget_task.ps1'), widgetTaskScript)
+
     const nsi = `
 !include "MUI2.nsh"
 Name "KidsControlPC Agent"
@@ -126,6 +144,7 @@ Section "Install"
   File "CustomDialogWidget.exe"
   File "WinSW.exe"
   File "WinSW.xml"
+  File "register_widget_task.ps1"
   
   ; Install service
   nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" install'
@@ -134,8 +153,9 @@ Section "Install"
   
   ; Add TimerWidget to Run registry for all users (HKLM)
   WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "KidsControlTimerWidget" '"$INSTDIR\\TimerWidget.exe"'
-  ; Also add a logon scheduled task as a backup startup path for the visible widget
-  nsExec::ExecToLog 'schtasks /Create /TN "KidsControlTimerWidget" /SC ONLOGON /TR "$INSTDIR\\TimerWidget.exe" /RL LIMITED /F'
+  ; Also add an interactive logon scheduled task for the visible widget.
+  ; Group principal keeps it visible in the active user session even after silent service updates.
+  nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\\register_widget_task.ps1" -WidgetPath "$INSTDIR\\TimerWidget.exe"'
   
   ; Run agent.exe once to trigger pairing code prompt in foreground
   ExecWait '"$INSTDIR\\agent.exe"'
@@ -143,8 +163,8 @@ Section "Install"
   ; Start service in background after pairing
   nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" start'
   
-  ; Restart TimerWidget for the current user
-  Exec 'explorer.exe "$INSTDIR\\TimerWidget.exe"'
+  ; Restart TimerWidget for the current interactive user
+  nsExec::ExecToLog 'schtasks /Run /TN "KidsControlTimerWidget"'
   
   ; Create uninstaller
   WriteUninstaller "$INSTDIR\\uninstall.exe"
@@ -166,6 +186,7 @@ Section "Uninstall"
   Delete "$INSTDIR\\ReminderWidget.exe"
   Delete "$INSTDIR\\WinSW.exe"
   Delete "$INSTDIR\\WinSW.xml"
+  Delete "$INSTDIR\\register_widget_task.ps1"
   Delete "$INSTDIR\\pairing.json"
   Delete "$INSTDIR\\uninstall.exe"
   
