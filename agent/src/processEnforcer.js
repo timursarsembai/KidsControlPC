@@ -23,6 +23,40 @@ async function killPid(pid, name) {
 }
 
 // ─── Check if a rule matches a running process ────────────────────────────────
+function normalizeText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/\.exe$/i, '')
+    .replace(/[^a-z0-9а-яё]+/gi, '')
+}
+
+function isRobloxPlayerRule(rulePathLow, ruleNameLow) {
+  const normalizedName = normalizeText(ruleNameLow)
+  return (
+    normalizedName.includes('robloxplayer') ||
+    normalizedName.includes('roblox') ||
+    rulePathLow.includes('\\roblox\\versions\\')
+  ) && !normalizedName.includes('studio')
+}
+
+function isRobloxPlayerProcess(proc) {
+  const haystack = `${proc.name || ''} ${proc.base || ''} ${proc.path || ''}`.toLowerCase()
+  return haystack.includes('roblox') && haystack.includes('player') && !haystack.includes('studio')
+}
+
+function directoryRuleMatchesProcess(rulePathLow, procPath) {
+  if (!rulePathLow || !procPath || rulePathLow.endsWith('.exe')) return false
+  if (procPath.startsWith(rulePathLow + '\\')) return true
+
+  if (rulePathLow.includes('\\roblox\\versions\\')) {
+    const lastSlash = rulePathLow.lastIndexOf('\\')
+    const versionsDir = lastSlash >= 0 ? rulePathLow.slice(0, lastSlash) : rulePathLow
+    return procPath.startsWith(versionsDir + '\\')
+  }
+
+  return false
+}
+
 function ruleMatchesProcess(rule, proc) {
   const procPath = proc.path || ''
   const procName = proc.name || ''
@@ -37,9 +71,10 @@ function ruleMatchesProcess(rule, proc) {
   // Match by exe path (most precise)
   if (rulePathLow && procPath) {
     if (rulePathLow === procPath) return true
-    // UWP / Appx apps have folders as InstallLocation
-    if (procPath.startsWith(rulePathLow + '\\')) return true
+    if (directoryRuleMatchesProcess(rulePathLow, procPath)) return true
   }
+
+  if (isRobloxPlayerRule(rulePathLow, ruleNameLow) && isRobloxPlayerProcess(proc)) return true
   
   // Match by exe basename
   if (ruleBaseLow && procBase && ruleBaseLow === procBase) return true

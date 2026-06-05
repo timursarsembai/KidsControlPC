@@ -132,13 +132,23 @@ export async function enforceRules(parentUid, deviceId, isShuttingDown) {
     processReminders(activeRules)
   } catch (e) {}
 
+  // Debug: log all rules with their modes and types
+  const profileRules = activeRules.filter(r => r.mode === 'profile')
+  if (profileRules.length > 0) {
+    log(`📊 Profile rules count: ${profileRules.length}`)
+    for (const r of profileRules) {
+      const hasSchedule = !!r.schedule
+      const scheduleAction = r.schedule?.action || 'N/A'
+      const groups = r.schedule?.groups?.length || 0
+      const shouldBlock = hasSchedule ? shouldBlockBySchedule(r.schedule, now) : 'no schedule'
+      log(`  → id=${r.id} type=${r.type} mode=${r.mode} status=${r.status} hasSchedule=${hasSchedule} scheduleAction=${scheduleAction} groups=${groups} shouldBlock=${shouldBlock} program=${r.program?.name || 'N/A'}`)
+    }
+  }
+
   const effectiveRules = activeRules.flatMap(rule => {
     if (rule.status !== 'active') return []
 
-    // pomodoro virtual rules are handled by evaluatePomodoroState, but we need to block programs
-    // We'll skip virtual pomodoro rule logic here and let pomodoroEngine handle UI.
-    // Wait, the agent.js creates virtual rules to block apps during pomodoro work phase.
-    // I should extract that too. Let's do that below.
+    if (rule.type === 'profile_config') return []
 
     switch (rule.mode) {
       case 'permanent': return [rule]
@@ -168,6 +178,15 @@ export async function enforceRules(parentUid, deviceId, isShuttingDown) {
       default: return []
     }
   })
+
+  // Debug: log effective rules
+  const effectivePrograms = effectiveRules.filter(r => r.type === 'program')
+  if (effectivePrograms.length > 0) {
+    log(`🔒 Effective program rules to enforce: ${effectivePrograms.length}`)
+    for (const r of effectivePrograms) {
+      log(`  → ${r.program?.name} (mode=${r.mode}, schedule_action=${r.schedule?.action || 'N/A'})`)
+    }
+  }
 
   // Add virtual rules for active Pomodoro
   if (deviceConfig?.pomodoroState?.active && deviceConfig?.pomodoroState?.isWorkPhase) {

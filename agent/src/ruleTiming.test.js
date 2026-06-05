@@ -27,6 +27,22 @@ describe('ruleTiming', () => {
     expect(shouldBlockBySchedule(schedule, new Date(2026, 5, 6, 22, 0))).toBe(true)
   })
 
+  it('blocks outside a free Roblox window from 10:00 to 12:00', () => {
+    const schedule = {
+      groups: [
+        {
+          action: 'allow',
+          weekdays: [0, 1, 2, 3, 4, 5, 6],
+          ranges: [{ timeFrom: '10:00', timeTo: '12:00' }]
+        }
+      ]
+    }
+
+    expect(shouldBlockBySchedule(schedule, new Date(2026, 5, 5, 6, 30))).toBe(true)
+    expect(shouldBlockBySchedule(schedule, new Date(2026, 5, 5, 10, 30))).toBe(false)
+    expect(shouldBlockBySchedule(schedule, new Date(2026, 5, 5, 12, 47))).toBe(true)
+  })
+
   it('supports block profile groups without affecting other weekdays', () => {
     const schedule = {
       groups: [

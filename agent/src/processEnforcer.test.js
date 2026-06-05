@@ -73,6 +73,38 @@ describe('processEnforcer', () => {
     expect(exec).not.toHaveBeenCalled()
   })
 
+  it('should kill Roblox Player after Roblox changes version folder', async () => {
+    const rules = [
+      {
+        type: 'program',
+        status: 'active',
+        program: {
+          executablePath: 'C:\\Users\\Child\\AppData\\Local\\Roblox\\Versions\\ver-old',
+          name: 'Roblox Player for Child'
+        }
+      }
+    ]
+    const processes = [
+      {
+        pid: 4321,
+        path: 'c:\\users\\child\\appdata\\local\\roblox\\versions\\ver-new\\robloxplayerbeta.exe',
+        name: 'robloxplayerbeta',
+        base: 'robloxplayerbeta',
+        hasWindow: true
+      }
+    ]
+
+    const killed = await enforceProcessRules(rules, processes)
+
+    expect(killed).toHaveLength(1)
+    expect(killed[0]).toEqual({ name: 'Roblox Player for Child', interactive: true })
+    expect(exec).toHaveBeenCalledWith(
+      'taskkill /F /PID 4321',
+      expect.any(Object),
+      expect.any(Function)
+    )
+  })
+
   it('should never kill KidsControl agent processes', async () => {
     const rules = [
       {
