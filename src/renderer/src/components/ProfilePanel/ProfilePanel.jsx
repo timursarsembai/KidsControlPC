@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import { evaluateRule } from '@kidscontrol/shared/utils/timeHelpers'
 import Select from '../Select/Select'
+import TimeInput from '../TimeInput/TimeInput'
 import './ProfilePanel.css'
 
 const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
@@ -432,18 +433,14 @@ export default function ProfilePanel({ profileId }) {
                   <div className="profile-ranges">
                     {group.ranges.map((range, rangeIndex) => (
                       <div className="profile-range-row" key={`${groupIndex}-${rangeIndex}-${range.timeFrom}-${range.timeTo}`}>
-                        <input
-                          type="time"
-                          className="input time-input"
+                        <TimeInput
                           value={range.timeFrom}
-                          onChange={event => updateGroupRange(groupIndex, rangeIndex, { timeFrom: event.target.value })}
+                          onChange={timeFrom => updateGroupRange(groupIndex, rangeIndex, { timeFrom })}
                         />
                         <span className="time-sep">—</span>
-                        <input
-                          type="time"
-                          className="input time-input"
+                        <TimeInput
                           value={range.timeTo}
-                          onChange={event => updateGroupRange(groupIndex, rangeIndex, { timeTo: event.target.value })}
+                          onChange={timeTo => updateGroupRange(groupIndex, rangeIndex, { timeTo })}
                         />
                         <button
                           className="btn btn-sm profile-range-remove"

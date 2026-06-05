@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
+import TimeInput from '../TimeInput/TimeInput'
 import './RemindersPanel.css'
 
 const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
@@ -25,8 +26,8 @@ function ScheduleInput({ value, onChange }) {
       <div>
         <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 4 }}>Время</div>
         <div className="time-range">
-          <input type="time" className="input time-input" value={value?.timeFrom || ''}
-            onChange={e => onChange({ ...value, timeFrom: e.target.value })} />
+          <TimeInput value={value?.timeFrom || ''}
+            onChange={timeFrom => onChange({ ...value, timeFrom })} />
         </div>
       </div>
     </div>
@@ -37,8 +38,8 @@ function TimeOnlyInput({ value, onChange }) {
   return (
     <div className="schedule-input-wrap">
       <div className="time-range">
-        <input type="time" className="input time-input" value={value || ''}
-          onChange={e => onChange(e.target.value)} />
+        <TimeInput value={value || ''}
+          onChange={onChange} />
       </div>
     </div>
   )
@@ -59,8 +60,8 @@ function MonthlyDateInput({ value, onChange }) {
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 4 }}>Время</div>
         <div className="time-range">
-          <input type="time" className="input time-input" value={value?.timeFrom || ''}
-            onChange={e => onChange({ ...value, timeFrom: e.target.value })} />
+          <TimeInput value={value?.timeFrom || ''}
+            onChange={timeFrom => onChange({ ...value, timeFrom })} />
         </div>
       </div>
     </div>

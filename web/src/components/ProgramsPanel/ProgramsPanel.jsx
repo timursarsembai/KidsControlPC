@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import { evaluateRule } from '@kidscontrol/shared/utils/timeHelpers'
 import Select from '../Select/Select'
+import TimeInput from '../TimeInput/TimeInput'
 import './ProgramsPanel.css'
 
 const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
@@ -38,11 +39,11 @@ function ScheduleInput({ value, onChange }) {
         ))}
       </div>
       <div className="time-range">
-        <input type="time" className="input time-input" value={value?.timeFrom || ''}
-          onChange={e => onChange({ ...value, timeFrom: e.target.value })} />
+        <TimeInput value={value?.timeFrom || ''}
+          onChange={timeFrom => onChange({ ...value, timeFrom })} />
         <span className="time-sep">—</span>
-        <input type="time" className="input time-input" value={value?.timeTo || ''}
-          onChange={e => onChange({ ...value, timeTo: e.target.value })} />
+        <TimeInput value={value?.timeTo || ''}
+          onChange={timeTo => onChange({ ...value, timeTo })} />
       </div>
       <div className="action-select-wrap" style={{ marginTop: 8 }}>
         <Select 
@@ -67,11 +68,11 @@ function DateInput({ value, onChange }) {
       <input type="date" className="input date-input" value={value?.date || ''}
         onChange={e => onChange({ ...value, date: e.target.value })} />
       <div className="time-range">
-        <input type="time" className="input time-input" value={value?.timeFrom || ''}
-          onChange={e => onChange({ ...value, timeFrom: e.target.value })} />
+        <TimeInput value={value?.timeFrom || ''}
+          onChange={timeFrom => onChange({ ...value, timeFrom })} />
         <span className="time-sep">—</span>
-        <input type="time" className="input time-input" value={value?.timeTo || ''}
-          onChange={e => onChange({ ...value, timeTo: e.target.value })} />
+        <TimeInput value={value?.timeTo || ''}
+          onChange={timeTo => onChange({ ...value, timeTo })} />
       </div>
       <div className="action-select-wrap" style={{ marginTop: 8 }}>
         <Select 
@@ -99,11 +100,11 @@ function MonthlyDateInput({ value, onChange }) {
           onChange={e => onChange({ ...value, day: Number(e.target.value) })} />
       </div>
       <div className="time-range" style={{ marginTop: 8 }}>
-        <input type="time" className="input time-input" value={value?.timeFrom || ''}
-          onChange={e => onChange({ ...value, timeFrom: e.target.value })} />
+        <TimeInput value={value?.timeFrom || ''}
+          onChange={timeFrom => onChange({ ...value, timeFrom })} />
         <span className="time-sep">—</span>
-        <input type="time" className="input time-input" value={value?.timeTo || ''}
-          onChange={e => onChange({ ...value, timeTo: e.target.value })} />
+        <TimeInput value={value?.timeTo || ''}
+          onChange={timeTo => onChange({ ...value, timeTo })} />
       </div>
       <div className="action-select-wrap" style={{ marginTop: 8 }}>
         <Select 

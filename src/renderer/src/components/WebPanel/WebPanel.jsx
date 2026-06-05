@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import { evaluateRule } from '@kidscontrol/shared/utils/timeHelpers'
 import Select from '../Select/Select'
+import TimeInput from '../TimeInput/TimeInput'
 
 import './WebPanel.css'
 
@@ -27,11 +28,11 @@ function ScheduleCell({ value, onChange }) {
         ))}
       </div>
       <div className="time-range">
-        <input type="time" className="input time-input" value={value?.timeFrom || ''}
-          onChange={e => onChange({ ...value, timeFrom: e.target.value })} />
+        <TimeInput value={value?.timeFrom || ''}
+          onChange={timeFrom => onChange({ ...value, timeFrom })} />
         <span className="time-sep">—</span>
-        <input type="time" className="input time-input" value={value?.timeTo || ''}
-          onChange={e => onChange({ ...value, timeTo: e.target.value })} />
+        <TimeInput value={value?.timeTo || ''}
+          onChange={timeTo => onChange({ ...value, timeTo })} />
       </div>
       <div className="action-select-wrap" style={{ marginTop: 8 }}>
         <Select 
@@ -240,13 +241,13 @@ export default function WebPanel({ mode }) {
                         onChange={e => updateWebRule(site.id, { ...webRuleData[site.id], date: { ...(webRuleData[site.id]?.date || site.rule?.date), date: e.target.value } })}
                       />
                       <div className="time-range">
-                        <input type="time" className="input time-input"
+                        <TimeInput
                           value={webRuleData[site.id]?.date?.timeFrom || site.rule?.date?.timeFrom || ''}
-                          onChange={e => updateWebRule(site.id, { ...webRuleData[site.id], date: { ...(webRuleData[site.id]?.date || site.rule?.date), timeFrom: e.target.value } })} />
+                          onChange={timeFrom => updateWebRule(site.id, { ...webRuleData[site.id], date: { ...(webRuleData[site.id]?.date || site.rule?.date), timeFrom } })} />
                         <span className="time-sep">—</span>
-                        <input type="time" className="input time-input"
+                        <TimeInput
                           value={webRuleData[site.id]?.date?.timeTo || site.rule?.date?.timeTo || ''}
-                          onChange={e => updateWebRule(site.id, { ...webRuleData[site.id], date: { ...(webRuleData[site.id]?.date || site.rule?.date), timeTo: e.target.value } })} />
+                          onChange={timeTo => updateWebRule(site.id, { ...webRuleData[site.id], date: { ...(webRuleData[site.id]?.date || site.rule?.date), timeTo } })} />
                       </div>
                       <div className="action-select-wrap" style={{ marginTop: 8 }}>
                         <Select 
@@ -271,13 +272,13 @@ export default function WebPanel({ mode }) {
                           onChange={e => updateWebRule(site.id, { ...webRuleData[site.id], monthly_date: { ...(webRuleData[site.id]?.monthly_date || site.rule?.monthly_date), day: Number(e.target.value) } })} />
                       </div>
                       <div className="time-range" style={{ marginTop: 8 }}>
-                        <input type="time" className="input time-input"
+                        <TimeInput
                           value={webRuleData[site.id]?.monthly_date?.timeFrom || site.rule?.monthly_date?.timeFrom || ''}
-                          onChange={e => updateWebRule(site.id, { ...webRuleData[site.id], monthly_date: { ...(webRuleData[site.id]?.monthly_date || site.rule?.monthly_date), timeFrom: e.target.value } })} />
+                          onChange={timeFrom => updateWebRule(site.id, { ...webRuleData[site.id], monthly_date: { ...(webRuleData[site.id]?.monthly_date || site.rule?.monthly_date), timeFrom } })} />
                         <span className="time-sep">—</span>
-                        <input type="time" className="input time-input"
+                        <TimeInput
                           value={webRuleData[site.id]?.monthly_date?.timeTo || site.rule?.monthly_date?.timeTo || ''}
-                          onChange={e => updateWebRule(site.id, { ...webRuleData[site.id], monthly_date: { ...(webRuleData[site.id]?.monthly_date || site.rule?.monthly_date), timeTo: e.target.value } })} />
+                          onChange={timeTo => updateWebRule(site.id, { ...webRuleData[site.id], monthly_date: { ...(webRuleData[site.id]?.monthly_date || site.rule?.monthly_date), timeTo } })} />
                       </div>
                       <div className="action-select-wrap" style={{ marginTop: 8 }}>
                         <Select 
