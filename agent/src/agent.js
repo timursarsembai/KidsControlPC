@@ -13,7 +13,7 @@ import { checkAndUpdateSilently } from './updater.js'
 import { delay } from './core/utils.js'
 import { clearHostsBlock } from './hostsBlocker.js'
 
-import { updateDoc, doc } from 'firebase/firestore'
+import { collection, updateDoc, doc, writeBatch, serverTimestamp } from 'firebase/firestore'
 import { db } from './network/firebaseSync.js'
 import { ENFORCE_INTERVAL_MS, HEARTBEAT_INTERVAL_MS } from './config.js'
 import { exec } from 'child_process'
@@ -21,6 +21,10 @@ import { exec } from 'child_process'
 let parentUid = null
 let deviceId = null
 let isShuttingDown = false
+let programScanInProgress = false
+let lastUploadedAppsSignature = ''
+
+const PROGRAM_SCAN_INTERVAL_MS = 5 * 60 * 1000
 
 function log(msg) {
   const ts = new Date().toLocaleTimeString('ru-RU')
@@ -36,23 +40,62 @@ async function scanInstalledProgramsWithRetry(maxAttempts = 3, retryDelayMs = 30
   return []
 }
 
-async function performProgramScan() {
-  log('🔎 Scanning installed programs...')
-  const apps = await scanInstalledProgramsWithRetry()
-  
-  if (apps.length === 0) {
-    log('⚠️ Scan returned 0 programs. Skipping upload to preserve existing data.')
+async function performProgramRescan(reason = 'manual') {
+  if (!parentUid || !deviceId) return
+  if (programScanInProgress) {
+    log(`[Apps] Program scan already running, skipped (${reason})`)
     return
   }
-  
+
+  programScanInProgress = true
   try {
+    log(`[Apps] Scanning installed programs (${reason})...`)
+    const apps = await scanInstalledProgramsWithRetry()
+
+    if (apps.length === 0) {
+      log('[Apps] Scan returned 0 programs. Existing list preserved.')
+      return
+    }
+
+    const appsSignature = apps
+      .map(app => `${app.id}|${app.name}|${app.path}|${app.version}`)
+      .sort()
+      .join('\n')
+
+    if (appsSignature === lastUploadedAppsSignature) {
+      log(`[Apps] Program list unchanged (${apps.length} programs)`)
+      return
+    }
+
+    const appsRef = collection(db, 'users', parentUid, 'devices', deviceId, 'installedApps')
+    for (let i = 0; i < apps.length; i += 400) {
+      const batch = writeBatch(db)
+      for (const app of apps.slice(i, i + 400)) {
+        batch.set(doc(appsRef, app.id), {
+          name: app.name,
+          path: app.path,
+          exeBasename: app.exeBasename || '',
+          publisher: app.publisher || '',
+          version: app.version || '',
+          uninstallCmd: app.uninstallCmd || '',
+          lastSeenScanAt: serverTimestamp()
+        }, { merge: true })
+      }
+      await batch.commit()
+    }
+
     await updateDoc(doc(db, 'users', parentUid, 'devices', deviceId), {
       installedApps: apps,
+      installedAppsCount: apps.length,
       lastScanAt: new Date().toISOString()
     })
-    log(`✅ Uploaded ${apps.length} installed programs`)
+
+    lastUploadedAppsSignature = appsSignature
+    log(`[Apps] Uploaded ${apps.length} installed programs`)
   } catch (err) {
-    log(`❌ Failed to upload programs: ${err.message}`)
+    log(`[Apps] Failed to upload programs: ${err.message}`)
+  } finally {
+    programScanInProgress = false
   }
 }
 
@@ -164,12 +207,12 @@ async function main() {
   log('💓 Heartbeat sent')
   await sendAlert('agent_started', 'Background program was started')
 
-  await performProgramScan()
+  await performProgramRescan('startup')
   
   setTimeout(() => {
     if (!isShuttingDown) {
       log('🔁 Running delayed startup program re-scan...')
-      performProgramScan().catch(e => log(`⚠️ Delayed scan failed: ${e.message}`))
+      performProgramRescan('delayed-startup').catch(e => log(`⚠️ Delayed scan failed: ${e.message}`))
     }
   }, 3 * 60 * 1000)
 
@@ -179,6 +222,11 @@ async function main() {
   // Start timers
   setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS)
   setInterval(() => enforceRules(parentUid, deviceId, isShuttingDown), ENFORCE_INTERVAL_MS)
+  setInterval(() => {
+    if (!isShuttingDown) {
+      performProgramRescan('periodic').catch(e => log(`⚠️ Periodic scan failed: ${e.message}`))
+    }
+  }, PROGRAM_SCAN_INTERVAL_MS)
   setInterval(() => checkAndUpdateSilently(log), 2 * 60 * 60 * 1000)
   setTimeout(() => checkAndUpdateSilently(log), 10000)
 
