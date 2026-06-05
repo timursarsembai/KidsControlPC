@@ -71,6 +71,7 @@ const WIDGET_PORT = 49152
 const TIMER_WIDGET_TASK = 'KidsControlTimerWidget'
 let isStartingTimerWidget = false
 let lastTimerWidgetStartAttempt = 0
+let lastWidgetSessionCheck = 0
 let ruleLockActive = false
 let executedPowerRuleIds = new Set()
 
@@ -394,8 +395,70 @@ function sendToWidgetOnce(message, timeoutMs = 1500) {
   })
 }
 
+// ─── Session-aware widget management ──────────────────────────────────────────
+function runEncodedPS(script, timeoutMs = 15000) {
+  const encoded = Buffer.from(script, 'utf16le').toString('base64')
+  return execAsync(
+    `powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encoded}`,
+    { timeout: timeoutMs, windowsHide: true }
+  )
+}
+
+async function isWidgetInCorrectSession() {
+  try {
+    const { stdout } = await runEncodedPS(
+      '$w = Get-Process -Name TimerWidget -EA SilentlyContinue | Select -First 1\n' +
+      '$e = Get-Process -Name explorer -EA SilentlyContinue | Select -First 1\n' +
+      'if ($w -and $e -and $w.SessionId -eq $e.SessionId) { Write-Output "OK" }' +
+      ' else { Write-Output "NO" }'
+    )
+    return stdout.trim() === 'OK'
+  } catch {
+    return true // assume OK on error to avoid blocking
+  }
+}
+
+async function killTimerWidget() {
+  try {
+    await execAsync('taskkill /F /IM TimerWidget.exe', { timeout: 5000, windowsHide: true })
+  } catch { /* may already be dead */ }
+  await delay(800) // wait for port to be released
+}
+
+async function launchWidgetInUserSession(widgetExe) {
+  const escapedPath = widgetExe.replace(/'/g, "''")
+  // Build PowerShell script — use template parts without JS escaping issues
+  const psLines = [
+    "$explorer = Get-CimInstance Win32_Process -Filter \"Name = 'explorer.exe'\" -EA SilentlyContinue | Select -First 1",
+    'if (-not $explorer) { exit 1 }',
+    '$owner = Invoke-CimMethod -InputObject $explorer -MethodName GetOwner',
+    '$userId = \"$($owner.Domain)\\$($owner.User)\"',
+    `$action = New-ScheduledTaskAction -Execute '${escapedPath}'`,
+    '$principal = New-ScheduledTaskPrincipal -UserId $userId -LogonType Interactive -RunLevel Limited',
+    '$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries',
+    "Register-ScheduledTask -TaskName 'KCWidgetRestart' -Action $action -Principal $principal -Settings $settings -Force | Out-Null",
+    "Start-ScheduledTask -TaskName 'KCWidgetRestart'",
+    'Start-Sleep -Seconds 3',
+    "Unregister-ScheduledTask -TaskName 'KCWidgetRestart' -Confirm:$false -EA SilentlyContinue"
+  ]
+  // Use EncodedCommand to avoid all cmd.exe quoting issues
+  const psScript = psLines.join('\n')
+  await runEncodedPS(psScript, 25000)
+}
+
 async function startTimerWidgetIfNeeded() {
-  if (await isWidgetPortOpen()) return true
+  const portOpen = await isWidgetPortOpen()
+
+  // If port is open, check if widget is in the correct user session
+  if (portOpen) {
+    if (!process.argv.includes('--service')) return true
+    // Service mode: verify widget is visible to the user
+    const sessionOk = await isWidgetInCorrectSession()
+    if (sessionOk) return true
+    // Widget is in Session 0 (invisible) — kill it and restart properly
+    log('⚠️ TimerWidget running in wrong session (invisible). Killing for restart...')
+    await killTimerWidget()
+  }
 
   const now = Date.now()
   if (isStartingTimerWidget || now - lastTimerWidgetStartAttempt < 10000) {
@@ -406,60 +469,48 @@ async function startTimerWidgetIfNeeded() {
   isStartingTimerWidget = true
   lastTimerWidgetStartAttempt = now
 
+  const widgetExe = getTimerWidgetPath()
+  if (!fs.existsSync(widgetExe)) {
+    log(`⚠️ TimerWidget executable not found: ${widgetExe}`)
+    isStartingTimerWidget = false
+    return false
+  }
+
   try {
     // 1. Try the persistent scheduled task
     try {
       await execAsync(`schtasks /Run /TN "${TIMER_WIDGET_TASK}"`, { timeout: 5000, windowsHide: true })
-      if (await waitForWidgetPort()) return true
+      if (await waitForWidgetPort(6000)) {
+        if (!process.argv.includes('--service') || await isWidgetInCorrectSession()) return true
+        log('⚠️ schtasks started TimerWidget in wrong session, killing...')
+        await killTimerWidget()
+      }
     } catch (err) {
-      log(`⚠️ TimerWidget scheduled task start failed: ${err.message}`)
+      log(`⚠️ Scheduled task failed: ${err.message}`)
     }
 
-    // 2. For service mode: create a temporary task targeting the interactive user
-    const widgetExe = getTimerWidgetPath()
+    // 2. Service mode: launch via PowerShell in the interactive user session
     if (process.argv.includes('--service')) {
-      if (!fs.existsSync(widgetExe)) {
-        log(`⚠️ TimerWidget executable not found: ${widgetExe}`)
-        return false
-      }
       try {
-        const escapedPath = widgetExe.replace(/'/g, "''")
-        const ps = [
-          `$ep = Get-CimInstance Win32_Process -Filter "Name = 'explorer.exe'" -ErrorAction SilentlyContinue | Select-Object -First 1;`,
-          `if (-not $ep) { exit 1 }`,
-          `$o = Invoke-CimMethod -InputObject $ep -MethodName GetOwner;`,
-          `$uid = "$($o.Domain)\\$($o.User)";`,
-          `$a = New-ScheduledTaskAction -Execute '${escapedPath}';`,
-          `$p = New-ScheduledTaskPrincipal -UserId $uid -LogonType Interactive -RunLevel Limited;`,
-          `$s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew;`,
-          `Register-ScheduledTask -TaskName 'KCWidgetRestart' -Action $a -Principal $p -Settings $s -Force | Out-Null;`,
-          `Start-ScheduledTask -TaskName 'KCWidgetRestart';`,
-          `Start-Sleep -Seconds 2;`,
-          `Unregister-ScheduledTask -TaskName 'KCWidgetRestart' -Confirm:$false -ErrorAction SilentlyContinue`
-        ].join(' ')
-        await execAsync(`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "${ps}"`, { timeout: 20000, windowsHide: true })
+        log('🔄 Launching TimerWidget via PowerShell in user session...')
+        await launchWidgetInUserSession(widgetExe)
         if (await waitForWidgetPort(8000)) return true
       } catch (err) {
-        log(`⚠️ PowerShell interactive session launch failed: ${err.message}`)
+        log(`⚠️ PowerShell interactive launch failed: ${err.message}`)
       }
       log('❌ All service-mode TimerWidget start methods failed')
       return false
     }
 
     // 3. Non-service fallback: direct spawn
-    if (fs.existsSync(widgetExe)) {
-      const child = spawn(widgetExe, [], {
-        detached: true,
-        stdio: 'ignore',
-        windowsHide: false
-      })
-      child.unref()
-      await delay(1000)
-      return isWidgetPortOpen()
-    }
-
-    log(`⚠️ TimerWidget executable not found: ${widgetExe}`)
-    return false
+    const child = spawn(widgetExe, [], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: false
+    })
+    child.unref()
+    await delay(1000)
+    return isWidgetPortOpen()
   } catch (err) {
     log(`❌ Failed to start TimerWidget: ${err.message}`)
     return false
@@ -899,6 +950,22 @@ function subscribeToDevice() {
 
 async function ensureWidgetLocked() {
   if (!deviceConfig || !deviceConfig.isLocked) return
+
+  // Periodically verify widget is in the correct user session (every 60s)
+  if (process.argv.includes('--service')) {
+    const now = Date.now()
+    if (now - lastWidgetSessionCheck > 60000) {
+      lastWidgetSessionCheck = now
+      const ok = await isWidgetInCorrectSession()
+      if (!ok) {
+        log('⚠️ TimerWidget in wrong session during lock. Killing for restart...')
+        await killTimerWidget()
+        isWidgetLocked = false
+        await delay(500)
+      }
+    }
+  }
+
   const msg = deviceConfig.lockMessage || 'Время вышло! Компьютер заблокирован.'
   const color = deviceConfig.lockColor || '#000000'
   const pin = deviceConfig.lockPin || ''
