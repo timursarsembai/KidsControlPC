@@ -84,8 +84,12 @@ $ErrorActionPreference = 'Stop'
 $TaskName = 'KidsControlTimerWidget'
 $Action = New-ScheduledTaskAction -Execute $WidgetPath
 $Trigger = New-ScheduledTaskTrigger -AtLogOn
+# Repeat every 2 minutes indefinitely so the task acts as a watchdog.
+# If TimerWidget is killed (e.g. by a silent update), it restarts within 2 min.
+# MultipleInstances=IgnoreNew prevents duplicates when it is already running.
+$Trigger.Repetition = (New-ScheduledTaskTrigger -Once -At '00:00' -RepetitionInterval (New-TimeSpan -Minutes 2)).Repetition
 $Principal = New-ScheduledTaskPrincipal -GroupId 'BUILTIN\\Users' -RunLevel Limited
-$Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew
+$Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Seconds 0)
 
 Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Principal $Principal -Settings $Settings -Force | Out-Null
 Start-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue

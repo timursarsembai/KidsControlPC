@@ -407,6 +407,7 @@ async function startTimerWidgetIfNeeded() {
   lastTimerWidgetStartAttempt = now
 
   try {
+    // 1. Try the persistent scheduled task
     try {
       await execAsync(`schtasks /Run /TN "${TIMER_WIDGET_TASK}"`, { timeout: 5000, windowsHide: true })
       if (await waitForWidgetPort()) return true
@@ -414,12 +415,38 @@ async function startTimerWidgetIfNeeded() {
       log(`⚠️ TimerWidget scheduled task start failed: ${err.message}`)
     }
 
+    // 2. For service mode: create a temporary task targeting the interactive user
+    const widgetExe = getTimerWidgetPath()
     if (process.argv.includes('--service')) {
-      log('❌ TimerWidget is unavailable in the interactive user session. Not starting GUI from service session.')
+      if (!fs.existsSync(widgetExe)) {
+        log(`⚠️ TimerWidget executable not found: ${widgetExe}`)
+        return false
+      }
+      try {
+        const escapedPath = widgetExe.replace(/'/g, "''")
+        const ps = [
+          `$ep = Get-CimInstance Win32_Process -Filter "Name = 'explorer.exe'" -ErrorAction SilentlyContinue | Select-Object -First 1;`,
+          `if (-not $ep) { exit 1 }`,
+          `$o = Invoke-CimMethod -InputObject $ep -MethodName GetOwner;`,
+          `$uid = "$($o.Domain)\\$($o.User)";`,
+          `$a = New-ScheduledTaskAction -Execute '${escapedPath}';`,
+          `$p = New-ScheduledTaskPrincipal -UserId $uid -LogonType Interactive -RunLevel Limited;`,
+          `$s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew;`,
+          `Register-ScheduledTask -TaskName 'KCWidgetRestart' -Action $a -Principal $p -Settings $s -Force | Out-Null;`,
+          `Start-ScheduledTask -TaskName 'KCWidgetRestart';`,
+          `Start-Sleep -Seconds 2;`,
+          `Unregister-ScheduledTask -TaskName 'KCWidgetRestart' -Confirm:$false -ErrorAction SilentlyContinue`
+        ].join(' ')
+        await execAsync(`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "${ps}"`, { timeout: 20000, windowsHide: true })
+        if (await waitForWidgetPort(8000)) return true
+      } catch (err) {
+        log(`⚠️ PowerShell interactive session launch failed: ${err.message}`)
+      }
+      log('❌ All service-mode TimerWidget start methods failed')
       return false
     }
 
-    const widgetExe = getTimerWidgetPath()
+    // 3. Non-service fallback: direct spawn
     if (fs.existsSync(widgetExe)) {
       const child = spawn(widgetExe, [], {
         detached: true,
@@ -440,6 +467,7 @@ async function startTimerWidgetIfNeeded() {
     isStartingTimerWidget = false
   }
 }
+
 
 async function sendToWidget(message, options = {}) {
   const success = await sendToWidgetOnce(message)
