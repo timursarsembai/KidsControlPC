@@ -56,9 +56,6 @@ async function build() {
     console.log('📦 2.8/5 Compiling CustomDialogWidget.cs...')
     execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /target:winexe /out:dist\\CustomDialogWidget.exe src\\widget\\CustomDialogWidget.cs', { stdio: 'inherit' })
 
-    console.log('📦 2.9/5 Compiling SessionLauncher.cs...')
-    execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /target:exe /out:dist\\SessionLauncher.exe src\\widget\\SessionLauncher.cs', { stdio: 'inherit' })
-
     console.log('📦 3/5 Downloading WinSW...')
     const winswPath = path.join(distDir, 'WinSW.exe')
     if (!fs.existsSync(winswPath)) {
@@ -145,7 +142,6 @@ Section "Install"
   File "ReminderWidget.exe"
   File "ScreenBlockerWidget.exe"
   File "CustomDialogWidget.exe"
-  File "SessionLauncher.exe"
   File "WinSW.exe"
   File "WinSW.xml"
   File "register_widget_task.ps1"
@@ -170,7 +166,6 @@ Section "Install"
   nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" start'
   
   ; Restart TimerWidget for the current interactive user
-  nsExec::ExecToLog '"$INSTDIR\\SessionLauncher.exe" "$INSTDIR\\TimerWidget.exe"'
   nsExec::ExecToLog 'schtasks /Run /TN "KidsControlTimerWidget"'
   
   ; Create uninstaller
@@ -193,7 +188,6 @@ Section "Uninstall"
   Delete "$INSTDIR\\ReminderWidget.exe"
   Delete "$INSTDIR\\ScreenBlockerWidget.exe"
   Delete "$INSTDIR\\CustomDialogWidget.exe"
-  Delete "$INSTDIR\\SessionLauncher.exe"
   Delete "$INSTDIR\\WinSW.exe"
   Delete "$INSTDIR\\WinSW.xml"
   Delete "$INSTDIR\\register_widget_task.ps1"
