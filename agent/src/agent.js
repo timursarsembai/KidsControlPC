@@ -957,12 +957,34 @@ function subscribeToRules() {
     q,
     (snap) => {
       activeRules = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      saveConfigCache()
       log(`📋 Received ${activeRules.length} rules (${activeRules.filter(r=>r.status==='active').length} active)`)
     },
     (err) => {
       log(`❌ Firestore error: ${err.message}`)
     }
   )
+}
+
+function saveConfigCache() {
+  try {
+    fs.writeFileSync(path.join(process.cwd(), 'config_cache.json'), JSON.stringify({
+      deviceConfig,
+      activeRules
+    }))
+  } catch { }
+}
+
+function loadConfigCache() {
+  try {
+    const p = path.join(process.cwd(), 'config_cache.json')
+    if (fs.existsSync(p)) {
+      const data = JSON.parse(fs.readFileSync(p, 'utf8'))
+      if (data.deviceConfig) deviceConfig = data.deviceConfig
+      if (data.activeRules) activeRules = data.activeRules
+      log('💾 Loaded config cache from disk for instant offline enforcement')
+    }
+  } catch { }
 }
 
 function subscribeToDevice() {
@@ -973,6 +995,7 @@ function subscribeToDevice() {
   unsubDevice = onSnapshot(deviceRef, async (snap) => {
     if (!snap.exists()) return
     deviceConfig = snap.data()
+    saveConfigCache()
     
     if (deviceConfig.isLocked && !isWidgetLocked) {
       await ensureWidgetLocked()
@@ -1103,18 +1126,20 @@ async function shutdown(reason) {
 
   log(`\n🛑 Stopping agent: ${reason}`)
 
-  // Alert parent
-  await sendAlert('agent_stopped', reason)
+  // Run alerts and offline status update in parallel with a 2 second timeout
+  // This maximizes chances of succeeding before Windows aggressive network teardown
+  const p1 = sendAlert('agent_stopped', reason)
+  const p2 = (parentUid && deviceId) ? updateDoc(
+    doc(db, 'users', parentUid, 'devices', deviceId),
+    { status: 'offline', lastSeen: serverTimestamp() }
+  ).catch(() => {}) : Promise.resolve()
 
-  // Mark device offline
-  if (parentUid && deviceId) {
-    try {
-      await updateDoc(
-        doc(db, 'users', parentUid, 'devices', deviceId),
-        { status: 'offline', lastSeen: serverTimestamp() }
-      )
-    } catch {}
-  }
+  try {
+    await Promise.race([
+      Promise.all([p1, p2]),
+      delay(2000)
+    ])
+  } catch (err) { }
 
   // Clear hosts blocks
   clearHostsBlock()
@@ -1194,6 +1219,13 @@ async function main() {
       performProgramScan().catch(err => log(`⚠️  Delayed scan failed: ${err.message}`))
     }
   }, 3 * 60 * 1000)
+
+  // Load cache immediately so lock activates BEFORE Firebase connects
+  loadConfigCache()
+  if (deviceConfig && deviceConfig.isLocked) {
+    log('🔒 Cached deviceConfig shows lock is active! Locking instantly...')
+    ensureWidgetLocked()
+  }
 
   // 4. Subscribe to rules and device
   subscribeToDevice()
