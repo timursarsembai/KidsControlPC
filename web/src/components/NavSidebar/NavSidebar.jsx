@@ -25,7 +25,7 @@ const MODES = [
 ]
 
 const MODE_TAB_IDS = new Set(MODES.map((m) => m.id))
-const DEVICE_TAB_IDS = new Set(['power', 'lock_screen', 'reminders'])
+const DEVICE_TAB_IDS = new Set(['power', 'lock_screen', 'reminders', 'agent_logs'])
 const PROFILE_ICONS = ['🧩', '🎮', '📚', '📖', '🌙', '☀️', '🎧', '🎨', '💻', '🧠', '⚽', '🍿']
 
 export default function Sidebar() {
@@ -307,6 +307,23 @@ export default function Sidebar() {
                     <span className="nav-sidebar-sub">Сообщения по расписанию</span>
                   </span>
                   {activeTab === 'reminders' && <span className="nav-sidebar-active-bar" />}
+                </button>
+
+                <button
+                  className={`nav-sidebar-item ${activeTab === 'agent_logs' ? 'active' : ''}`}
+                  onClick={() => handleMode('agent_logs', null, 'device')}
+                >
+                  <span className="nav-sidebar-icon">
+                    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                      <rect x="2" y="1.5" width="11" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+                      <path d="M5 5h5M5 7.5h5M5 10h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                    </svg>
+                  </span>
+                  <span className="nav-sidebar-labels">
+                    <span className="nav-sidebar-label">Логи агента</span>
+                    <span className="nav-sidebar-sub">Диагностика работы</span>
+                  </span>
+                  {activeTab === 'agent_logs' && <span className="nav-sidebar-active-bar" />}
                 </button>
               </nav>
             )}

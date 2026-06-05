@@ -8,6 +8,7 @@ import ProfilePanel from '../ProfilePanel/ProfilePanel'
 import NotificationsPanel from '../NotificationsPanel/NotificationsPanel'
 import PowerPanel from '../PowerPanel/PowerPanel'
 import RemindersPanel from '../RemindersPanel/RemindersPanel'
+import LogsPanel from '../LogsPanel/LogsPanel'
 import './ContentArea.css'
 
 // ── Empty state: no devices ───────────────────────────────────────────────────
@@ -68,6 +69,7 @@ export default function ContentArea() {
     lock_screen: { label: 'Блокировка экрана', icon: '🔒', desc: 'Цвет фона, ПИН-код, заставка' },
     notifications: { label: t('sidebar.notifications', 'Уведомления'), icon: '🔔', desc: t('sidebar.notifications_sub', 'История системных событий') },
     reminders: { label: 'Напоминания', icon: '🔔', desc: 'Будильники и сообщения' },
+    agent_logs: { label: 'Логи агента', icon: '📋', desc: 'Диагностика и мониторинг работы агента' },
   }[activeTab]
   const meta = isProfileTab
     ? { label: profileRule?.profileName || 'Новый режим', icon: profileRule?.profileIcon || '🧩', desc: 'Свои списки программ, сайтов и расписание' }
@@ -119,7 +121,7 @@ export default function ContentArea() {
         </div>
 
         {/* Sub-tabs */}
-        {activeTab !== 'notifications' && activeTab !== 'power' && activeTab !== 'lock_screen' && activeTab !== 'reminders' && (
+        {activeTab !== 'notifications' && activeTab !== 'power' && activeTab !== 'lock_screen' && activeTab !== 'reminders' && activeTab !== 'agent_logs' && (
           <div className="subtab-bar">
             <button
               id="subtab-programs"
@@ -162,6 +164,8 @@ export default function ContentArea() {
           <ProfilePanel key={`${selectedDeviceId}-${activeTab}`} profileId={activeTab} />
         ) : activeTab === 'reminders' ? (
           <RemindersPanel key={`${selectedDeviceId}-reminders`} />
+        ) : activeTab === 'agent_logs' ? (
+          <LogsPanel key={`${selectedDeviceId}-agent_logs`} />
         ) : activeSubTab === 'programs' ? (
           <ProgramsPanel key={`${selectedDeviceId}-${activeTab}`} mode={activeTab} />
         ) : (

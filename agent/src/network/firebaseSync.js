@@ -9,6 +9,7 @@ import { hostname } from 'os'
 import { firebaseConfig, AGENT_VERSION } from '../config.js'
 import { eventBus, EVENTS } from '../core/eventBus.js'
 import { setDeviceConfig, setActiveRules } from '../core/configManager.js'
+import { getRecentLogs } from '../core/logBuffer.js'
 
 // ─── Init Firebase ────────────────────────────────────────────────────────────
 const app = initializeApp(firebaseConfig)
@@ -89,7 +90,7 @@ export async function sendHeartbeat() {
     await Promise.race([
       updateDoc(
         doc(db, 'users', parentUid, 'devices', deviceId),
-        { lastSeen: serverTimestamp(), status: 'online', agentVersion: AGENT_VERSION }
+        { lastSeen: serverTimestamp(), status: 'online', agentVersion: AGENT_VERSION, recentLogs: getRecentLogs().slice(-100) }
       ),
       timeoutPromise
     ])

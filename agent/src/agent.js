@@ -1,3 +1,6 @@
+import { initLogCapture } from './core/logBuffer.js'
+initLogCapture()
+
 import { eventBus, EVENTS } from './core/eventBus.js'
 import { loadConfigCache, getDeviceConfig } from './core/configManager.js'
 import { initFirebaseSync, stopFirebaseSync, sendHeartbeat, sendAlert, markDeviceOffline, markCommandCompleted, markCommandFailed } from './network/firebaseSync.js'
@@ -54,7 +57,7 @@ async function performProgramScan() {
 }
 
 // ─── Graceful shutdown ─────────────────────────────────────────────────────────
-async function shutdown(reason) {
+async function shutdownFromSignal(reason) {
   if (isShuttingDown) return
   isShuttingDown = true
 
@@ -75,8 +78,8 @@ async function shutdown(reason) {
   process.exit(0)
 }
 
-process.on('SIGINT',  () => shutdown('SIGINT'))
-process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT',  () => shutdownFromSignal('SIGINT'))
+process.on('SIGTERM', () => shutdownFromSignal('SIGTERM'))
 
 // Windows service stop integration
 if (process.platform === 'win32') {

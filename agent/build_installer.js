@@ -227,7 +227,8 @@ SectionEnd
     }
     
     const nsisCache = path.join(process.env.LOCALAPPDATA || 'C:\\\\Users\\\\Timsar\\\\AppData\\\\Local', 'electron-builder', 'Cache', 'nsis')
-    let makensisExe = findMakensis(nsisCache) || 'makensis'
+    const localToolsNsis = path.join(__dirname, '..', '.local-tools', 'NSIS')
+    let makensisExe = findMakensis(nsisCache) || findMakensis(localToolsNsis) || 'makensis'
     
     execSync(`"${makensisExe}" dist/installer.nsi`, { stdio: 'inherit' })
 
