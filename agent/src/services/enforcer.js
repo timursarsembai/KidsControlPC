@@ -43,13 +43,17 @@ async function executePowerAction(action) {
 
 async function updateRunningStatuses(parentUid, deviceId, currentProcesses) {
   if (!parentUid || !deviceId) return
-  const currentPNames = currentProcesses.map(p => p.name.toLowerCase())
+  const currentPBases = currentProcesses.map(p => p.base)
+  const currentPNames = currentProcesses.map(p => p.name)
   const activeRules = getActiveRules()
   
   for (const rule of activeRules) {
     if (rule.type !== 'program' || !rule.program || !rule.program.name) continue
-    const targetExe = rule.program.name.toLowerCase()
-    const isRunning = currentPNames.includes(targetExe)
+    const rulePathLow = (rule.program.executablePath || '').toLowerCase()
+    const ruleNameLow = rule.program.name.toLowerCase()
+    const ruleBase = rulePathLow ? path.basename(rulePathLow, '.exe') : ruleNameLow.replace(/\.exe$/, '')
+
+    const isRunning = currentPBases.includes(ruleBase) || currentPNames.includes(ruleNameLow)
     
     if (runningStateCache[rule.id] !== isRunning) {
       runningStateCache[rule.id] = isRunning

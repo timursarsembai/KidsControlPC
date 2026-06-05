@@ -182,6 +182,35 @@ async function main() {
   log(`✅ Agent started and monitoring processes (DeviceID: ${deviceId})`)
 }
 
+async function shutdown(reason) {
+  if (isShuttingDown) return
+  isShuttingDown = true
+
+  console.log(`\n🛑 Stopping agent: ${reason}`)
+
+  const p1 = sendAlert('agent_stopped', reason).catch(() => {})
+  const p2 = markDeviceOffline().catch(() => {})
+
+  try {
+    await Promise.race([
+      Promise.all([p1, p2]),
+      delay(2000)
+    ])
+  } catch (err) { }
+
+  clearHostsBlock()
+  stopFirebaseSync()
+  process.exit(0)
+}
+
+process.on('SIGINT', () => shutdown('SIGINT (Ctrl+C)'))
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('uncaughtException', async (err) => {
+  console.log(`💥 Uncaught exception: ${err.message}`)
+  await sendAlert('agent_error', err.message).catch(() => {})
+  process.exit(1)
+})
+
 main().catch(async err => {
   console.error('❌ Fatal:', err.message)
   await sendAlert('agent_error', err.message).catch(() => {})

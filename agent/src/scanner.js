@@ -159,8 +159,7 @@ $ErrorActionPreference = 'SilentlyContinue'
 $skip = @('svchost','csrss','smss','wininit','winlogon','services','lsass','conhost','dwm','fontdrvhost','Registry','Idle','System','SearchIndexer','MsMpEng')
 $procs = Get-Process |
   Where-Object { $_.Name -notin $skip } |
-  Select-Object Name, Id, Path, MainWindowHandle |
-  Sort-Object Name -Unique
+  Select-Object Name, Id, Path, MainWindowHandle
 
 if ($procs) {
   $procs | ConvertTo-Json -Compress -Depth 2
