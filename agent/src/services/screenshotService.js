@@ -14,6 +14,7 @@ const MIN_SCREENSHOT_INTERVAL_MS = 60 * 1000
 const SCHEDULE_CHECK_INTERVAL_MS = 30 * 1000
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000
 const SCREENSHOT_TTL_MS = 60 * 60 * 1000
+const INLINE_SCREENSHOT_MAX_BYTES = 900 * 1024
 const DEFAULT_QUALITY = 70
 const DEFAULT_MAX_WIDTH = 1280
 
@@ -131,8 +132,24 @@ async function captureScreenshotFile(settings) {
   return { requestId, outputPath, maxWidth, quality, size: stats.size }
 }
 
-async function uploadScreenshot(fileInfo, source) {
-  const token = await ensureUploadToken()
+async function saveScreenshotDoc(fileInfo, source, token, extra = {}) {
+  const screenshotsRef = collection(db, 'users', parentUid, 'devices', deviceId, 'screenshots')
+  const docRef = await addDoc(screenshotsRef, {
+    source,
+    status: 'ready',
+    uploadToken: token,
+    size: fileInfo.size,
+    quality: fileInfo.quality,
+    maxWidth: fileInfo.maxWidth,
+    createdAt: serverTimestamp(),
+    expiresAt: new Date(Date.now() + SCREENSHOT_TTL_MS),
+    ...extra
+  })
+
+  return { screenshotId: docRef.id, ...extra }
+}
+
+async function uploadScreenshotToStorage(fileInfo, source, token) {
   const storage = getStorage()
   const storagePath = `users/${parentUid}/devices/${deviceId}/screenshots/${fileInfo.requestId}.jpg`
   const ref = storageRef(storage, storagePath)
@@ -148,20 +165,32 @@ async function uploadScreenshot(fileInfo, source) {
     }
   })
 
-  const screenshotsRef = collection(db, 'users', parentUid, 'devices', deviceId, 'screenshots')
-  const docRef = await addDoc(screenshotsRef, {
-    source,
-    status: 'ready',
+  return await saveScreenshotDoc(fileInfo, source, token, {
     storagePath,
-    uploadToken: token,
-    size: fileInfo.size,
-    quality: fileInfo.quality,
-    maxWidth: fileInfo.maxWidth,
-    createdAt: serverTimestamp(),
-    expiresAt: new Date(Date.now() + SCREENSHOT_TTL_MS)
+    delivery: 'storage'
   })
+}
 
-  return { screenshotId: docRef.id, storagePath }
+async function saveInlineScreenshot(fileInfo, source, token) {
+  if (fileInfo.size > INLINE_SCREENSHOT_MAX_BYTES) {
+    throw new Error(`Screenshot is too large for inline fallback: ${fileInfo.size} bytes`)
+  }
+
+  const dataUrl = `data:image/jpeg;base64,${fs.readFileSync(fileInfo.outputPath).toString('base64')}`
+  return await saveScreenshotDoc(fileInfo, source, token, {
+    dataUrl,
+    delivery: 'firestore_inline'
+  })
+}
+
+async function uploadScreenshot(fileInfo, source) {
+  const token = await ensureUploadToken()
+  try {
+    return await uploadScreenshotToStorage(fileInfo, source, token)
+  } catch (err) {
+    log(`Storage upload failed, using inline fallback: ${err.message}`)
+    return await saveInlineScreenshot(fileInfo, source, token)
+  }
 }
 
 async function cleanupExpiredScreenshots() {

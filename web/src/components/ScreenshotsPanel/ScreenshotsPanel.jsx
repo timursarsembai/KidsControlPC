@@ -120,11 +120,11 @@ export default function ScreenshotsPanel() {
   }
 
   const handleDownload = async (screenshot) => {
-    if (!screenshot.storagePath) return
+    if (!screenshot.storagePath && !screenshot.dataUrl) return
     setDownloadingId(screenshot.id)
     try {
       const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-      const downloadURL = await getScreenshotDownloadURL(screenshot)
+      const downloadURL = screenshot.dataUrl || await getScreenshotDownloadURL(screenshot)
       await downloadBlob(downloadURL, `kidscontrol-screenshot-${stamp}.jpg`)
       await deleteScreenshot(screenshot)
       setStatusText('Скрин скачан и удалён из облака')

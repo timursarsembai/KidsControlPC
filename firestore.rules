@@ -30,22 +30,22 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    function deviceScreenshotToken() {
+    function deviceScreenshotToken(userId, deviceId) {
       return get(/databases/$(database)/documents/users/$(userId)/devices/$(deviceId)).data.screenshotUploadToken;
     }
 
-    function hasValidScreenshotToken() {
-      return deviceScreenshotToken() is string
-        && request.resource.data.uploadToken == deviceScreenshotToken();
+    function hasValidScreenshotToken(userId, deviceId) {
+      return deviceScreenshotToken(userId, deviceId) is string
+        && request.resource.data.uploadToken == deviceScreenshotToken(userId, deviceId);
     }
 
     // Screenshots - agent can create metadata only with this device's upload token.
     match /users/{userId}/devices/{deviceId}/screenshots/{screenshotId} {
       allow read: if request.auth != null && request.auth.uid == userId;
-      allow create: if (request.auth != null && request.auth.uid == userId) || hasValidScreenshotToken();
+      allow create: if (request.auth != null && request.auth.uid == userId) || hasValidScreenshotToken(userId, deviceId);
       allow update: if request.auth != null && request.auth.uid == userId;
       allow delete: if (request.auth != null && request.auth.uid == userId)
-        || (resource.data.uploadToken == deviceScreenshotToken());
+        || (resource.data.uploadToken == deviceScreenshotToken(userId, deviceId));
     }
 
     // Alerts - agent can write alerts.
