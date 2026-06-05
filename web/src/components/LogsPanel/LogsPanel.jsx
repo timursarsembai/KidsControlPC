@@ -15,7 +15,8 @@ const LEVEL_CLASSES = {
 }
 
 export default function LogsPanel() {
-  const { devices, selectedDeviceId } = useRulesStore()
+  const { devices, selectedDeviceId, sendDeviceCommand } = useRulesStore()
+  const [isFetching, setIsFetching] = useState(false)
   const [autoScroll, setAutoScroll] = useState(true)
   const [filter, setFilter] = useState('')
   const [levelFilter, setLevelFilter] = useState('all')
@@ -59,6 +60,18 @@ export default function LogsPanel() {
   return (
     <div className="logs-panel">
       <div className="logs-toolbar">
+        <button 
+          className="btn btn-primary logs-fetch-btn" 
+          disabled={isFetching}
+          onClick={async () => {
+            setIsFetching(true)
+            await sendDeviceCommand({ command: 'fetch_logs' })
+            setTimeout(() => setIsFetching(false), 2000)
+          }}
+          style={{ padding: '6px 12px', fontSize: '12px' }}
+        >
+          {isFetching ? '⏳ Запрос...' : '🔄 Запросить логи'}
+        </button>
         <div className="logs-search-wrap">
           <svg className="logs-search-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
             <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.3"/>

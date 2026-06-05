@@ -90,7 +90,7 @@ export async function sendHeartbeat() {
     await Promise.race([
       updateDoc(
         doc(db, 'users', parentUid, 'devices', deviceId),
-        { lastSeen: serverTimestamp(), status: 'online', agentVersion: AGENT_VERSION, recentLogs: getRecentLogs().slice(-100) }
+        { lastSeen: serverTimestamp(), status: 'online', agentVersion: AGENT_VERSION }
       ),
       timeoutPromise
     ])
@@ -182,4 +182,16 @@ export async function publishPomodoroState(state) {
   try {
     await updateDoc(doc(db, 'users', parentUid, 'devices', deviceId), { pomodoroState })
   } catch (err) {}
+}
+
+export async function pushRecentLogs() {
+  if (!parentUid || !deviceId) return
+  try {
+    await updateDoc(
+      doc(db, 'users', parentUid, 'devices', deviceId),
+      { recentLogs: getRecentLogs().slice(-100) }
+    )
+  } catch (err) {
+    log(`⚠️ Failed to push logs: ${err.message}`)
+  }
 }

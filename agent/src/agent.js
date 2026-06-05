@@ -3,7 +3,7 @@ initLogCapture()
 
 import { eventBus, EVENTS } from './core/eventBus.js'
 import { loadConfigCache, getDeviceConfig } from './core/configManager.js'
-import { initFirebaseSync, stopFirebaseSync, sendHeartbeat, sendAlert, markDeviceOffline, markCommandCompleted, markCommandFailed } from './network/firebaseSync.js'
+import { initFirebaseSync, stopFirebaseSync, sendHeartbeat, sendAlert, markDeviceOffline, markCommandCompleted, markCommandFailed, pushRecentLogs } from './network/firebaseSync.js'
 import { startTimerWidgetIfNeeded, ensureWidgetLocked } from './services/widgetManager.js'
 import { enforceRules } from './services/enforcer.js'
 
@@ -135,7 +135,18 @@ if (process.platform === 'win32') {
 
 // ─── Command Handling ──────────────────────────────────────────────────────────
 eventBus.on(EVENTS.COMMAND_RECEIVED, async ({ doc: cmdDoc, cmd }) => {
-  log(`📥 Received command: ${cmd.action}`)
+  log(`📥 Received command: ${cmd.action || cmd.command}`)
+
+  if (cmd.command === 'fetch_logs') {
+    try {
+      await pushRecentLogs()
+      await markCommandCompleted(cmdDoc)
+    } catch (err) {
+      await markCommandFailed(cmdDoc, err.message)
+    }
+    return
+  }
+
   try {
     if (cmd.action === 'lock') {
       await ensureWidgetLocked()
