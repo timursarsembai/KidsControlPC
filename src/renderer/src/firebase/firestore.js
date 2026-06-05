@@ -7,6 +7,7 @@ import {
   collection, doc, addDoc, updateDoc, deleteDoc, setDoc, getDoc,
   onSnapshot, query, orderBy, serverTimestamp as fsServerTimestamp, writeBatch
 } from 'firebase/firestore'
+import { getStorage, ref as storageRef, deleteObject } from 'firebase/storage'
 import { db } from './config'
 
 export const serverTimestamp = fsServerTimestamp
@@ -20,6 +21,7 @@ const rulesCol       = (uid, devId)       => collection(db, 'users', uid, 'devic
 const ruleDoc        = (uid, devId, rId)  => doc(db, 'users', uid, 'devices', devId, 'rules', rId)
 const appsCol        = (uid, devId)       => collection(db, 'users', uid, 'devices', devId, 'installedApps')
 const commandsCol    = (uid, devId)       => collection(db, 'users', uid, 'devices', devId, 'commands')
+const screenshotsCol = (uid, devId)       => collection(db, 'users', uid, 'devices', devId, 'screenshots')
 const alertsCol      = (uid)              => collection(db, 'users', uid, 'alerts')
 const pairingCol     = (uid)              => collection(db, 'users', uid, 'pairingCodes')
 
@@ -113,6 +115,27 @@ export async function sendDeviceCommand(uid, deviceId, commandData) {
     status: 'pending',
     timestamp: serverTimestamp()
   })
+}
+
+export async function updateDeviceSettings(uid, deviceId, settings) {
+  await updateDoc(doc(db, 'users', uid, 'devices', deviceId), settings)
+}
+
+export function subscribeToScreenshots(uid, deviceId, callback) {
+  if (!deviceId) return () => {}
+  return onSnapshot(query(screenshotsCol(uid, deviceId), orderBy('createdAt', 'desc')), snap => {
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  })
+}
+
+export async function deleteScreenshot(uid, deviceId, screenshot) {
+  if (!screenshot?.id) return
+  if (screenshot.storagePath) {
+    try {
+      await deleteObject(storageRef(getStorage(), screenshot.storagePath))
+    } catch {}
+  }
+  await deleteDoc(doc(db, 'users', uid, 'devices', deviceId, 'screenshots', screenshot.id))
 }
 
 // ─── Alerts ───────────────────────────────────────────────────────────────────

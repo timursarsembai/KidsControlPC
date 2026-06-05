@@ -1,0 +1,10 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /users/{userId}/devices/{deviceId}/screenshots/{fileName} {
+      // Agent currently uploads without Firebase Auth; keep scope limited to screenshots.
+      // Tighten after adding device-token/custom-auth support to the agent.
+      allow read, write: if true;
+    }
+  }
+}

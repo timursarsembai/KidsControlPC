@@ -8,6 +8,7 @@ import ProfilePanel from '../ProfilePanel/ProfilePanel'
 import NotificationsPanel from '../NotificationsPanel/NotificationsPanel'
 import PowerPanel from '../PowerPanel/PowerPanel'
 import RemindersPanel from '../RemindersPanel/RemindersPanel'
+import ScreenshotsPanel from '../ScreenshotsPanel/ScreenshotsPanel'
 import './ContentArea.css'
 
 // ── Empty state: no devices ───────────────────────────────────────────────────
@@ -68,6 +69,7 @@ export default function ContentArea() {
     lock_screen: { label: 'Блокировка экрана', icon: '🔒', desc: 'Цвет фона, ПИН-код, заставка' },
     notifications: { label: t('sidebar.notifications', 'Уведомления'), icon: '🔔', desc: t('sidebar.notifications_sub', 'История системных событий') },
     reminders: { label: 'Напоминания', icon: '🔔', desc: 'Будильники и сообщения' },
+    screenshots: { label: '\u0421\u043A\u0440\u0438\u043D\u0448\u043E\u0442\u044B', icon: '\uD83D\uDCF8', desc: '\u0421\u043A\u0440\u0438\u043D \u044D\u043A\u0440\u0430\u043D\u0430 \u043F\u043E \u0437\u0430\u043F\u0440\u043E\u0441\u0443 \u0438 \u0440\u0430\u0441\u043F\u0438\u0441\u0430\u043D\u0438\u044E' },
   }[activeTab]
   const meta = isProfileTab
     ? { label: profileRule?.profileName || 'Новый режим', icon: profileRule?.profileIcon || '🧩', desc: 'Свои списки программ, сайтов и расписание' }
@@ -119,7 +121,7 @@ export default function ContentArea() {
         </div>
 
         {/* Sub-tabs */}
-        {activeTab !== 'notifications' && activeTab !== 'power' && activeTab !== 'lock_screen' && activeTab !== 'reminders' && (
+        {activeTab !== 'notifications' && activeTab !== 'power' && activeTab !== 'lock_screen' && activeTab !== 'reminders' && activeTab !== 'screenshots' && (
           <div className="subtab-bar">
             <button
               id="subtab-programs"
@@ -162,6 +164,8 @@ export default function ContentArea() {
           <ProfilePanel key={`${selectedDeviceId}-${activeTab}`} profileId={activeTab} />
         ) : activeTab === 'reminders' ? (
           <RemindersPanel key={`${selectedDeviceId}-reminders`} />
+        ) : activeTab === 'screenshots' ? (
+          <ScreenshotsPanel key={`${selectedDeviceId}-screenshots`} />
         ) : activeSubTab === 'programs' ? (
           <ProgramsPanel key={`${selectedDeviceId}-${activeTab}`} mode={activeTab} />
         ) : (

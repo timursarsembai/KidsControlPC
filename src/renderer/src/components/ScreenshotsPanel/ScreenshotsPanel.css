@@ -1,0 +1,119 @@
+.screenshots-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.screenshots-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+}
+
+.screenshots-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.screenshots-title,
+.screenshots-subtitle {
+  margin: 0 0 6px;
+  color: var(--text-primary);
+}
+
+.screenshots-desc,
+.screenshots-empty,
+.screenshots-item-meta,
+.screenshots-label {
+  color: var(--text-muted);
+}
+
+.screenshots-toggle {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+.screenshots-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.3fr) minmax(220px, 1fr) repeat(3, minmax(120px, 0.6fr));
+  gap: 14px;
+  align-items: end;
+}
+
+.screenshots-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.screenshots-days,
+.screenshots-time-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.screenshots-day {
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-muted);
+  border-radius: var(--radius-md);
+  height: 34px;
+  padding: 0 10px;
+  font-weight: 700;
+}
+
+.screenshots-day.active {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--primary-dim);
+}
+
+.screenshots-save {
+  margin-top: 16px;
+}
+
+.screenshots-status {
+  margin-top: 12px;
+  color: var(--text-primary);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+}
+
+.screenshots-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.screenshots-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  padding: 12px;
+}
+
+.screenshots-item-title {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+@media (max-width: 1100px) {
+  .screenshots-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}

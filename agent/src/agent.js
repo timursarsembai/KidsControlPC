@@ -6,6 +6,7 @@ import { loadConfigCache, getDeviceConfig } from './core/configManager.js'
 import { initFirebaseSync, stopFirebaseSync, sendHeartbeat, sendAlert, markDeviceOffline, markCommandCompleted, markCommandFailed, pushRecentLogs } from './network/firebaseSync.js'
 import { startTimerWidgetIfNeeded, ensureWidgetLocked } from './services/widgetManager.js'
 import { enforceRules } from './services/enforcer.js'
+import { startScreenshotService, stopScreenshotService, takeScreenshot } from './services/screenshotService.js'
 
 import { loadPairing, runPairingFlow } from './pairing.js'
 import { getInstalledPrograms } from './scanner.js'
@@ -117,6 +118,7 @@ async function shutdownFromSignal(reason) {
   } catch (err) { }
 
   clearHostsBlock()
+  stopScreenshotService()
   stopFirebaseSync()
   process.exit(0)
 }
@@ -143,6 +145,16 @@ eventBus.on(EVENTS.COMMAND_RECEIVED, async ({ doc: cmdDoc, cmd }) => {
       await markCommandCompleted(cmdDoc)
     } catch (err) {
       await markCommandFailed(cmdDoc, err.message)
+    }
+    return
+  }
+
+  if (cmd.command === 'screenshot_request' || cmd.action === 'screenshot_request') {
+    try {
+      const result = await takeScreenshot('manual')
+      await markCommandCompleted(cmdDoc, result)
+    } catch (err) {
+      await markCommandFailed(cmdDoc, err.message, { code: err.code || 'screenshot_failed' })
     }
     return
   }
@@ -205,6 +217,7 @@ async function main() {
   deviceId  = pairing.deviceId
 
   initFirebaseSync(parentUid, deviceId)
+  startScreenshotService(parentUid, deviceId)
 
   // Load cache immediately
   loadConfigCache()

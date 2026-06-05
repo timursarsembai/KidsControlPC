@@ -12,7 +12,7 @@ import { setDeviceConfig, setActiveRules } from '../core/configManager.js'
 import { getRecentLogs } from '../core/logBuffer.js'
 
 // ─── Init Firebase ────────────────────────────────────────────────────────────
-const app = initializeApp(firebaseConfig)
+export const app = initializeApp(firebaseConfig)
 export const db = getFirestore(app)
 
 let parentUid = null
@@ -138,15 +138,15 @@ export async function sendAlert(type, details = '') {
   }
 }
 
-export async function markCommandCompleted(cmdDoc) {
+export async function markCommandCompleted(cmdDoc, extra = {}) {
   try {
-    await updateDoc(cmdDoc.ref, { status: 'completed', completedAt: serverTimestamp() })
+    await updateDoc(cmdDoc.ref, { status: 'completed', completedAt: serverTimestamp(), ...extra })
   } catch(e) {}
 }
 
-export async function markCommandFailed(cmdDoc, errorMsg) {
+export async function markCommandFailed(cmdDoc, errorMsg, extra = {}) {
   try {
-    await updateDoc(cmdDoc.ref, { status: 'failed', error: errorMsg, completedAt: serverTimestamp() })
+    await updateDoc(cmdDoc.ref, { status: 'failed', error: errorMsg, completedAt: serverTimestamp(), ...extra })
   } catch(e) {}
 }
 

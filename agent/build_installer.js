@@ -56,6 +56,9 @@ async function build() {
     console.log('📦 2.8/5 Compiling CustomDialogWidget.cs...')
     execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /target:winexe /out:dist\\CustomDialogWidget.exe src\\widget\\CustomDialogWidget.cs', { stdio: 'inherit' })
 
+    console.log('📦 2.9/5 Compiling ScreenshotHelper.cs...')
+    execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /target:winexe /out:dist\\ScreenshotHelper.exe src\\widget\\ScreenshotHelper.cs', { stdio: 'inherit' })
+
     console.log('📦 3/5 Downloading WinSW...')
     const winswPath = path.join(distDir, 'WinSW.exe')
     if (!fs.existsSync(winswPath)) {
@@ -146,6 +149,7 @@ Section "Install"
   File "ReminderWidget.exe"
   File "ScreenBlockerWidget.exe"
   File "CustomDialogWidget.exe"
+  File "ScreenshotHelper.exe"
   File "WinSW.exe"
   File "WinSW.xml"
   File "register_widget_task.ps1"
@@ -192,6 +196,7 @@ Section "Uninstall"
   Delete "$INSTDIR\\ReminderWidget.exe"
   Delete "$INSTDIR\\ScreenBlockerWidget.exe"
   Delete "$INSTDIR\\CustomDialogWidget.exe"
+  Delete "$INSTDIR\\ScreenshotHelper.exe"
   Delete "$INSTDIR\\WinSW.exe"
   Delete "$INSTDIR\\WinSW.xml"
   Delete "$INSTDIR\\register_widget_task.ps1"

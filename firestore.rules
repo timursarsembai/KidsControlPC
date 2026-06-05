@@ -30,7 +30,13 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // ── Alerts — agent can write alerts ──────────────────────────────────────
+    // Screenshots - agent uploads metadata without auth in the current MVP.
+    // Tighten this when the agent has a device token / custom auth.
+    match /users/{userId}/devices/{deviceId}/screenshots/{screenshotId} {
+      allow read, write: if true;
+    }
+
+    // Alerts - agent can write alerts.
     match /users/{userId}/alerts/{alertId} {
       allow read, write: if true;  // Tighten after MVP
     }

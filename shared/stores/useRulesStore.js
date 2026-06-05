@@ -5,7 +5,8 @@ import {
   subscribeToInstalledApps,
   subscribeToAlerts, acknowledgeAlert, acknowledgeAllAlerts,
   initUserProfile, serverTimestamp, savePomodoroRule,
-  sendDeviceCommand as fsSendDeviceCommand, updateDeviceSettings as fsUpdateDeviceSettings
+  sendDeviceCommand as fsSendDeviceCommand, updateDeviceSettings as fsUpdateDeviceSettings,
+  subscribeToScreenshots, deleteScreenshot as fsDeleteScreenshot
 } from '../firebase/firestore'
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -26,6 +27,7 @@ export const useRulesStore = create((set, get) => ({
   devices:       [],   // all child devices
   rules:         [],   // rules for selectedDevice
   installedApps: [],   // apps installed on selectedDevice (from agent)
+  screenshots:   [],
   alerts:        [],
 
   // Loading
@@ -36,6 +38,7 @@ export const useRulesStore = create((set, get) => ({
   _unsubDevices:  null,
   _unsubRules:    null,
   _unsubApps:     null,
+  _unsubScreenshots: null,
   _unsubAlerts:   null,
 
   // ── UI setters ──
@@ -47,14 +50,15 @@ export const useRulesStore = create((set, get) => ({
 
   // ── Select a device → re-subscribe rules + apps ──
   selectDevice: (deviceId) => {
-    const { user, _unsubRules, _unsubApps } = get()
+    const { user, _unsubRules, _unsubApps, _unsubScreenshots } = get()
     if (!user) return
 
     // Unsubscribe previous
     _unsubRules?.()
     _unsubApps?.()
+    _unsubScreenshots?.()
 
-    set({ selectedDeviceId: deviceId, rules: [], installedApps: [], rulesLoading: true, appsLoading: true })
+    set({ selectedDeviceId: deviceId, rules: [], installedApps: [], screenshots: [], rulesLoading: true, appsLoading: true })
 
     if (!deviceId) return
 
@@ -66,7 +70,11 @@ export const useRulesStore = create((set, get) => ({
       set({ installedApps: apps, appsLoading: false })
     })
 
-    set({ _unsubRules: unsubRules, _unsubApps: unsubApps })
+    const unsubScreenshots = subscribeToScreenshots(user.uid, deviceId, (screenshots) => {
+      set({ screenshots })
+    })
+
+    set({ _unsubRules: unsubRules, _unsubApps: unsubApps, _unsubScreenshots: unsubScreenshots })
   },
 
   // ── Firebase Init on Login ──
@@ -98,15 +106,16 @@ export const useRulesStore = create((set, get) => ({
 
   // ── Cleanup on Logout ──
   cleanup: () => {
-    const { _unsubDevices, _unsubRules, _unsubApps, _unsubAlerts } = get()
+    const { _unsubDevices, _unsubRules, _unsubApps, _unsubScreenshots, _unsubAlerts } = get()
     _unsubDevices?.()
     _unsubRules?.()
     _unsubApps?.()
+    _unsubScreenshots?.()
     _unsubAlerts?.()
     set({
-      user: null, devices: [], rules: [], installedApps: [], alerts: [],
+      user: null, devices: [], rules: [], installedApps: [], screenshots: [], alerts: [],
       selectedDeviceId: null,
-      _unsubDevices: null, _unsubRules: null, _unsubApps: null, _unsubAlerts: null
+      _unsubDevices: null, _unsubRules: null, _unsubApps: null, _unsubScreenshots: null, _unsubAlerts: null
     })
   },
 
@@ -488,6 +497,21 @@ export const useRulesStore = create((set, get) => ({
     const { user, selectedDeviceId } = get()
     if (!user || !selectedDeviceId) throw new Error('No device selected')
     await fsUpdateDeviceSettings(user.uid, selectedDeviceId, settings)
+  },
+
+  requestScreenshot: async () => {
+    const { user, selectedDeviceId } = get()
+    if (!user || !selectedDeviceId) throw new Error('No device selected')
+    await fsSendDeviceCommand(user.uid, selectedDeviceId, {
+      command: 'screenshot_request',
+      requestedAtClientMs: Date.now()
+    })
+  },
+
+  deleteScreenshot: async (screenshot) => {
+    const { user, selectedDeviceId } = get()
+    if (!user || !selectedDeviceId) return
+    await fsDeleteScreenshot(user.uid, selectedDeviceId, screenshot)
   },
 
   // ── Derived: programs from installedApps merged with rules ──

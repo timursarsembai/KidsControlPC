@@ -25,7 +25,7 @@ const MODES = [
 ]
 
 const MODE_TAB_IDS = new Set(MODES.map((m) => m.id))
-const DEVICE_TAB_IDS = new Set(['power', 'lock_screen', 'reminders'])
+const DEVICE_TAB_IDS = new Set(['power', 'lock_screen', 'reminders', 'screenshots'])
 const PROFILE_ICONS = ['🧩', '🎮', '📚', '📖', '🌙', '☀️', '🎧', '🎨', '💻', '🧠', '⚽', '🍿']
 
 export default function Sidebar() {
@@ -307,6 +307,24 @@ export default function Sidebar() {
                     <span className="nav-sidebar-sub">Сообщения по расписанию</span>
                   </span>
                   {activeTab === 'reminders' && <span className="nav-sidebar-active-bar" />}
+                </button>
+
+                <button
+                  className={`nav-sidebar-item ${activeTab === 'screenshots' ? 'active' : ''}`}
+                  onClick={() => handleMode('screenshots', null, 'device')}
+                >
+                  <span className="nav-sidebar-icon">
+                    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                      <rect x="2" y="4.5" width="11" height="8" rx="1.4" stroke="currentColor" strokeWidth="1.2"/>
+                      <path d="M5.2 4.5l.8-1.8h3l.8 1.8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <circle cx="7.5" cy="8.5" r="2" stroke="currentColor" strokeWidth="1.2"/>
+                    </svg>
+                  </span>
+                  <span className="nav-sidebar-labels">
+                    <span className="nav-sidebar-label">{'\u0421\u043A\u0440\u0438\u043D\u0448\u043E\u0442\u044B'}</span>
+                    <span className="nav-sidebar-sub">{'\u041F\u043E \u0437\u0430\u043F\u0440\u043E\u0441\u0443 \u0438 \u0440\u0430\u0441\u043F\u0438\u0441\u0430\u043D\u0438\u044E'}</span>
+                  </span>
+                  {activeTab === 'screenshots' && <span className="nav-sidebar-active-bar" />}
                 </button>
               </nav>
             )}
