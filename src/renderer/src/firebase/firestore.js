@@ -7,7 +7,7 @@ import {
   collection, doc, addDoc, updateDoc, deleteDoc, setDoc, getDoc,
   onSnapshot, query, orderBy, serverTimestamp as fsServerTimestamp, writeBatch
 } from 'firebase/firestore'
-import { getStorage, ref as storageRef, deleteObject } from 'firebase/storage'
+import { getStorage, ref as storageRef, deleteObject, getDownloadURL } from 'firebase/storage'
 import { db } from './config'
 
 export const serverTimestamp = fsServerTimestamp
@@ -136,6 +136,11 @@ export async function deleteScreenshot(uid, deviceId, screenshot) {
     } catch {}
   }
   await deleteDoc(doc(db, 'users', uid, 'devices', deviceId, 'screenshots', screenshot.id))
+}
+
+export async function getScreenshotDownloadURL(screenshot) {
+  if (!screenshot?.storagePath) return null
+  return await getDownloadURL(storageRef(getStorage(), screenshot.storagePath))
 }
 
 // ─── Alerts ───────────────────────────────────────────────────────────────────

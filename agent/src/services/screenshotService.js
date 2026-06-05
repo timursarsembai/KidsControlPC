@@ -1,10 +1,11 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { randomUUID } from 'crypto'
-import { collection, addDoc, serverTimestamp, query, where, getDocs, deleteDoc, limit } from 'firebase/firestore'
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
+import { randomBytes, randomUUID } from 'crypto'
+import { collection, addDoc, serverTimestamp, query, where, getDocs, deleteDoc, limit, updateDoc, doc } from 'firebase/firestore'
+import { getStorage, ref as storageRef, uploadBytes, deleteObject } from 'firebase/storage'
 import { db } from '../network/firebaseSync.js'
+import { PAIRING_FILE } from '../config.js'
 import { getDeviceConfig } from '../core/configManager.js'
 import { delay, execAsync, runEncodedPS } from '../core/utils.js'
 import { getScheduleGroups, isScheduleGroupActive } from '../ruleTiming.js'
@@ -23,6 +24,7 @@ let lastScheduledScreenshotAt = 0
 let lastCleanupAt = 0
 let scheduledTimer = null
 let captureInProgress = false
+let uploadToken = null
 
 function log(msg) {
   console.log(`[Screenshot] ${msg}`)
@@ -43,6 +45,36 @@ function normalizeNumber(value, fallback, min, max) {
 function getScreenshotSettings() {
   const config = getDeviceConfig()
   return config?.screenshots || config?.screenshotSettings || {}
+}
+
+function readPairingFile() {
+  try {
+    if (!fs.existsSync(PAIRING_FILE)) return null
+    return JSON.parse(fs.readFileSync(PAIRING_FILE, 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+function writePairingFile(pairing) {
+  fs.writeFileSync(PAIRING_FILE, JSON.stringify(pairing, null, 2), 'utf8')
+}
+
+async function ensureUploadToken() {
+  if (uploadToken) return uploadToken
+
+  const pairing = readPairingFile() || {}
+  uploadToken = pairing.screenshotUploadToken
+  if (!uploadToken) {
+    uploadToken = randomBytes(32).toString('hex')
+    writePairingFile({ ...pairing, screenshotUploadToken: uploadToken })
+  }
+
+  await updateDoc(doc(db, 'users', parentUid, 'devices', deviceId), {
+    screenshotUploadToken: uploadToken
+  })
+
+  return uploadToken
 }
 
 function isScheduleActive(schedule, now = new Date()) {
@@ -100,6 +132,7 @@ async function captureScreenshotFile(settings) {
 }
 
 async function uploadScreenshot(fileInfo, source) {
+  const token = await ensureUploadToken()
   const storage = getStorage()
   const storagePath = `users/${parentUid}/devices/${deviceId}/screenshots/${fileInfo.requestId}.jpg`
   const ref = storageRef(storage, storagePath)
@@ -110,17 +143,17 @@ async function uploadScreenshot(fileInfo, source) {
     customMetadata: {
       source,
       deviceId,
-      requestId: fileInfo.requestId
+      requestId: fileInfo.requestId,
+      uploadToken: token
     }
   })
 
-  const downloadURL = await getDownloadURL(ref)
   const screenshotsRef = collection(db, 'users', parentUid, 'devices', deviceId, 'screenshots')
   const docRef = await addDoc(screenshotsRef, {
     source,
     status: 'ready',
     storagePath,
-    downloadURL,
+    uploadToken: token,
     size: fileInfo.size,
     quality: fileInfo.quality,
     maxWidth: fileInfo.maxWidth,
@@ -128,7 +161,7 @@ async function uploadScreenshot(fileInfo, source) {
     expiresAt: new Date(Date.now() + SCREENSHOT_TTL_MS)
   })
 
-  return { screenshotId: docRef.id, storagePath, downloadURL }
+  return { screenshotId: docRef.id, storagePath }
 }
 
 async function cleanupExpiredScreenshots() {
@@ -203,6 +236,7 @@ async function maybeTakeScheduledScreenshot() {
 export function startScreenshotService(pUid, dId) {
   parentUid = pUid
   deviceId = dId
+  ensureUploadToken().catch(err => log(`Upload token setup failed: ${err.message}`))
   if (scheduledTimer) clearInterval(scheduledTimer)
   scheduledTimer = setInterval(() => {
     cleanupExpiredScreenshots().catch(err => log(`Screenshot cleanup failed: ${err.message}`))

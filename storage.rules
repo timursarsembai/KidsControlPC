@@ -1,10 +1,23 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    function deviceScreenshotToken(userId, deviceId) {
+      return firestore.get(/databases/(default)/documents/users/$(userId)/devices/$(deviceId)).data.screenshotUploadToken;
+    }
+
+    function hasValidScreenshotToken(userId, deviceId) {
+      return deviceScreenshotToken(userId, deviceId) is string
+        && request.resource.metadata.uploadToken == deviceScreenshotToken(userId, deviceId);
+    }
+
     match /users/{userId}/devices/{deviceId}/screenshots/{fileName} {
-      // Agent currently uploads without Firebase Auth; keep scope limited to screenshots.
-      // Tighten after adding device-token/custom-auth support to the agent.
-      allow read, write: if true;
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if ((request.auth != null && request.auth.uid == userId) || hasValidScreenshotToken(userId, deviceId))
+        && request.resource.contentType == 'image/jpeg'
+        && request.resource.size < 5 * 1024 * 1024;
+      allow update: if false;
+      allow delete: if (request.auth != null && request.auth.uid == userId)
+        || (resource.metadata.uploadToken == deviceScreenshotToken(userId, deviceId));
     }
   }
 }

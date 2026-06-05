@@ -41,7 +41,8 @@ export default function ScreenshotsPanel() {
     screenshots,
     updateDeviceSettings,
     requestScreenshot,
-    deleteScreenshot
+    deleteScreenshot,
+    getScreenshotDownloadURL
   } = useRulesStore()
 
   const selectedDevice = devices.find(device => device.id === selectedDeviceId)
@@ -119,11 +120,12 @@ export default function ScreenshotsPanel() {
   }
 
   const handleDownload = async (screenshot) => {
-    if (!screenshot.downloadURL) return
+    if (!screenshot.storagePath) return
     setDownloadingId(screenshot.id)
     try {
       const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-      await downloadBlob(screenshot.downloadURL, `kidscontrol-screenshot-${stamp}.jpg`)
+      const downloadURL = await getScreenshotDownloadURL(screenshot)
+      await downloadBlob(downloadURL, `kidscontrol-screenshot-${stamp}.jpg`)
       await deleteScreenshot(screenshot)
       setStatusText('Скрин скачан и удалён из облака')
     } catch (err) {

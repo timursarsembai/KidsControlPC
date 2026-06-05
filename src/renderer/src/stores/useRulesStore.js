@@ -6,7 +6,8 @@ import {
   subscribeToAlerts, acknowledgeAlert, acknowledgeAllAlerts,
   initUserProfile, serverTimestamp, savePomodoroRule,
   sendDeviceCommand as fsSendDeviceCommand, updateDeviceSettings as fsUpdateDeviceSettings,
-  subscribeToScreenshots, deleteScreenshot as fsDeleteScreenshot
+  subscribeToScreenshots, deleteScreenshot as fsDeleteScreenshot,
+  getScreenshotDownloadURL as fsGetScreenshotDownloadURL
 } from '../firebase/firestore'
 
 const PROTECTED_APP_NAME_PARTS = [
@@ -433,6 +434,10 @@ export const useRulesStore = create((set, get) => ({
     const { user, selectedDeviceId } = get()
     if (!user || !selectedDeviceId) return
     await fsDeleteScreenshot(user.uid, selectedDeviceId, screenshot)
+  },
+
+  getScreenshotDownloadURL: async (screenshot) => {
+    return await fsGetScreenshotDownloadURL(screenshot)
   },
 
   // ── Derived: programs from installedApps merged with rules ──

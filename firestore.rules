@@ -30,10 +30,22 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Screenshots - agent uploads metadata without auth in the current MVP.
-    // Tighten this when the agent has a device token / custom auth.
+    function deviceScreenshotToken() {
+      return get(/databases/$(database)/documents/users/$(userId)/devices/$(deviceId)).data.screenshotUploadToken;
+    }
+
+    function hasValidScreenshotToken() {
+      return deviceScreenshotToken() is string
+        && request.resource.data.uploadToken == deviceScreenshotToken();
+    }
+
+    // Screenshots - agent can create metadata only with this device's upload token.
     match /users/{userId}/devices/{deviceId}/screenshots/{screenshotId} {
-      allow read, write: if true;
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if (request.auth != null && request.auth.uid == userId) || hasValidScreenshotToken();
+      allow update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if (request.auth != null && request.auth.uid == userId)
+        || (resource.data.uploadToken == deviceScreenshotToken());
     }
 
     // Alerts - agent can write alerts.
