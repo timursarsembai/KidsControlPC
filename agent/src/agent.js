@@ -383,6 +383,15 @@ async function waitForWidgetPort(timeoutMs = 5000) {
   return false
 }
 
+async function waitForWidgetPortClosed(timeoutMs = 3000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (!(await isWidgetPortOpen())) return true
+    await delay(200)
+  }
+  return false
+}
+
 function sendToWidgetOnce(message, timeoutMs = 1500) {
   return new Promise((resolve) => {
     const client = new net.Socket()
@@ -400,11 +409,24 @@ function sendToWidgetOnce(message, timeoutMs = 1500) {
   })
 }
 
-async function startTimerWidgetIfNeeded() {
-  if (await isWidgetPortOpen()) return true
+async function stopTimerWidgetProcess() {
+  try {
+    await execAsync('taskkill /F /T /IM TimerWidget.exe', { timeout: 5000, windowsHide: true })
+  } catch (err) {
+    const message = String(err.message || '')
+    if (!message.includes('not found') && !message.includes('не найден')) {
+      log(`⚠️ Failed to stop stale TimerWidget: ${err.message}`)
+    }
+  }
+  return waitForWidgetPortClosed()
+}
+
+async function startTimerWidgetIfNeeded(options = {}) {
+  const forceLaunch = Boolean(options.forceLaunch)
+  if (!forceLaunch && await isWidgetPortOpen()) return true
 
   const now = Date.now()
-  if (isStartingTimerWidget || now - lastTimerWidgetStartAttempt < 10000) {
+  if (!forceLaunch && (isStartingTimerWidget || now - lastTimerWidgetStartAttempt < 10000)) {
     await delay(800)
     return isWidgetPortOpen()
   }
@@ -463,6 +485,15 @@ async function startTimerWidgetIfNeeded() {
   }
 }
 
+async function prepareTimerWidgetForLock() {
+  if (process.argv.includes('--service')) {
+    await stopTimerWidgetProcess()
+    lastTimerWidgetStartAttempt = 0
+    return startTimerWidgetIfNeeded({ forceLaunch: true })
+  }
+  return startTimerWidgetIfNeeded()
+}
+
 async function sendToWidget(message, options = {}) {
   const success = await sendToWidgetOnce(message)
   if (success || !options.ensureStarted) return success
@@ -471,6 +502,18 @@ async function sendToWidget(message, options = {}) {
   if (!started) return false
 
   return sendToWidgetOnce(message)
+}
+
+async function sendLockToWidget(message) {
+  const prepared = await prepareTimerWidgetForLock()
+  if (!prepared && !(await isWidgetPortOpen())) return false
+
+  let success = await sendToWidgetOnce(message)
+  if (success) return true
+
+  lastTimerWidgetStartAttempt = 0
+  const restarted = await startTimerWidgetIfNeeded({ forceLaunch: true })
+  return restarted ? sendToWidgetOnce(message) : false
 }
 
 let widgetServer = null
@@ -528,9 +571,8 @@ async function lockWidget(payload) {
   const playSound = payload.playSound !== false ? '1' : '0'
   const readMessage = payload.readMessage ? '1' : '0'
   const readMessageRepeat = payload.readMessageRepeat ? '1' : '0'
-  const success = await sendToWidget(
-    `lock|${safeWidgetField(payload.message)}|${safeWidgetField(payload.color)}|${safeWidgetField(payload.pin)}|${playSound}|${readMessage}|${readMessageRepeat}`,
-    { ensureStarted: true }
+  const success = await sendLockToWidget(
+    `lock|${safeWidgetField(payload.message)}|${safeWidgetField(payload.color)}|${safeWidgetField(payload.pin)}|${playSound}|${readMessage}|${readMessageRepeat}`
   )
   if (success) isWidgetLocked = true
   return success
@@ -611,7 +653,7 @@ async function enforceRules() {
     if (penaltyLockUntil > nowMs) {
       const progName = lastPenaltyProgName || 'эту программу'
       const msg = `Не открывай ${progName}! Родители её запретили!`
-      const success = await sendToWidget(`lock|${safeWidgetField(msg)}|#cc0000||1|1|1`, { ensureStarted: true })
+      const success = await sendLockToWidget(`lock|${safeWidgetField(msg)}|#cc0000||1|1|1`)
       if (success) isWidgetLocked = true
     } else {
       await ensureWidgetLocked()
@@ -900,9 +942,8 @@ async function ensureWidgetLocked() {
   const readMessage = deviceConfig.readMessage ? '1' : '0'
   const readMessageRepeat = deviceConfig.readMessageRepeat ? '1' : '0'
   
-  const success = await sendToWidget(
-    `lock|${safeWidgetField(msg)}|${safeWidgetField(color)}|${safeWidgetField(pin)}|${playSound}|${readMessage}|${readMessageRepeat}`,
-    { ensureStarted: true }
+  const success = await sendLockToWidget(
+    `lock|${safeWidgetField(msg)}|${safeWidgetField(color)}|${safeWidgetField(pin)}|${playSound}|${readMessage}|${readMessageRepeat}`
   )
   if (success) {
     isWidgetLocked = true
@@ -961,9 +1002,8 @@ function subscribeToCommands() {
               const playSound = cmd.playSound !== false ? '1' : '0'
               const readMessage = cmd.readMessage ? '1' : '0'
               const readMessageRepeat = cmd.readMessageRepeat ? '1' : '0'
-              const success = await sendToWidget(
-                `lock|${safeWidgetField(msg)}|${safeWidgetField(color)}|${safeWidgetField(pin)}|${playSound}|${readMessage}|${readMessageRepeat}`,
-                { ensureStarted: true }
+              const success = await sendLockToWidget(
+                `lock|${safeWidgetField(msg)}|${safeWidgetField(color)}|${safeWidgetField(pin)}|${playSound}|${readMessage}|${readMessageRepeat}`
               )
               if (success) isWidgetLocked = true
             }
