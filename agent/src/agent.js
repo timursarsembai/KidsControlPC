@@ -404,17 +404,53 @@ function runEncodedPS(script, timeoutMs = 15000) {
   )
 }
 
+async function getSessionIdsForProcess(processName) {
+  const sessions = new Set()
+  try {
+    const { stdout } = await execAsync(`tasklist /FI "IMAGENAME eq ${processName}" /FO CSV /NH`, { timeout: 3000, windowsHide: true })
+    const lines = stdout.trim().split('\n')
+    for (const line of lines) {
+      if (line.toLowerCase().includes(processName.toLowerCase())) {
+        const parts = line.split('","')
+        if (parts.length >= 4) {
+          const sid = parts[3].replace(/[^0-9]/g, '')
+          if (sid) sessions.add(parseInt(sid, 10))
+        }
+      }
+    }
+  } catch { }
+  return sessions
+}
+
 async function isWidgetInCorrectSession() {
   try {
-    const { stdout } = await runEncodedPS(
-      '$w = Get-Process -Name TimerWidget -EA SilentlyContinue | Select -First 1\n' +
-      '$e = Get-Process -Name explorer -EA SilentlyContinue | Select -First 1\n' +
-      'if ($w -and $e -and $w.SessionId -eq $e.SessionId) { Write-Output "OK" }' +
-      ' else { Write-Output "NO" }'
-    )
-    return stdout.trim() === 'OK'
+    const widgetSessions = await getSessionIdsForProcess('TimerWidget.exe')
+    const explorerSessions = await getSessionIdsForProcess('explorer.exe')
+    
+    if (widgetSessions.size === 0 || explorerSessions.size === 0) return false
+    
+    for (const ws of widgetSessions) {
+      if (explorerSessions.has(ws)) return true
+    }
+    return false
   } catch {
-    return true // assume OK on error to avoid blocking
+    return false // Force restart on error
+  }
+}
+
+async function checkWidgetSessionHealth() {
+  if (!isWidgetLocked || !process.argv.includes('--service')) return
+  const now = Date.now()
+  if (now - lastWidgetSessionCheck > 60000) {
+    lastWidgetSessionCheck = now
+    const ok = await isWidgetInCorrectSession()
+    if (!ok) {
+      log('⚠️ TimerWidget in wrong session during lock. Killing for restart...')
+      await killTimerWidget()
+      isWidgetLocked = false
+      ruleLockActive = false
+      await delay(500)
+    }
   }
 }
 
@@ -652,6 +688,8 @@ async function enforcePowerRules(powerRules) {
 
 async function enforceRules() {
   if (isShuttingDown) return
+  
+  await checkWidgetSessionHealth()
   
   const nowMs = Date.now()
   if (penaltyLockUntil > 0 && nowMs >= penaltyLockUntil) {
@@ -951,20 +989,6 @@ function subscribeToDevice() {
 async function ensureWidgetLocked() {
   if (!deviceConfig || !deviceConfig.isLocked) return
 
-  // Periodically verify widget is in the correct user session (every 60s)
-  if (process.argv.includes('--service')) {
-    const now = Date.now()
-    if (now - lastWidgetSessionCheck > 60000) {
-      lastWidgetSessionCheck = now
-      const ok = await isWidgetInCorrectSession()
-      if (!ok) {
-        log('⚠️ TimerWidget in wrong session during lock. Killing for restart...')
-        await killTimerWidget()
-        isWidgetLocked = false
-        await delay(500)
-      }
-    }
-  }
 
   const msg = deviceConfig.lockMessage || 'Время вышло! Компьютер заблокирован.'
   const color = deviceConfig.lockColor || '#000000'
