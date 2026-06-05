@@ -85,6 +85,11 @@ export async function enforceRules(parentUid, deviceId, isShuttingDown) {
   const nowMs = Date.now()
   const isWidgetLocked = getIsWidgetLocked()
 
+  if (!deviceConfig?.isLocked && penaltyLockUntil <= nowMs && isWidgetLocked) {
+    await sendToWidget({ command: 'unlock' })
+    setIsWidgetLocked(false)
+  }
+
   if (penaltyLockUntil > 0 && nowMs >= penaltyLockUntil) {
     penaltyLockUntil = 0
     if (!deviceConfig?.isLocked) {

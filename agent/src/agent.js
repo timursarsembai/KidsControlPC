@@ -24,6 +24,7 @@ let deviceId = null
 let isShuttingDown = false
 let programScanInProgress = false
 let lastUploadedAppsSignature = ''
+let lastForceUpdateRequestMs = 0
 
 const PROGRAM_SCAN_INTERVAL_MS = 5 * 60 * 1000
 
@@ -164,6 +165,8 @@ eventBus.on(EVENTS.COMMAND_RECEIVED, async ({ doc: cmdDoc, cmd }) => {
       await ensureWidgetLocked()
     } else if (cmd.action === 'unlock') {
       eventBus.emit(EVENTS.UNLOCK_REQUESTED)
+    } else if (cmd.action === 'update_agent' || cmd.command === 'force_update') {
+      await checkAndUpdateSilently(log, true)
     } else if (cmd.action === 'restart') {
       exec('shutdown /r /t 0')
     } else if (cmd.action === 'shutdown') {
@@ -173,6 +176,16 @@ eventBus.on(EVENTS.COMMAND_RECEIVED, async ({ doc: cmdDoc, cmd }) => {
   } catch (err) {
     await markCommandFailed(cmdDoc, err.message)
   }
+})
+
+eventBus.on(EVENTS.DEVICE_CONFIG_UPDATED, (config) => {
+  const requestedAtMs = Number(config?.forceUpdateRequestedAtMs || 0)
+  if (!requestedAtMs || requestedAtMs <= lastForceUpdateRequestMs) return
+
+  lastForceUpdateRequestMs = requestedAtMs
+  checkAndUpdateSilently(log, true).catch(err => {
+    log(`[Updater] Force update failed: ${err.message}`)
+  })
 })
 
 import { startIpcServer } from './network/ipcServer.js'

@@ -67,6 +67,10 @@ export default function PowerPanel({ mode = 'power' }) {
         await updateDeviceSettings({
           isLocked: false
         })
+      } else if (action === 'update_agent') {
+        await updateDeviceSettings({
+          forceUpdateRequestedAtMs: Date.now()
+        })
       }
 
       const payload = { action }
@@ -78,8 +82,9 @@ export default function PowerPanel({ mode = 'power' }) {
         payload.readMessage = readMessage
         payload.readMessageRepeat = readMessageRepeat
       }
-      
-      await sendDeviceCommand(payload)
+      if (!['lock', 'unlock', 'update_agent'].includes(action)) {
+        await sendDeviceCommand(payload)
+      }
       setSuccessAction(action)
       setTimeout(() => setSuccessAction(null), 2500)
     } catch (e) {
