@@ -1,8 +1,9 @@
-﻿import { exec } from 'child_process'
+import { exec } from 'child_process'
 import net from 'net'
 import path from 'path'
 import fs from 'fs'
 import { tmpdir } from 'os'
+import { sendToWidget } from './services/widgetManager.js'
 
 const widgetExe = process.env.NODE_ENV === 'development'
   ? path.join(process.cwd(), 'dist', 'ReminderWidget.exe')
@@ -98,40 +99,13 @@ export async function processReminders(rules) {
   }
 }
 
-function sendReminderToWidget(rule) {
-  const msgBase64 = Buffer.from(rule.message || '', 'utf8').toString('base64')
-  const loopArg = rule.voiceLoop ? '1' : '0'
-  const payload = `reminder|${rule.id}|${msgBase64}|${loopArg}`
-
-  return new Promise((resolve) => {
-    const client = new net.Socket()
-    let done = false
-
-    const finish = (ok) => {
-      if (done) return
-      done = true
-      try { client.destroy() } catch {}
-      resolve(ok)
-    }
-
-    client.setTimeout(1500)
-    client.once('connect', () => {
-      try {
-        client.write(payload)
-        finish(true)
-      } catch {
-        finish(false)
-      }
-    })
-    client.once('timeout', () => finish(false))
-    client.once('error', () => finish(false))
-
-    try {
-      client.connect(WIDGET_PORT, WIDGET_HOST)
-    } catch {
-      finish(false)
-    }
-  })
+async function sendReminderToWidget(rule) {
+  return await sendToWidget({
+    command: 'remind',
+    reminderId: rule.id,
+    message: rule.message || '',
+    voiceLoop: rule.voiceLoop ? true : false
+  }, { ensureStarted: false })
 }
 
 async function triggerReminder(rule) {

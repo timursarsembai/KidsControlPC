@@ -27,8 +27,14 @@ vi.mock('net', () => ({
       return this
     }
 
-    connect() {
+    on(event, cb) {
+      this.handlers[event] = cb
+      return this
+    }
+
+    connect(path, cb) {
       if (mockState.socketConnectSucceeds) {
+        if (cb) cb()
         this.handlers.connect?.()
       } else {
         this.handlers.error?.(new Error('socket down'))
@@ -36,11 +42,13 @@ vi.mock('net', () => ({
       return this
     }
 
-    write(data) {
+    write(data, cb) {
       mockState.lastSocketPayload = data
+      if (cb) cb()
     }
 
     destroy() {}
+    end() {}
   },
   default: {
     Socket: class MockSocket {
@@ -55,8 +63,14 @@ vi.mock('net', () => ({
         return this
       }
 
-      connect() {
+      on(event, cb) {
+        this.handlers[event] = cb
+        return this
+      }
+
+      connect(path, cb) {
         if (mockState.socketConnectSucceeds) {
+          if (cb) cb()
           this.handlers.connect?.()
         } else {
           this.handlers.error?.(new Error('socket down'))
@@ -64,11 +78,13 @@ vi.mock('net', () => ({
         return this
       }
 
-      write(data) {
+      write(data, cb) {
         mockState.lastSocketPayload = data
+        if (cb) cb()
       }
 
       destroy() {}
+    end() {}
     }
   }
 }))
@@ -107,7 +123,8 @@ describe('reminder', () => {
     await processReminders(rules)
 
     expect(exec).not.toHaveBeenCalled()
-    expect(mockState.lastSocketPayload).toContain('reminder|rule1|')
+    expect(mockState.lastSocketPayload).toContain('"command":"remind"')
+    expect(mockState.lastSocketPayload).toContain('"reminderId":"rule1"')
   })
 
   it('should not trigger if time has not arrived', async () => {

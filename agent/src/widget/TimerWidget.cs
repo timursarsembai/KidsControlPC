@@ -8,6 +8,10 @@ using System.Threading;
 using System.Runtime.InteropServices;
 using System.Media;
 using System.Speech.Synthesis;
+using System.IO.Pipes;
+using System.IO;
+using System.Web.Script.Serialization;
+using System.Collections.Generic;
 
 namespace KidsControl
 {
@@ -17,7 +21,6 @@ namespace KidsControl
         private Label lblPhase;
         private Label lblLockMessage;
         private TextBox txtPin;
-        private TcpListener listener;
         private Thread serverThread;
         private Thread sirenThread;
         private bool isRunning = true;
@@ -158,11 +161,19 @@ namespace KidsControl
             new Thread(() => {
                 try
                 {
-                    using (TcpClient c = new TcpClient("127.0.0.1", 49153))
-                    using (NetworkStream s = c.GetStream())
+                    using (var pipeClient = new NamedPipeClientStream(".", "KidsControlAgentPipe", PipeDirection.Out))
                     {
-                        byte[] data = Encoding.UTF8.GetBytes("reminder_dismissed|" + reminderId);
-                        s.Write(data, 0, data.Length);
+                        pipeClient.Connect(1000);
+                        using (var writer = new StreamWriter(pipeClient))
+                        {
+                            var payload = new Dictionary<string, object>
+                            {
+                                { "event", "reminder_dismissed" },
+                                { "reminderId", reminderId }
+                            };
+                            var serializer = new JavaScriptSerializer();
+                            writer.WriteLine(serializer.Serialize(payload));
+                        }
                     }
                 }
                 catch { }
@@ -352,42 +363,50 @@ namespace KidsControl
 
         private void StartServer()
         {
-            try
+            JavaScriptSerializer serializer = new JavaScriptSerializer();
+            
+            while (isRunning)
             {
-                listener = new TcpListener(IPAddress.Loopback, 49152);
-                listener.Start();
-                while (isRunning)
+                try
                 {
-                    if (listener.Pending())
+                    using (var pipeServer = new NamedPipeServerStream("KidsControlTimerPipe", PipeDirection.InOut, 1, PipeTransmissionMode.Message, PipeOptions.Asynchronous))
                     {
-                        using (TcpClient client = listener.AcceptTcpClient())
-                        using (NetworkStream stream = client.GetStream())
+                        pipeServer.WaitForConnection();
+                        using (StreamReader reader = new StreamReader(pipeServer))
                         {
-                            byte[] buffer = new byte[4096];
-                            int bytesRead = stream.Read(buffer, 0, buffer.Length);
-                            string message = Encoding.UTF8.GetString(buffer, 0, bytesRead).Trim();
-                            UpdateUI(message);
+                            string message = reader.ReadLine();
+                            if (!string.IsNullOrEmpty(message))
+                            {
+                                try {
+                                    var payload = serializer.Deserialize<Dictionary<string, object>>(message);
+                                    UpdateUI(payload);
+                                } catch { }
+                            }
                         }
                     }
+                }
+                catch (Exception) { 
                     Thread.Sleep(100);
                 }
             }
-            catch (Exception) { }
         }
 
-        private void UpdateUI(string message)
+        private void UpdateUI(Dictionary<string, object> payload)
         {
             if (this.InvokeRequired)
             {
-                this.Invoke(new Action<string>(UpdateUI), message);
+                this.Invoke(new Action<Dictionary<string, object>>(UpdateUI), payload);
                 return;
             }
 
-            if (message == "hide")
+            if (!payload.ContainsKey("command")) return;
+            string command = payload["command"].ToString();
+
+            if (command == "hide")
             {
                 if (!isLocked) this.Opacity = 0;
             }
-            else if (message == "unlock")
+            else if (command == "unlock")
             {
                 isLocked = false;
                 this.TransparencyKey = Color.Black;
@@ -401,17 +420,17 @@ namespace KidsControl
                 this.BackColor = Color.Black;
                 RemoveKeyboardHook();
             }
-            else if (message.StartsWith("lock|"))
+            else if (command == "lock")
             {
                 isLocked = true;
-                string[] parts = message.Split('|');
-                string text = parts.Length > 1 ? parts[1] : "Время вышло! Компьютер заблокирован.";
-                string hexColor = parts.Length > 2 ? parts[2] : "#000000";
-                lockPin = parts.Length > 3 ? parts[3] : "";
+                string text = payload.ContainsKey("message") ? payload["message"].ToString() : "Время вышло! Компьютер заблокирован.";
+                string hexColor = payload.ContainsKey("color") ? payload["color"].ToString() : "#000000";
+                lockPin = payload.ContainsKey("pin") ? payload["pin"].ToString() : "";
                 
-                playSound = parts.Length > 4 ? (parts[4] == "1") : true;
-                readMessage = parts.Length > 5 ? (parts[5] == "1") : false;
-                readMessageRepeat = parts.Length > 6 ? (parts[6] == "1") : false;
+                playSound = payload.ContainsKey("playSound") ? Convert.ToBoolean(payload["playSound"]) : true;
+                readMessage = payload.ContainsKey("readMessage") ? Convert.ToBoolean(payload["readMessage"]) : false;
+                readMessageRepeat = payload.ContainsKey("readMessageRepeat") ? Convert.ToBoolean(payload["readMessageRepeat"]) : false;
+                
                 currentLockMessage = text;
 
                 this.TransparencyKey = Color.Empty;
@@ -445,42 +464,25 @@ namespace KidsControl
                     sirenThread.Start();
                 }
             }
-            else if (message.StartsWith("toast|"))
+            else if (command == "toast")
             {
-                // Simple TTS for toast
-                string text = message.Substring(6);
-                try {
-                    SystemSounds.Asterisk.Play();
-                    
-                } catch {}
-            }
-            else if (message.StartsWith("reminder|"))
-            {
-                string[] parts = message.Split('|');
-                if (parts.Length >= 4)
+                string text = payload.ContainsKey("message") ? payload["message"].ToString() : "";
+                try
                 {
-                    string reminderId = parts[1];
-                    string reminderText = "";
-                    try
+                    using (var synth = new SpeechSynthesizer())
                     {
-                        reminderText = Encoding.UTF8.GetString(Convert.FromBase64String(parts[2]));
+                        synth.SetOutputToDefaultAudioDevice();
+                        synth.SpeakAsync(text);
                     }
-                    catch
-                    {
-                        reminderText = parts[2];
-                    }
-                    bool loopVoice = parts[3] == "1";
-                    ShowReminderPopup(reminderId, reminderText, loopVoice);
                 }
+                catch { }
             }
-            else if (message.StartsWith("show|"))
+            else if (command == "show")
             {
-                if (isLocked) return;
-                string[] parts = message.Split('|');
-                if (parts.Length == 3)
+                if (!isLocked)
                 {
-                    string phase = parts[1];
-                    string time = parts[2];
+                    string phase = payload.ContainsKey("phase") ? payload["phase"].ToString() : "";
+                    string time = payload.ContainsKey("time") ? payload["time"].ToString() : "";
                     lblPhase.Text = phase;
                     lblTime.Text = time;
                     string lowPhase = phase.ToLower();
@@ -503,16 +505,23 @@ namespace KidsControl
         {
             if (isLocked && !string.IsNullOrEmpty(lockPin) && txtPin.Text == lockPin)
             {
-                UpdateUI("unlock");
+                var payload = new Dictionary<string, object>();
+                payload["command"] = "unlock";
+                UpdateUI(payload);
                 // Notify agent
                 new Thread(() => {
-                    try {
-                        using (TcpClient c = new TcpClient("127.0.0.1", 49153))
-                        using (NetworkStream s = c.GetStream()) {
-                            byte[] data = Encoding.UTF8.GetBytes("unlock_by_pin");
-                            s.Write(data, 0, data.Length);
+                    try
+                    {
+                        using (var pipeClient = new NamedPipeClientStream(".", "KidsControlAgentPipe", PipeDirection.Out))
+                        {
+                            pipeClient.Connect(1000);
+                            using (var writer = new StreamWriter(pipeClient))
+                            {
+                                writer.WriteLine("{\"event\":\"unlock_pin\"}");
+                            }
                         }
-                    } catch { }
+                    }
+                    catch { }
                 }).Start();
             }
         }
@@ -623,7 +632,7 @@ namespace KidsControl
                 activeReminderPopup = null;
             }
             RemoveKeyboardHook();
-            if (listener != null) listener.Stop();
+            
             base.OnFormClosing(e);
         }
 

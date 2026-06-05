@@ -1,0 +1,35 @@
+import { EventEmitter } from 'events'
+
+// Global event bus for the agent
+export const eventBus = new EventEmitter()
+
+// Increase max listeners if needed
+eventBus.setMaxListeners(20)
+
+// Standard Event Names
+export const EVENTS = {
+  // Config & Rules
+  DEVICE_CONFIG_UPDATED: 'DEVICE_CONFIG_UPDATED',
+  RULES_UPDATED: 'RULES_UPDATED',
+  COMMAND_RECEIVED: 'COMMAND_RECEIVED',
+
+  // Timer & Pomodoro
+  POMODORO_TICK: 'POMODORO_TICK',
+  POMODORO_PHASE_CHANGED: 'POMODORO_PHASE_CHANGED',
+  POMODORO_INACTIVE: 'POMODORO_INACTIVE',
+
+  // Enforcement
+  LOCK_REQUESTED: 'LOCK_REQUESTED',
+  UNLOCK_REQUESTED: 'UNLOCK_REQUESTED',
+  PROCESS_KILLED: 'PROCESS_KILLED',
+  REMINDER_TRIGGERED: 'REMINDER_TRIGGERED',
+
+  // Widgets
+  WIDGET_LOCKED: 'WIDGET_LOCKED',
+  WIDGET_UNLOCKED: 'WIDGET_UNLOCKED',
+  
+  // App
+  AGENT_STARTING: 'AGENT_STARTING',
+  AGENT_SHUTTING_DOWN: 'AGENT_SHUTTING_DOWN',
+  ALERT_TRIGGERED: 'ALERT_TRIGGERED'
+}
