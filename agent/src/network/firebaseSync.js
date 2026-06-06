@@ -11,7 +11,6 @@ import { eventBus, EVENTS } from '../core/eventBus.js'
 import { setDeviceConfig, setActiveRules } from '../core/configManager.js'
 import { getRecentLogs } from '../core/logBuffer.js'
 
-// ─── Init Firebase ────────────────────────────────────────────────────────────
 export const app = initializeApp(firebaseConfig)
 export const db = getFirestore(app)
 
@@ -20,54 +19,61 @@ let deviceId = null
 let unsubDevice = null
 let unsubRules = null
 let unsubCommands = null
+let commandToken = null
 
 function log(msg) {
   console.log(`[FirebaseSync] ${msg}`)
+}
+
+function subscribeToCommands(token) {
+  if (!token || token === commandToken) return
+  commandToken = token
+
+  if (unsubCommands) unsubCommands()
+
+  const qCmds = query(
+    collection(db, 'users', parentUid, 'devices', deviceId, 'commands'),
+    where('status', '==', 'pending'),
+    where('uploadToken', '==', token)
+  )
+
+  unsubCommands = onSnapshot(qCmds, async (snapshot) => {
+    for (const change of snapshot.docChanges()) {
+      if (change.type === 'added') {
+        const cmdDoc = change.doc
+        const cmd = cmdDoc.data()
+        eventBus.emit(EVENTS.COMMAND_RECEIVED, { doc: cmdDoc, cmd })
+      }
+    }
+  }, (err) => {
+    log(`Commands sync error: ${err.message}`)
+  })
 }
 
 export function initFirebaseSync(pUid, dId) {
   parentUid = pUid
   deviceId = dId
 
-  // Subscribe to device config
   const deviceRef = doc(db, 'users', parentUid, 'devices', deviceId)
   unsubDevice = onSnapshot(deviceRef, (snap) => {
     if (!snap.exists()) return
     const deviceConfig = snap.data()
     setDeviceConfig(deviceConfig)
+    subscribeToCommands(deviceConfig.screenshotUploadToken)
   }, (err) => {
-    log(`❌ Firestore device config error: ${err.message}`)
+    log(`Firestore device config error: ${err.message}`)
   })
 
-  // Subscribe to rules
   const qRules = query(
     collection(db, 'users', parentUid, 'devices', deviceId, 'rules'),
     where('status', 'in', ['active', 'inactive'])
   )
   unsubRules = onSnapshot(qRules, (snap) => {
     const rules = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    log(`📋 Received ${rules.length} rules`)
+    log(`Received ${rules.length} rules`)
     setActiveRules(rules)
   }, (err) => {
-    log(`❌ Firestore rules error: ${err.message}`)
-  })
-
-  // Subscribe to commands
-  const qCmds = query(
-    collection(db, 'users', parentUid, 'devices', deviceId, 'commands'),
-    where('status', '==', 'pending')
-  )
-  unsubCommands = onSnapshot(qCmds, async (snapshot) => {
-    for (const change of snapshot.docChanges()) {
-      if (change.type === 'added') {
-        const cmdDoc = change.doc
-        const cmd = cmdDoc.data()
-        
-        eventBus.emit(EVENTS.COMMAND_RECEIVED, { doc: cmdDoc, cmd })
-      }
-    }
-  }, (err) => {
-    log(`⚠️  Commands sync error: ${err.message}`)
+    log(`Firestore rules error: ${err.message}`)
   })
 }
 
@@ -75,16 +81,15 @@ export function stopFirebaseSync() {
   if (unsubDevice) unsubDevice()
   if (unsubRules) unsubRules()
   if (unsubCommands) unsubCommands()
+  commandToken = null
 }
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 let consecutiveFailures = 0
 
 export async function sendHeartbeat() {
   if (!parentUid || !deviceId) return
   try {
-    const timeoutPromise = new Promise((_, reject) => 
+    const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Heartbeat timeout')), 15000)
     )
     await Promise.race([
@@ -102,9 +107,9 @@ export async function sendHeartbeat() {
       consecutiveFailures = 0
     } else {
       consecutiveFailures++
-      log(`⚠️  Heartbeat error (${consecutiveFailures}/3): ${err.message}`)
+      log(`Heartbeat error (${consecutiveFailures}/3): ${err.message}`)
       if (consecutiveFailures >= 3) {
-        log('🔄 Network likely stuck after sleep/disconnect. Restarting agent...')
+        log('Network likely stuck after sleep/disconnect. Restarting agent...')
         process.exit(1)
       }
     }
@@ -115,7 +120,7 @@ const lastAlerts = {}
 
 export async function sendAlert(type, details = '') {
   if (!parentUid) return
-  
+
   const alertKey = `${type}|${details}`
   const now = Date.now()
   if (lastAlerts[alertKey] && (now - lastAlerts[alertKey]) < 60000) {
@@ -132,22 +137,22 @@ export async function sendAlert(type, details = '') {
       timestamp: serverTimestamp(),
       acknowledged: false
     })
-    log(`🚨 Alert sent: ${type}`)
+    log(`Alert sent: ${type}`)
   } catch (err) {
-    log(`⚠️  Failed to send alert: ${err.message}`)
+    log(`Failed to send alert: ${err.message}`)
   }
 }
 
 export async function markCommandCompleted(cmdDoc, extra = {}) {
   try {
     await updateDoc(cmdDoc.ref, { status: 'completed', completedAt: serverTimestamp(), ...extra })
-  } catch(e) {}
+  } catch {}
 }
 
 export async function markCommandFailed(cmdDoc, errorMsg, extra = {}) {
   try {
     await updateDoc(cmdDoc.ref, { status: 'failed', error: errorMsg, completedAt: serverTimestamp(), ...extra })
-  } catch(e) {}
+  } catch {}
 }
 
 export async function markDeviceOffline() {
@@ -162,7 +167,6 @@ export async function markDeviceOffline() {
 
 export async function publishPomodoroState(state) {
   if (!parentUid || !deviceId) return
-  // Logic to publish state...
   const pomodoroState = state ? {
     active: true,
     phase: state.phase,
@@ -181,7 +185,7 @@ export async function publishPomodoroState(state) {
 
   try {
     await updateDoc(doc(db, 'users', parentUid, 'devices', deviceId), { pomodoroState })
-  } catch (err) {}
+  } catch {}
 }
 
 export async function pushRecentLogs() {
@@ -192,6 +196,6 @@ export async function pushRecentLogs() {
       { recentLogs: getRecentLogs().slice(-100) }
     )
   } catch (err) {
-    log(`⚠️ Failed to push logs: ${err.message}`)
+    log(`Failed to push logs: ${err.message}`)
   }
 }

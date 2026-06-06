@@ -502,10 +502,15 @@ export const useRulesStore = create((set, get) => ({
 
   // ── Commands ──
   sendDeviceCommand: async (commandData) => {
-    const { user, selectedDeviceId } = get()
+    const { user, selectedDeviceId, devices } = get()
     if (!user || !selectedDeviceId) throw new Error('No device selected')
+    const selectedDevice = devices.find(d => d.id === selectedDeviceId)
+    if (!selectedDevice?.screenshotUploadToken) throw new Error('Device command token is not ready')
     logger.info(selectedDeviceId, `Отправка команды: ${commandData.command}`)
-    await fsSendDeviceCommand(user.uid, selectedDeviceId, commandData)
+    await fsSendDeviceCommand(user.uid, selectedDeviceId, {
+      ...commandData,
+      uploadToken: selectedDevice.screenshotUploadToken
+    })
   },
 
   updateDeviceSettings: async (settings) => {
@@ -515,11 +520,14 @@ export const useRulesStore = create((set, get) => ({
   },
 
   requestScreenshot: async () => {
-    const { user, selectedDeviceId } = get()
+    const { user, selectedDeviceId, devices } = get()
     if (!user || !selectedDeviceId) throw new Error('No device selected')
+    const selectedDevice = devices.find(d => d.id === selectedDeviceId)
+    if (!selectedDevice?.screenshotUploadToken) throw new Error('Device command token is not ready')
     logger.info(selectedDeviceId, 'Запрос скриншота экрана')
     await fsSendDeviceCommand(user.uid, selectedDeviceId, {
       command: 'screenshot_request',
+      uploadToken: selectedDevice.screenshotUploadToken,
       requestedAtClientMs: Date.now()
     })
   },

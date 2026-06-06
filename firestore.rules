@@ -30,15 +30,29 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Commands - parent creates commands; unauthenticated agent reads and marks them done.
-    match /users/{userId}/devices/{deviceId}/commands/{commandId} {
-      allow create: if request.auth != null && request.auth.uid == userId;
-      allow read, update: if true;
-      allow delete: if request.auth != null && request.auth.uid == userId;
-    }
-
     function deviceScreenshotToken(userId, deviceId) {
       return get(/databases/$(database)/documents/users/$(userId)/devices/$(deviceId)).data.screenshotUploadToken;
+    }
+
+    function hasValidNewCommandToken(userId, deviceId) {
+      return request.resource.data.uploadToken is string
+        && request.resource.data.uploadToken == deviceScreenshotToken(userId, deviceId);
+    }
+
+    function hasValidExistingCommandToken(userId, deviceId) {
+      return resource.data.uploadToken is string
+        && resource.data.uploadToken == deviceScreenshotToken(userId, deviceId);
+    }
+
+    // Commands - parent creates commands; agent reads and marks only token-matched commands.
+    match /users/{userId}/devices/{deviceId}/commands/{commandId} {
+      allow create: if request.auth != null && request.auth.uid == userId
+        && hasValidNewCommandToken(userId, deviceId);
+      allow read: if (request.auth != null && request.auth.uid == userId)
+        || hasValidExistingCommandToken(userId, deviceId);
+      allow update: if hasValidExistingCommandToken(userId, deviceId)
+        && hasValidNewCommandToken(userId, deviceId);
+      allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
     function hasValidScreenshotToken(userId, deviceId) {
