@@ -9,6 +9,7 @@ import {
   subscribeToScreenshots, deleteScreenshot as fsDeleteScreenshot,
   getScreenshotDownloadURL as fsGetScreenshotDownloadURL
 } from '../firebase/firestore'
+import { logger } from '../../web/src/core/logger'
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 export const useRulesStore = create((set, get) => ({
@@ -61,7 +62,12 @@ export const useRulesStore = create((set, get) => ({
 
     set({ selectedDeviceId: deviceId, rules: [], installedApps: [], screenshots: [], rulesLoading: true, appsLoading: true })
 
-    if (!deviceId) return
+    if (!deviceId) {
+      logger.info('general', 'Устройство отменено (нет выбора)')
+      return
+    }
+
+    logger.info('general', `Выбрано устройство: ${deviceId}`)
 
     const unsubRules = subscribeToRules(user.uid, deviceId, (rules) => {
       set({ rules, rulesLoading: false })
@@ -124,12 +130,14 @@ export const useRulesStore = create((set, get) => ({
   renameDevice: async (deviceId, alias) => {
     const { user } = get()
     if (!user) return
+    logger.info('general', `Переименование устройства ${deviceId} в ${alias}`)
     await updateDeviceAlias(user.uid, deviceId, alias)
   },
 
   deleteDevice: async (deviceId) => {
     const { user } = get()
     if (!user) return
+    logger.info('general', `Удаление устройства ${deviceId}`)
     await removeDevice(user.uid, deviceId)
   },
 
@@ -171,6 +179,7 @@ export const useRulesStore = create((set, get) => ({
     if (!currentlyBlocked && rule?.mode === 'timer') {
       updates.timer = { ...(updates.timer || rule.timer), startedAt: serverTimestamp() }
     }
+    logger.info(selectedDeviceId, `Изменение блокировки программы ${ruleId}: status = ${updates.status}`)
     await updateRule(user.uid, selectedDeviceId, ruleId, updates)
   },
 
@@ -188,6 +197,7 @@ export const useRulesStore = create((set, get) => ({
     if (!currentlyBlocked && rule?.mode === 'timer') {
       updates.timer = { ...(updates.timer || rule.timer), startedAt: serverTimestamp() }
     }
+    logger.info(selectedDeviceId, `Изменение блокировки сайта ${ruleId}: status = ${updates.status}`)
     await updateRule(user.uid, selectedDeviceId, ruleId, updates)
   },
 
@@ -206,6 +216,7 @@ export const useRulesStore = create((set, get) => ({
       ...(modeConfig.date     && { date: modeConfig.date }),
       ...(modeConfig.monthly_date && { monthly_date: modeConfig.monthly_date }),
     })
+    logger.info(selectedDeviceId, `Добавлено правило программы: ${programData.name} (режим: ${finalMode})`)
   },
 
   // ── Add web rule ──
@@ -227,6 +238,7 @@ export const useRulesStore = create((set, get) => ({
       ...(modeConfig.date     && { date: modeConfig.date }),
       ...(modeConfig.monthly_date && { monthly_date: modeConfig.monthly_date }),
     })
+    logger.info(selectedDeviceId, `Добавлено правило сайта: ${entry.resolvedPattern} (режим: ${activeTab})`)
   },
 
   // ── Add power rule (shutdown, restart, sleep, hibernate) ──
@@ -301,6 +313,7 @@ export const useRulesStore = create((set, get) => ({
   removeRule: async (ruleId) => {
     const { user, selectedDeviceId } = get()
     if (!user || !selectedDeviceId) return
+    logger.info(selectedDeviceId, `Удаление правила ${ruleId}`)
     await deleteRule(user.uid, selectedDeviceId, ruleId)
   },
 
@@ -491,6 +504,7 @@ export const useRulesStore = create((set, get) => ({
   sendDeviceCommand: async (commandData) => {
     const { user, selectedDeviceId } = get()
     if (!user || !selectedDeviceId) throw new Error('No device selected')
+    logger.info(selectedDeviceId, `Отправка команды: ${commandData.command}`)
     await fsSendDeviceCommand(user.uid, selectedDeviceId, commandData)
   },
 
@@ -503,6 +517,7 @@ export const useRulesStore = create((set, get) => ({
   requestScreenshot: async () => {
     const { user, selectedDeviceId } = get()
     if (!user || !selectedDeviceId) throw new Error('No device selected')
+    logger.info(selectedDeviceId, 'Запрос скриншота экрана')
     await fsSendDeviceCommand(user.uid, selectedDeviceId, {
       command: 'screenshot_request',
       requestedAtClientMs: Date.now()

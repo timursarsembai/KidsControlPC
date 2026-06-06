@@ -11,6 +11,7 @@ import {
   collection, doc, setDoc, addDoc, serverTimestamp
 } from 'firebase/firestore'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
+import { logger } from '../../core/logger'
 import './SettingsPanel.css'
 
 // ─── Generate a 6-character pairing code ─────────────────────────────────────
@@ -44,8 +45,10 @@ function DevicesSection({ uid }) {
         used: false
       })
       setCode(newCode)
+      logger.info('general', `Сгенерирован код привязки: ${newCode}`)
     } catch (err) {
       console.error('Error generating pairing code:', err)
+      logger.error('general', 'Ошибка генерации кода привязки: ' + err.message)
     } finally {
       setGenerating(false)
     }
@@ -57,6 +60,7 @@ function DevicesSection({ uid }) {
       await deleteDevice(deviceId)
     } catch (err) {
       console.error('Error deleting device:', err)
+      logger.error('general', `Ошибка удаления устройства ${deviceId}: ` + err.message)
     } finally {
       setDeleteId(null)
     }
@@ -321,10 +325,80 @@ function AboutSection() {
   )
 }
 
+// ─── App Logs section ─────────────────────────────────────────────────────────
+function AppLogsSection() {
+  const { t } = useTranslation()
+  const { devices } = useRulesStore()
+  const [activeCategory, setActiveCategory] = useState('general')
+  const [logs, setLogs] = useState(() => logger.getLogs(activeCategory))
+
+  React.useEffect(() => {
+    setLogs(logger.getLogs(activeCategory))
+    const unsub = logger.subscribe((entry) => {
+      if (entry.category === activeCategory) {
+        setLogs(prev => [...prev, entry])
+      }
+    })
+    return unsub
+  }, [activeCategory])
+
+  const formatTime = (ts) => {
+    return new Date(ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  }
+
+  const LEVEL_ICONS = { info: '', warn: '⚠️', error: '❌' }
+  const LEVEL_CLASSES = { info: '', warn: 'log-warn', error: 'log-error' }
+
+  return (
+    <section className="settings-section">
+      <div className="settings-section-header">
+        <div className="settings-section-icon">📋</div>
+        <div>
+          <h2 className="settings-section-title">Логи приложения</h2>
+          <p className="settings-section-desc">Внутренние логи родительского интерфейса</p>
+        </div>
+      </div>
+
+      <div className="app-logs-tabs">
+        <button 
+          className={`app-logs-tab ${activeCategory === 'general' ? 'active' : ''}`}
+          onClick={() => setActiveCategory('general')}
+        >
+          Общие
+        </button>
+        {devices.map(d => (
+          <button 
+            key={d.id}
+            className={`app-logs-tab ${activeCategory === d.id ? 'active' : ''}`}
+            onClick={() => setActiveCategory(d.id)}
+          >
+            {d.alias || d.hostname || d.id}
+          </button>
+        ))}
+      </div>
+
+      <div className="app-logs-container">
+        {logs.length === 0 ? (
+          <div className="app-logs-empty">Нет логов для этой категории</div>
+        ) : (
+          logs.map((entry, i) => (
+            <div key={`${entry.ts}-${i}`} className={`log-line ${LEVEL_CLASSES[entry.level] || ''}`}>
+              <span className="log-time">{formatTime(entry.ts)}</span>
+              <span className="log-level-icon">{LEVEL_ICONS[entry.level] || ''}</span>
+              <span className="log-msg">{entry.msg}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  )
+}
+
 // ─── Main Settings Panel ──────────────────────────────────────────────────────
 const TABS = [
   { id: 'devices', label: 'Устройства', icon: '🖥️' },
   { id: 'account', label: 'Аккаунт',    icon: '👤' },
+  { id: 'logs',    label: 'Логи',       icon: '📋' },
   { id: 'about',   label: 'О приложении', icon: 'ℹ️' },
 ]
 
@@ -354,6 +428,7 @@ export default function SettingsPanel() {
       <div className="settings-content">
         {activeTab === 'devices' && <DevicesSection uid={user.uid} />}
         {activeTab === 'account' && <AccountSection user={user} />}
+        {activeTab === 'logs'    && <AppLogsSection />}
         {activeTab === 'about'   && <AboutSection />}
       </div>
     </div>
