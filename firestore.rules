@@ -30,6 +30,13 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Commands - parent creates commands; unauthenticated agent reads and marks them done.
+    match /users/{userId}/devices/{deviceId}/commands/{commandId} {
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow read, update: if true;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
     function deviceScreenshotToken(userId, deviceId) {
       return get(/databases/$(database)/documents/users/$(userId)/devices/$(deviceId)).data.screenshotUploadToken;
     }

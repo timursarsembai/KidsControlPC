@@ -7,6 +7,7 @@ import { initFirebaseSync, stopFirebaseSync, sendHeartbeat, sendAlert, markDevic
 import { startTimerWidgetIfNeeded, ensureWidgetLocked } from './services/widgetManager.js'
 import { enforceRules } from './services/enforcer.js'
 import { startScreenshotService, stopScreenshotService, takeScreenshot } from './services/screenshotService.js'
+import { executePowerAction } from './services/powerActions.js'
 
 import { loadPairing, runPairingFlow } from './pairing.js'
 import { getInstalledPrograms } from './scanner.js'
@@ -17,7 +18,6 @@ import { clearHostsBlock } from './hostsBlocker.js'
 import { collection, updateDoc, doc, writeBatch, serverTimestamp } from 'firebase/firestore'
 import { db } from './network/firebaseSync.js'
 import { ENFORCE_INTERVAL_MS, HEARTBEAT_INTERVAL_MS } from './config.js'
-import { exec } from 'child_process'
 
 let parentUid = null
 let deviceId = null
@@ -161,16 +161,17 @@ eventBus.on(EVENTS.COMMAND_RECEIVED, async ({ doc: cmdDoc, cmd }) => {
   }
 
   try {
-    if (cmd.action === 'lock') {
+    const action = cmd.action || cmd.command
+    if (action === 'lock') {
       await ensureWidgetLocked()
-    } else if (cmd.action === 'unlock') {
+    } else if (action === 'unlock') {
       eventBus.emit(EVENTS.UNLOCK_REQUESTED)
-    } else if (cmd.action === 'update_agent' || cmd.command === 'force_update') {
+    } else if (action === 'update_agent' || action === 'force_update') {
       await checkAndUpdateSilently(log, true)
-    } else if (cmd.action === 'restart') {
-      exec('shutdown /r /t 0')
-    } else if (cmd.action === 'shutdown') {
-      exec('shutdown /s /t 0')
+    } else if (['shutdown', 'restart', 'sleep', 'hibernate'].includes(action)) {
+      await executePowerAction(action, log)
+    } else {
+      throw new Error(`Unknown command action: ${action}`)
     }
     await markCommandCompleted(cmdDoc)
   } catch (err) {
