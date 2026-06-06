@@ -25,6 +25,7 @@ let isShuttingDown = false
 let programScanInProgress = false
 let lastUploadedAppsSignature = ''
 let lastForceUpdateRequestMs = 0
+let forceUpdateBaselineLoaded = false
 
 const PROGRAM_SCAN_INTERVAL_MS = 5 * 60 * 1000
 
@@ -181,6 +182,13 @@ eventBus.on(EVENTS.COMMAND_RECEIVED, async ({ doc: cmdDoc, cmd }) => {
 
 eventBus.on(EVENTS.DEVICE_CONFIG_UPDATED, (config) => {
   const requestedAtMs = Number(config?.forceUpdateRequestedAtMs || 0)
+
+  if (!forceUpdateBaselineLoaded) {
+    forceUpdateBaselineLoaded = true
+    lastForceUpdateRequestMs = requestedAtMs
+    return
+  }
+
   if (!requestedAtMs || requestedAtMs <= lastForceUpdateRequestMs) return
 
   lastForceUpdateRequestMs = requestedAtMs
