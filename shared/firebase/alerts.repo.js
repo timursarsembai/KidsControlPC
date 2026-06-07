@@ -1,5 +1,5 @@
 import { onSnapshot, orderBy, query, updateDoc, writeBatch } from 'firebase/firestore'
-import { db } from './config'
+import { db } from './config.js'
 import { alertDoc, alertsCol } from './paths.js'
 
 export function subscribeToAlerts(uid, callback) {

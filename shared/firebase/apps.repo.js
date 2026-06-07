@@ -1,5 +1,5 @@
 import { doc, onSnapshot, writeBatch } from 'firebase/firestore'
-import { db } from './config'
+import { db } from './config.js'
 import { appsCol } from './paths.js'
 
 export function subscribeToInstalledApps(uid, deviceId, callback) {

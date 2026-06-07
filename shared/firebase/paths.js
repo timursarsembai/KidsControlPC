@@ -1,5 +1,5 @@
 import { collection, doc } from 'firebase/firestore'
-import { db } from './config'
+import { db } from './config.js'
 
 export const deviceCol = (uid) => collection(db, 'users', uid, 'devices')
 export const deviceDoc = (uid, devId) => doc(db, 'users', uid, 'devices', devId)
