@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
-import { evaluateRule } from '@kidscontrol/shared/utils/timeHelpers'
 import Select from '../Select/Select'
-import TimeInput from '../TimeInput/TimeInput'
+import ProfileTargetTable from './ProfileTargetTable'
+import ScheduleEditor from './ScheduleEditor'
 import './ProfilePanel.css'
 
-const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 const PROFILE_ICONS = ['🧩', '🎮', '📚', '📖', '🌙', '☀️', '🎧', '🎨', '💻', '🧠', '⚽', '🍿']
 
 const DEFAULT_SCHEDULE = {
@@ -358,121 +357,24 @@ export default function ProfilePanel({ profileId }) {
   return (
     <div className="profile-panel animate-in">
       <div className="profile-schedule-card">
-        <div className="profile-schedule-header">
-          <div className="profile-schedule-main">
-            <div className="profile-title-row">
-              <span className="profile-kicker">Расписание</span>
-              <span className="profile-desc">{actionText}</span>
-            </div>
-            <div className="profile-identity-row">
-              <input
-                className="input profile-name-input"
-                value={profileTitle}
-                onChange={(event) => setProfileNameDraft(event.target.value)}
-                placeholder="Название режима"
-              />
-              <div className="profile-icon-picker">
-                {PROFILE_ICONS.map((icon) => (
-                  <button
-                    key={icon}
-                    type="button"
-                    className={`profile-icon-choice ${profileIcon === icon ? 'active' : ''}`}
-                    onClick={() => setProfileIconDraft(icon)}
-                  >
-                    {icon}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-          <button className="btn btn-primary profile-save-btn" onClick={handleSave} disabled={saving}>
-            {saving ? <span className="btn-spinner-sm" /> : 'Сохранить режим'}
-          </button>
-        </div>
-
-        <div className="profile-schedule-grid profile-schedule-compact">
-          <div className="profile-groups">
-            {schedule.groups.map((group, groupIndex) => (
-              <div className="profile-group-row" key={groupIndex}>
-                <div className="profile-group-action">
-                  <label className="profile-label">Окна</label>
-                  <Select
-                    value={group.action}
-                    onChange={value => updateSchedule(prev => ({
-                      ...prev,
-                      groups: prev.groups.map((currentGroup, index) =>
-                        index === groupIndex ? { ...currentGroup, action: value } : currentGroup
-                      )
-                    }))}
-                    options={[
-                      { value: 'allow', label: 'Разрешать в эти окна' },
-                      { value: 'block', label: 'Блокировать в эти окна' }
-                    ]}
-                    style={{ width: '100%' }}
-                  />
-                </div>
-
-                <div className="profile-group-days">
-                  <label className="profile-label">Дни</label>
-                  <div className="profile-days">
-                    {DAYS.map((day, dayIndex) => (
-                      <button
-                        key={day}
-                        type="button"
-                        className={`profile-day ${group.weekdays.includes(dayIndex) ? 'active' : ''}`}
-                        onClick={() => toggleGroupDay(groupIndex, dayIndex)}
-                      >
-                        {day}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="profile-group-ranges">
-                  <label className="profile-label">Время</label>
-                  <div className="profile-ranges">
-                    {group.ranges.map((range, rangeIndex) => (
-                      <div className="profile-range-row" key={`${groupIndex}-${rangeIndex}-${range.timeFrom}-${range.timeTo}`}>
-                        <TimeInput
-                          value={range.timeFrom}
-                          onChange={timeFrom => updateGroupRange(groupIndex, rangeIndex, { timeFrom })}
-                        />
-                        <span className="time-sep">—</span>
-                        <TimeInput
-                          value={range.timeTo}
-                          onChange={timeTo => updateGroupRange(groupIndex, rangeIndex, { timeTo })}
-                        />
-                        <button
-                          className="btn btn-sm profile-range-remove"
-                          onClick={() => removeGroupRange(groupIndex, rangeIndex)}
-                          disabled={group.ranges.length === 1}
-                          title="Удалить окно"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                    <button className="btn btn-sm profile-add-range" onClick={() => addGroupRange(groupIndex)}>
-                      + Время
-                    </button>
-                  </div>
-                </div>
-
-                <button
-                  className="btn btn-sm profile-group-remove"
-                  onClick={() => removeScheduleGroup(groupIndex)}
-                  disabled={schedule.groups.length === 1}
-                  title="Удалить группу дней"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-            <button className="btn btn-sm profile-add-group" onClick={addScheduleGroup}>
-              + Группа дней
-            </button>
-          </div>
-        </div>
+        <ScheduleEditor
+          actionText={actionText}
+          addGroupRange={addGroupRange}
+          addScheduleGroup={addScheduleGroup}
+          onIconChange={setProfileIconDraft}
+          onNameChange={setProfileNameDraft}
+          onSave={handleSave}
+          profileIcon={profileIcon}
+          profileIcons={PROFILE_ICONS}
+          profileTitle={profileTitle}
+          removeGroupRange={removeGroupRange}
+          removeScheduleGroup={removeScheduleGroup}
+          saving={saving}
+          schedule={schedule}
+          toggleGroupDay={toggleGroupDay}
+          updateGroupRange={updateGroupRange}
+          updateSchedule={updateSchedule}
+        />
 
         <div className="profile-summary">
           Выбрано: {selectedPrograms.size} программ, {selectedWebsites.size} сайтов.
@@ -533,89 +435,19 @@ export default function ProfilePanel({ profileId }) {
         />
       </div>
 
-      <div className="table-container profile-table-container">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>{activeSubTab === 'programs' ? 'Программа' : 'Сайт'}</th>
-              <th style={{ width: 150 }}>В режиме</th>
-              <th style={{ width: 180 }}>Сейчас</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tableLoading ? (
-              <tr>
-                <td colSpan={3}>
-                  <div className="empty-state">
-                    <div className="loading-spinner" />
-                    <span className="empty-state-title">Загрузка списка...</span>
-                  </div>
-                </td>
-              </tr>
-            ) : activeSubTab === 'programs' ? (
-              filteredPrograms.map(app => {
-                const rule = profileProgramRules.get(app.name)
-                const evaluation = evaluateRule(rule, now)
-                const checked = selectedPrograms.has(app.name)
-                return (
-                  <tr key={app.id || app.name}>
-                    <td>
-                      <div className="prog-name">{app.name}</div>
-                      {app.path
-                        ? <div className="prog-path">{app.path}</div>
-                        : <div className="prog-path no-path">Путь неизвестен</div>}
-                    </td>
-                    <td>
-                      <label className="custom-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleProgram(app.name)}
-                        />
-                        <span className="checkmark" />
-                      </label>
-                    </td>
-                    <td>
-                      <span className={`profile-status ${evaluation.isBlocked ? 'blocked' : checked ? 'waiting' : ''}`}>
-                        {checked ? (evaluation.statusText || 'Сохраните режим') : 'Не выбрано'}
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })
-            ) : (
-              filteredWebsites.map(site => {
-                const pattern = site.resolvedPattern || site.inputUrl
-                const rule = profileWebsiteRules.get(pattern)
-                const evaluation = evaluateRule(rule, now)
-                const checked = selectedWebsites.has(pattern)
-                return (
-                  <tr key={pattern}>
-                    <td>
-                      <div className="prog-name">{pattern}</div>
-                    </td>
-                    <td>
-                      <label className="custom-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleWebsite(pattern)}
-                        />
-                        <span className="checkmark" />
-                      </label>
-                    </td>
-                    <td>
-                      <span className={`profile-status ${evaluation.isBlocked ? 'blocked' : checked ? 'waiting' : ''}`}>
-                        {checked ? (evaluation.statusText || 'Сохраните режим') : 'Не выбрано'}
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      <ProfileTargetTable
+        activeSubTab={activeSubTab}
+        filteredPrograms={filteredPrograms}
+        filteredWebsites={filteredWebsites}
+        now={now}
+        profileProgramRules={profileProgramRules}
+        profileWebsiteRules={profileWebsiteRules}
+        selectedPrograms={selectedPrograms}
+        selectedWebsites={selectedWebsites}
+        tableLoading={tableLoading}
+        toggleProgram={toggleProgram}
+        toggleWebsite={toggleWebsite}
+      />
     </div>
   )
 }

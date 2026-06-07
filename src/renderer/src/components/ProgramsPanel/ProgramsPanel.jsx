@@ -3,122 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import { evaluateRule } from '@kidscontrol/shared/utils/timeHelpers'
 import Select from '../Select/Select'
-import TimeInput from '../TimeInput/TimeInput'
+import ProgramRow from './ProgramRow'
 import './ProgramsPanel.css'
-
-const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
-
-// ─── Sub-inputs for timer/schedule/date modes ────────────────────────────────
-function TimerInput({ value, onChange }) {
-  return (
-    <div className="timer-input-wrap" onClick={e => e.stopPropagation()}>
-      <input type="number" className="input timer-input"
-        placeholder="мин" min="1" max="1440"
-        value={value || ''}
-        onChange={e => onChange(e.target.value)} />
-      <span className="timer-unit">мин</span>
-    </div>
-  )
-}
-
-function ScheduleInput({ value, onChange }) {
-  const { t } = useTranslation()
-  const days = value?.weekdays || []
-  const action = value?.action || 'block'
-  const toggleDay = (i) => {
-    const next = days.includes(i) ? days.filter(d => d !== i) : [...days, i]
-    onChange({ ...value, weekdays: next })
-  }
-  return (
-    <div className="schedule-input-wrap" onClick={e => e.stopPropagation()}>
-      <div className="checkbox-group">
-        {DAYS.map((d, i) => (
-          <label key={i} className={`day-label ${days.includes(i) ? 'checked' : ''}`}
-            onClick={() => toggleDay(i)}>{d}</label>
-        ))}
-      </div>
-      <div className="time-range">
-        <TimeInput value={value?.timeFrom || ''}
-          onChange={timeFrom => onChange({ ...value, timeFrom })} />
-        <span className="time-sep">—</span>
-        <TimeInput value={value?.timeTo || ''}
-          onChange={timeTo => onChange({ ...value, timeTo })} />
-      </div>
-      <div className="action-select-wrap" style={{ marginTop: 8 }}>
-        <Select 
-          value={action}
-          onChange={val => onChange({ ...value, action: val })}
-          style={{ width: '100%' }}
-          options={[
-            { value: 'block', label: `🛑 ${t('programs.action_block', 'Блокировать в это время')}` },
-            { value: 'allow', label: `✅ ${t('programs.action_allow', 'Разрешать только в это время')}` }
-          ]}
-        />
-      </div>
-    </div>
-  )
-}
-
-function DateInput({ value, onChange }) {
-  const { t } = useTranslation()
-  const action = value?.action || 'block'
-  return (
-    <div className="schedule-input-wrap" onClick={e => e.stopPropagation()}>
-      <input type="date" className="input date-input" value={value?.date || ''}
-        onChange={e => onChange({ ...value, date: e.target.value })} />
-      <div className="time-range">
-        <TimeInput value={value?.timeFrom || ''}
-          onChange={timeFrom => onChange({ ...value, timeFrom })} />
-        <span className="time-sep">—</span>
-        <TimeInput value={value?.timeTo || ''}
-          onChange={timeTo => onChange({ ...value, timeTo })} />
-      </div>
-      <div className="action-select-wrap" style={{ marginTop: 8 }}>
-        <Select 
-          value={action}
-          onChange={val => onChange({ ...value, action: val })}
-          style={{ width: '100%' }}
-          options={[
-            { value: 'block', label: `🛑 ${t('programs.action_block', 'Блокировать в это время')}` },
-            { value: 'allow', label: `✅ ${t('programs.action_allow', 'Разрешать только в это время')}` }
-          ]}
-        />
-      </div>
-    </div>
-  )
-}
-
-function MonthlyDateInput({ value, onChange }) {
-  const { t } = useTranslation()
-  const action = value?.action || 'block'
-  return (
-    <div className="schedule-input-wrap" onClick={e => e.stopPropagation()}>
-      <div className="time-range">
-        <input type="number" className="input timer-input" min="1" max="31" placeholder={t('programs.day_placeholder', 'Число (1-31)')}
-          value={value?.day || ''}
-          onChange={e => onChange({ ...value, day: Number(e.target.value) })} />
-      </div>
-      <div className="time-range" style={{ marginTop: 8 }}>
-        <TimeInput value={value?.timeFrom || ''}
-          onChange={timeFrom => onChange({ ...value, timeFrom })} />
-        <span className="time-sep">—</span>
-        <TimeInput value={value?.timeTo || ''}
-          onChange={timeTo => onChange({ ...value, timeTo })} />
-      </div>
-      <div className="action-select-wrap" style={{ marginTop: 8 }}>
-        <Select 
-          value={action}
-          onChange={val => onChange({ ...value, action: val })}
-          style={{ width: '100%' }}
-          options={[
-            { value: 'block', label: `🛑 ${t('programs.action_block', 'Блокировать в это время')}` },
-            { value: 'allow', label: `✅ ${t('programs.action_allow', 'Разрешать только в это время')}` }
-          ]}
-        />
-      </div>
-    </div>
-  )
-}
 
 // ─── Main component ──────────────────────────────────────────────────────────
 export default function ProgramsPanel({ mode }) {
@@ -313,95 +199,20 @@ export default function ProgramsPanel({ mode }) {
                   <span className="empty-state-desc">{t('programs.empty_desc', 'Убедитесь, что агент запущен на детском ПК и загрузил список программ')}</span>
                 </div>
               </td></tr>
-            ) : mergedApps.map(app => {
-              const isPending = pendingBlocks.has(app.id)
-              return (
-                <tr key={app.id}>
-                  {/* Name & path */}
-                  <td>
-                    <div className="prog-name-row">
-                      <div className="prog-name">{app.name}</div>
-                      {app.running && (
-                        <span className="prog-running-badge">● Работает</span>
-                      )}
-                    </div>
-                    {app.path
-                      ? <div className="prog-path">{app.path}</div>
-                      : <div className="prog-path no-path">{t('programs.path_unknown', 'Путь неизвестен')}</div>
-                    }
-                    {app.publisher && <div className="prog-publisher">{app.publisher}</div>}
-                  </td>
-
-                  {/* Dynamic column */}
-                  {mode === 'timer' && (
-                    <td>
-                      <TimerInput value={ruleData[app.id]?.timer?.duration || app.rule?.timer?.duration || ''}
-                        onChange={v => updateRuleData(app.id, { ...ruleData[app.id], timer: { duration: v } })} />
-                    </td>
-                  )}
-                  {mode === 'schedule' && (
-                    <td>
-                      <ScheduleInput value={ruleData[app.id]?.schedule || app.rule?.schedule}
-                        onChange={v => updateRuleData(app.id, { ...ruleData[app.id], schedule: v })} />
-                    </td>
-                  )}
-                  {mode === 'date' && (
-                    <td>
-                      <DateInput value={ruleData[app.id]?.date || app.rule?.date}
-                        onChange={v => updateRuleData(app.id, { ...ruleData[app.id], date: v })} />
-                    </td>
-                  )}
-                  {mode === 'monthly_date' && (
-                    <td>
-                      <MonthlyDateInput value={ruleData[app.id]?.monthly_date || app.rule?.monthly_date}
-                        onChange={v => updateRuleData(app.id, { ...ruleData[app.id], monthly_date: v })} />
-                    </td>
-                  )}
-
-                  {/* Status badge */}
-                  <td>
-                    <div className="status-cell">
-                      <span className={`status-dot ${app.blocked ? 'blocked' : 'unblocked'}`} />
-                      <span className="status-text">
-                        {app.blocked 
-                          ? (app.isBlockedByTime ? t('programs.status_blocked', 'Заблокирован') : t('programs.status_waiting', 'Ожидание')) 
-                          : t('programs.status_disabled', 'Отключен')}
-                      </span>
-                    </div>
-                    {app.statusText && mode !== 'permanent' && (
-                      <div className="countdown-text" style={{ fontSize: '0.75rem', color: '#8b8d98', marginTop: 2 }}>
-                        {app.statusText}
-                      </div>
-                    )}
-                  </td>
-
-                  {/* Action */}
-                  <td>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <button
-                        className={`btn btn-sm ${app.blocked ? 'btn-success' : 'btn-danger'}`}
-                        disabled={isPending}
-                        onClick={() => app.blocked ? handleUnblock(app) : handleBlock(app)}
-                        style={{ flex: 1 }}
-                      >
-                        {isPending
-                          ? <span className="btn-spinner-sm" />
-                          : app.blocked ? t('programs.btn_disable', 'Отключить правило') : t('programs.btn_enable', 'Включить правило')
-                        }
-                      </button>
-                      <button
-                        className="btn btn-sm"
-                        style={{ padding: '0 8px', background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-danger)', fontSize: '1rem' }}
-                        title={t('programs.btn_uninstall', 'Удалить программу с ПК')}
-                        onClick={() => handleRemoteUninstall(app)}
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
+            ) : mergedApps.map(app => (
+              <ProgramRow
+                key={app.id}
+                app={app}
+                mode={mode}
+                t={t}
+                isPending={pendingBlocks.has(app.id)}
+                ruleData={ruleData}
+                updateRuleData={updateRuleData}
+                onBlock={handleBlock}
+                onUnblock={handleUnblock}
+                onRemoteUninstall={handleRemoteUninstall}
+              />
+            ))}
           </tbody>
         </table>
       </div>
