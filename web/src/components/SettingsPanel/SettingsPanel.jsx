@@ -11,7 +11,7 @@ import {
   collection, doc, setDoc, addDoc, serverTimestamp
 } from 'firebase/firestore'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
-import { logger } from '../../core/logger'
+import { logger } from '@kidscontrol/shared/utils/logger'
 import './SettingsPanel.css'
 
 // ─── Generate a 6-character pairing code ─────────────────────────────────────

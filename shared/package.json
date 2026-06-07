@@ -7,6 +7,7 @@
     "./firebase/config": "./firebase/config.js",
     "./firebase/firestore": "./firebase/firestore.js",
     "./stores/useRulesStore": "./stores/useRulesStore.js",
+    "./utils/logger": "./utils/logger.js",
     "./utils/timeHelpers": "./utils/timeHelpers.js",
     "./i18n": "./i18n.js",
     "./locales/ru": "./locales/ru.json",

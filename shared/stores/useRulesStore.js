@@ -9,7 +9,7 @@ import {
   subscribeToScreenshots, deleteScreenshot as fsDeleteScreenshot,
   getScreenshotDownloadURL as fsGetScreenshotDownloadURL
 } from '../firebase/firestore'
-import { logger } from '../../web/src/core/logger'
+import { logger } from '../utils/logger'
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 export const useRulesStore = create((set, get) => ({
