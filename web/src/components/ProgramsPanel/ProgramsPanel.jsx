@@ -15,15 +15,10 @@ export default function ProgramsPanel({ mode }) {
     programFilter, setProgramFilter,
     getFilteredPrograms,
     appsLoading,
-    toggleProgramBlock, addProgramRule, sendDeviceCommand,
-    selectedDeviceId, devices
+    toggleProgramBlock, addProgramRule, sendDeviceCommand
   } = useRulesStore()
 
   const [showRunningOnly, setShowRunningOnly] = useState(false)
-
-  const selectedDevice = devices.find(d => d.id === selectedDeviceId)
-  const lastSeen = selectedDevice?.lastSeen?.toDate?.()
-  const isOnline = selectedDevice?.status !== 'offline' && lastSeen && (Date.now() - lastSeen.getTime()) < 2 * 60 * 1000
 
   // Subscribe to store updates
   const installedApps = useRulesStore(state => state.installedApps)
@@ -31,10 +26,7 @@ export default function ProgramsPanel({ mode }) {
 
   const [ruleData, setRuleData]         = useState({})
   const [pendingBlocks, setPendingBlocks] = useState(new Set()) // IDs being saved
-  const [page, setPage] = useState(1)
   const [uninstallConfirmApp, setUninstallConfirmApp] = useState(null)
-  
-  const LIMIT = 50
   const [now, setNow] = useState(new Date())
 
   // Update clock every second for real-time countdowns

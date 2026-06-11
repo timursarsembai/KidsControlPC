@@ -14,15 +14,10 @@ export default function ProgramsPanel({ mode }) {
     programFilter, setProgramFilter,
     getFilteredPrograms,
     appsLoading,
-    toggleProgramBlock, addProgramRule, sendDeviceCommand,
-    selectedDeviceId, devices
+    toggleProgramBlock, addProgramRule, sendDeviceCommand
   } = useRulesStore()
 
   const [showRunningOnly, setShowRunningOnly] = useState(false)
-
-  const selectedDevice = devices.find(d => d.id === selectedDeviceId)
-  const lastSeen = selectedDevice?.lastSeen?.toDate?.()
-  const isOnline = selectedDevice?.status !== 'offline' && lastSeen && (Date.now() - lastSeen.getTime()) < 2 * 60 * 1000
 
   // Subscribe to store updates
   const installedApps = useRulesStore(state => state.installedApps)
