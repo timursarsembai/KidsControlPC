@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "kidscontrolpc"
+    "default": "kidscontrolpc",
+    "prod": "kidscontrolpc",
+    "dev": "kidscontrolpc-dev"
   }
 }

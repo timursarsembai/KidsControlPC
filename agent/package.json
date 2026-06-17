@@ -7,7 +7,11 @@
   "type": "module",
   "scripts": {
     "start": "node src/agent.js",
+    "start:staging": "set KIDSCONTROL_ENV=staging&& node src/agent.js",
     "dev": "node --watch src/agent.js",
+    "dev:staging": "set KIDSCONTROL_ENV=staging&& node --watch src/agent.js",
+    "build": "node build_installer.js",
+    "build:staging": "set KIDSCONTROL_ENV=staging&& node build_installer.js",
     "service:install": "node src/installService.js",
     "service:uninstall": "node src/uninstallService.js",
     "test": "vitest run",
