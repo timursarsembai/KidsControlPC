@@ -249,7 +249,7 @@ SectionEnd
     
     execSync(`"${makensisExe}" dist/installer.nsi`, { stdio: 'inherit' })
 
-    console.log('✅ Done! Installer created at dist/KidsControlAgent_Setup.exe')
+    console.log(`✅ Done! Installer created at dist/${outputFileName}`)
   } catch (err) {
     console.error('❌ Build failed:', err.message)
     process.exit(1)
