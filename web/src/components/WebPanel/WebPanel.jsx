@@ -51,7 +51,7 @@ function ScheduleCell({ value, onChange }) {
 
 export default function WebPanel({ mode }) {
   const { t } = useTranslation()
-  const { addWebsite, toggleWebsiteBlock, removeWebsiteGlobally, getFilteredWebsites, rulesLoading, rules } = useRulesStore()
+  const { addWebsite, toggleWebsiteBlock, removeWebsiteGlobally, getFilteredWebsites, rules } = useRulesStore()
   const websites = getFilteredWebsites()
   const [urlInput, setUrlInput] = useState('')
 

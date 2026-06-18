@@ -1,7 +1,28 @@
 import { describe, expect, it } from 'vitest'
-import { shouldBlockBySchedule } from './ruleTiming.js'
+import {
+  getDayIndex,
+  getScheduleGroups,
+  isScheduleGroupActive,
+  shouldBlockBySchedule
+} from './ruleTiming.js'
 
 describe('ruleTiming', () => {
+  it('keeps compatibility exports backed by shared helpers', () => {
+    const group = {
+      action: 'block',
+      weekdays: [0],
+      ranges: [{ timeFrom: '10:00', timeTo: '12:00' }]
+    }
+
+    expect(getDayIndex(new Date(2026, 5, 1))).toBe(0)
+    expect(getScheduleGroups({ weekdays: [0], timeFrom: '10:00', timeTo: '12:00' })).toEqual([{
+      action: 'block',
+      weekdays: [0],
+      ranges: [{ timeFrom: '10:00', timeTo: '12:00' }]
+    }])
+    expect(isScheduleGroupActive(group, new Date(2026, 5, 1, 11, 0))).toBe(true)
+  })
+
   it('supports allow profile groups with independent weekdays and ranges', () => {
     const schedule = {
       groups: [

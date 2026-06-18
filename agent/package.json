@@ -7,13 +7,18 @@
   "type": "module",
   "scripts": {
     "start": "node src/agent.js",
+    "start:staging": "set KIDSCONTROL_ENV=staging&& node src/agent.js",
     "dev": "node --watch src/agent.js",
+    "dev:staging": "set KIDSCONTROL_ENV=staging&& node --watch src/agent.js",
+    "build": "node build_installer.js",
+    "build:staging": "set KIDSCONTROL_ENV=staging&& node build_installer.js",
     "service:install": "node src/installService.js",
     "service:uninstall": "node src/uninstallService.js",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@kidscontrol/shared": "file:../shared",
     "firebase": "^10.12.2",
     "node-windows": "^1.0.0-beta.8"
   },

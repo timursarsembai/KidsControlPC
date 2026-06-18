@@ -6,6 +6,20 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const distDir = path.join(__dirname, 'dist')
+const buildEnvironment = process.env.KIDSCONTROL_ENV === 'staging' ? 'staging' : 'production'
+const isStaging = buildEnvironment === 'staging'
+const serviceId = isStaging ? 'KidsControlPCAgentDev' : 'KidsControlPCAgent'
+const serviceName = isStaging ? 'KidsControlPC Agent Dev' : 'KidsControlPC Agent'
+const installDirName = isStaging ? 'KidsControlAgentDev' : 'KidsControlAgent'
+const outputFileName = isStaging ? 'KidsControlAgent_Dev_Setup.exe' : 'KidsControlAgent_Setup.exe'
+const widgetTaskName = isStaging ? 'KidsControlTimerWidgetDev' : 'KidsControlTimerWidget'
+const registryRunValue = isStaging ? 'KidsControlTimerWidgetDev' : 'KidsControlTimerWidget'
+const uninstallKey = isStaging ? 'KidsControlAgentDev' : 'KidsControlAgent'
+const pairingFileName = isStaging ? 'pairing.staging.json' : 'pairing.json'
+const processCleanupCommands = isStaging ? '' : `  nsExec::ExecToLog 'taskkill /F /IM TimerWidget.exe'
+  nsExec::ExecToLog 'taskkill /F /IM ReminderWidget.exe'
+  nsExec::ExecToLog 'taskkill /F /IM node.exe'
+`
 
 // 1. Prepare dist dir
 if (!fs.existsSync(distDir)) {
@@ -39,7 +53,7 @@ async function build() {
     console.log('📦 1/5 Bundling agent with esbuild...')
     // Fix import.meta.url issue for CommonJS by injecting a define
     // Do NOT wrap version in single quotes inside the define, just double quotes so it becomes a string literal
-    execSync(`npx esbuild src/agent.js --bundle --platform=node --target=node18 --outfile=dist/agent.cjs --define:import.meta.url=\\"file://\\" --define:__APP_VERSION__="'${version}'"`, { stdio: 'inherit' })
+    execSync(`npx esbuild src/agent.js --bundle --platform=node --target=node18 --outfile=dist/agent.cjs --define:import.meta.url=\\"file://\\" --define:__APP_VERSION__="'${version}'" --define:__KIDSCONTROL_ENV__="'${buildEnvironment}'"`, { stdio: 'inherit' })
 
     console.log('📦 2/5 Packaging to agent.exe with pkg...')
     execSync('npx pkg dist/agent.cjs -t node18-win-x64 -o dist/agent.exe', { stdio: 'inherit' })
@@ -67,9 +81,9 @@ async function build() {
 
     console.log('📦 4/5 Generating WinSW config and NSIS script...')
     const xml = `<service>
-  <id>KidsControlPCAgent</id>
-  <name>KidsControlPCAgent</name>
-  <description>KidsControlPC Child Agent</description>
+  <id>${serviceId}</id>
+  <name>${serviceName}</name>
+  <description>${serviceName}</description>
   <executable>%BASE%\\agent.exe</executable>
   <arguments>--service</arguments>
   <logmode>roll</logmode>
@@ -84,7 +98,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$TaskName = 'KidsControlTimerWidget'
+$TaskName = '${widgetTaskName}'
 $Action = New-ScheduledTaskAction -Execute $WidgetPath
 $Trigger = New-ScheduledTaskTrigger -AtLogOn
 # Repeat every 2 minutes indefinitely so the task acts as a watchdog.
@@ -101,9 +115,9 @@ Start-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 
     const nsi = `
 !include "MUI2.nsh"
-Name "KidsControlPC Agent"
-OutFile "KidsControlAgent_Setup.exe"
-InstallDir "$PROGRAMFILES64\\KidsControlAgent"
+Name "${serviceName}"
+OutFile "${outputFileName}"
+InstallDir "$PROGRAMFILES64\\${installDirName}"
 RequestExecutionLevel admin
 
 !insertmacro MUI_PAGE_WELCOME
@@ -133,12 +147,10 @@ Section "Install"
   nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" uninstall'
   
   ; Force stop and delete old node-windows service just in case
-  nsExec::ExecToLog 'net stop kidscontrolpcagent'
-  nsExec::ExecToLog 'sc delete kidscontrolpcagent'
-  nsExec::ExecToLog 'taskkill /F /IM TimerWidget.exe'
-  nsExec::ExecToLog 'taskkill /F /IM ReminderWidget.exe'
-  nsExec::ExecToLog 'taskkill /F /IM node.exe'
-  nsExec::ExecToLog 'schtasks /Delete /TN "KidsControlTimerWidget" /F'
+  nsExec::ExecToLog 'net stop ${serviceId}'
+  nsExec::ExecToLog 'sc delete ${serviceId}'
+${processCleanupCommands}
+  nsExec::ExecToLog 'schtasks /Delete /TN "${widgetTaskName}" /F'
   
   ; Delete old node-windows files
   RMDir /r "$INSTDIR\\daemon"
@@ -157,12 +169,12 @@ Section "Install"
   ; Install service
   nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" install'
   ; Start immediately at boot. Parental controls must not wait for delayed auto-start.
-  nsExec::ExecToLog 'sc config KidsControlPCAgent start= auto'
-  nsExec::ExecToLog 'sc failure KidsControlPCAgent reset= 60 actions= restart/10000/restart/30000/restart/60000'
-  nsExec::ExecToLog 'sc failureflag KidsControlPCAgent 1'
+  nsExec::ExecToLog 'sc config ${serviceId} start= auto'
+  nsExec::ExecToLog 'sc failure ${serviceId} reset= 60 actions= restart/10000/restart/30000/restart/60000'
+  nsExec::ExecToLog 'sc failureflag ${serviceId} 1'
   
   ; Add TimerWidget to Run registry for all users (HKLM)
-  WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "KidsControlTimerWidget" '"$INSTDIR\\TimerWidget.exe"'
+  WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "${registryRunValue}" '"$INSTDIR\\TimerWidget.exe"'
   ; Also add an interactive logon scheduled task for the visible widget.
   ; Group principal keeps it visible in the active user session even after silent service updates.
   nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\\register_widget_task.ps1" -WidgetPath "$INSTDIR\\TimerWidget.exe"'
@@ -174,15 +186,15 @@ Section "Install"
   nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" start'
   
   ; Restart TimerWidget for the current interactive user
-  nsExec::ExecToLog 'schtasks /Run /TN "KidsControlTimerWidget"'
+  nsExec::ExecToLog 'schtasks /Run /TN "${widgetTaskName}"'
   
   ; Create uninstaller
   WriteUninstaller "$INSTDIR\\uninstall.exe"
   
   ; Add to Windows Add/Remove Programs
-  WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\KidsControlAgent" "DisplayName" "KidsControlPC Agent"
-  WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\KidsControlAgent" "UninstallString" '"$INSTDIR\\uninstall.exe"'
-  WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\KidsControlAgent" "QuietUninstallString" '"$INSTDIR\\uninstall.exe" /S'
+  WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${uninstallKey}" "DisplayName" "${serviceName}"
+  WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${uninstallKey}" "UninstallString" '"$INSTDIR\\uninstall.exe"'
+  WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${uninstallKey}" "QuietUninstallString" '"$INSTDIR\\uninstall.exe" /S'
 SectionEnd
 
 Section "Uninstall"
@@ -200,16 +212,16 @@ Section "Uninstall"
   Delete "$INSTDIR\\WinSW.exe"
   Delete "$INSTDIR\\WinSW.xml"
   Delete "$INSTDIR\\register_widget_task.ps1"
-  Delete "$INSTDIR\\pairing.json"
+  Delete "$INSTDIR\\${pairingFileName}"
   Delete "$INSTDIR\\uninstall.exe"
   
   ; Remove directory
   RMDir /r "$INSTDIR"
   
   ; Remove registry keys
-  DeleteRegKey HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\KidsControlAgent"
-  DeleteRegValue HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "KidsControlTimerWidget"
-  nsExec::ExecToLog 'schtasks /Delete /TN "KidsControlTimerWidget" /F'
+  DeleteRegKey HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${uninstallKey}"
+  DeleteRegValue HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "${registryRunValue}"
+  nsExec::ExecToLog 'schtasks /Delete /TN "${widgetTaskName}" /F'
 SectionEnd
 `
     fs.writeFileSync(path.join(distDir, 'installer.nsi'), nsi)
@@ -237,7 +249,7 @@ SectionEnd
     
     execSync(`"${makensisExe}" dist/installer.nsi`, { stdio: 'inherit' })
 
-    console.log('✅ Done! Installer created at dist/KidsControlAgent_Setup.exe')
+    console.log(`✅ Done! Installer created at dist/${outputFileName}`)
   } catch (err) {
     console.error('❌ Build failed:', err.message)
     process.exit(1)

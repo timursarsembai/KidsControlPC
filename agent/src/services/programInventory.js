@@ -1,0 +1,77 @@
+import { collection, updateDoc, doc, writeBatch, serverTimestamp } from 'firebase/firestore'
+import { db } from '../network/firebaseSync.js'
+import { getInstalledPrograms } from '../scanner.js'
+import { delay } from '../core/utils.js'
+
+export const PROGRAM_SCAN_INTERVAL_MS = 5 * 60 * 1000
+
+let programScanInProgress = false
+let lastUploadedAppsSignature = ''
+
+export async function scanInstalledProgramsWithRetry(maxAttempts = 3, retryDelayMs = 30000) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const apps = await getInstalledPrograms()
+    if (apps.length > 0) return apps
+    if (attempt < maxAttempts) await delay(retryDelayMs)
+  }
+  return []
+}
+
+export async function performProgramRescan(parentUid, deviceId, log, reason = 'manual') {
+  if (!parentUid || !deviceId) return
+  if (programScanInProgress) {
+    log(`[Apps] Program scan already running, skipped (${reason})`)
+    return
+  }
+
+  programScanInProgress = true
+  try {
+    log(`[Apps] Scanning installed programs (${reason})...`)
+    const apps = await scanInstalledProgramsWithRetry()
+
+    if (apps.length === 0) {
+      log('[Apps] Scan returned 0 programs. Existing list preserved.')
+      return
+    }
+
+    const appsSignature = apps
+      .map(app => `${app.id}|${app.name}|${app.path}|${app.version}`)
+      .sort()
+      .join('\n')
+
+    if (appsSignature === lastUploadedAppsSignature) {
+      log(`[Apps] Program list unchanged (${apps.length} programs)`)
+      return
+    }
+
+    const appsRef = collection(db, 'users', parentUid, 'devices', deviceId, 'installedApps')
+    for (let i = 0; i < apps.length; i += 400) {
+      const batch = writeBatch(db)
+      for (const app of apps.slice(i, i + 400)) {
+        batch.set(doc(appsRef, app.id), {
+          name: app.name,
+          path: app.path,
+          exeBasename: app.exeBasename || '',
+          publisher: app.publisher || '',
+          version: app.version || '',
+          uninstallCmd: app.uninstallCmd || '',
+          lastSeenScanAt: serverTimestamp()
+        }, { merge: true })
+      }
+      await batch.commit()
+    }
+
+    await updateDoc(doc(db, 'users', parentUid, 'devices', deviceId), {
+      installedApps: apps,
+      installedAppsCount: apps.length,
+      lastScanAt: new Date().toISOString()
+    })
+
+    lastUploadedAppsSignature = appsSignature
+    log(`[Apps] Uploaded ${apps.length} installed programs`)
+  } catch (err) {
+    log(`[Apps] Failed to upload programs: ${err.message}`)
+  } finally {
+    programScanInProgress = false
+  }
+}

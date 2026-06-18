@@ -1,7 +1,9 @@
-const toDayIndex = (date) => {
+export const toDayIndex = (date) => {
   const day = date.getDay()
   return day === 0 ? 6 : day - 1
 }
+
+export const getDayIndex = toDayIndex
 
 const parseTimeToMinutes = (value) => {
   if (!value || typeof value !== 'string') return null
@@ -19,7 +21,7 @@ const formatTime = (secs) => {
     : `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
 }
 
-function getScheduleGroups(schedule) {
+export function getScheduleGroups(schedule) {
   if (Array.isArray(schedule?.groups) && schedule.groups.length > 0) {
     return schedule.groups.map(group => ({
       ...group,
@@ -38,7 +40,7 @@ function getScheduleGroups(schedule) {
   return []
 }
 
-function isScheduleGroupActive(group, now = new Date()) {
+export function isScheduleGroupActive(group, now = new Date()) {
   if (!group?.weekdays?.length) return false
   const today = toDayIndex(now)
   const previousDay = today === 0 ? 6 : today - 1

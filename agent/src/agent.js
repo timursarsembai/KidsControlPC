@@ -1,115 +1,48 @@
+import { createInterface } from 'readline'
 import { initLogCapture } from './core/logBuffer.js'
 initLogCapture()
 
-import { eventBus, EVENTS } from './core/eventBus.js'
 import { loadConfigCache, getDeviceConfig } from './core/configManager.js'
-import { initFirebaseSync, stopFirebaseSync, sendHeartbeat, sendAlert, markDeviceOffline, markCommandCompleted, markCommandFailed, pushRecentLogs } from './network/firebaseSync.js'
+import {
+  initFirebaseSync,
+  stopFirebaseSync,
+  sendHeartbeat,
+  sendAlert,
+  markDeviceOffline
+} from './network/firebaseSync.js'
+import { startIpcServer } from './network/ipcServer.js'
 import { startTimerWidgetIfNeeded, ensureWidgetLocked } from './services/widgetManager.js'
 import { enforceRules } from './services/enforcer.js'
-import { startScreenshotService, stopScreenshotService, takeScreenshot } from './services/screenshotService.js'
-import { executePowerAction } from './services/powerActions.js'
-
+import { startScreenshotService, stopScreenshotService } from './services/screenshotService.js'
+import { registerCommandHandlers } from './services/commandHandler.js'
+import {
+  performProgramRescan,
+  PROGRAM_SCAN_INTERVAL_MS
+} from './services/programInventory.js'
 import { loadPairing, runPairingFlow } from './pairing.js'
-import { getInstalledPrograms } from './scanner.js'
 import { checkAndUpdateSilently } from './updater.js'
 import { delay } from './core/utils.js'
 import { clearHostsBlock } from './hostsBlocker.js'
-
-import { collection, updateDoc, doc, writeBatch, serverTimestamp } from 'firebase/firestore'
-import { db } from './network/firebaseSync.js'
 import { ENFORCE_INTERVAL_MS, HEARTBEAT_INTERVAL_MS } from './config.js'
 
 let parentUid = null
 let deviceId = null
 let isShuttingDown = false
-let programScanInProgress = false
-let lastUploadedAppsSignature = ''
-let lastForceUpdateRequestMs = 0
-let forceUpdateBaselineLoaded = false
-
-const PROGRAM_SCAN_INTERVAL_MS = 5 * 60 * 1000
 
 function log(msg) {
   const ts = new Date().toLocaleTimeString('ru-RU')
   console.log(`[${ts}] ${msg}`)
 }
 
-async function scanInstalledProgramsWithRetry(maxAttempts = 3, retryDelayMs = 30000) {
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const apps = await getInstalledPrograms()
-    if (apps.length > 0) return apps
-    if (attempt < maxAttempts) await delay(retryDelayMs)
-  }
-  return []
-}
+registerCommandHandlers(log)
 
-async function performProgramRescan(reason = 'manual') {
-  if (!parentUid || !deviceId) return
-  if (programScanInProgress) {
-    log(`[Apps] Program scan already running, skipped (${reason})`)
-    return
-  }
-
-  programScanInProgress = true
-  try {
-    log(`[Apps] Scanning installed programs (${reason})...`)
-    const apps = await scanInstalledProgramsWithRetry()
-
-    if (apps.length === 0) {
-      log('[Apps] Scan returned 0 programs. Existing list preserved.')
-      return
-    }
-
-    const appsSignature = apps
-      .map(app => `${app.id}|${app.name}|${app.path}|${app.version}`)
-      .sort()
-      .join('\n')
-
-    if (appsSignature === lastUploadedAppsSignature) {
-      log(`[Apps] Program list unchanged (${apps.length} programs)`)
-      return
-    }
-
-    const appsRef = collection(db, 'users', parentUid, 'devices', deviceId, 'installedApps')
-    for (let i = 0; i < apps.length; i += 400) {
-      const batch = writeBatch(db)
-      for (const app of apps.slice(i, i + 400)) {
-        batch.set(doc(appsRef, app.id), {
-          name: app.name,
-          path: app.path,
-          exeBasename: app.exeBasename || '',
-          publisher: app.publisher || '',
-          version: app.version || '',
-          uninstallCmd: app.uninstallCmd || '',
-          lastSeenScanAt: serverTimestamp()
-        }, { merge: true })
-      }
-      await batch.commit()
-    }
-
-    await updateDoc(doc(db, 'users', parentUid, 'devices', deviceId), {
-      installedApps: apps,
-      installedAppsCount: apps.length,
-      lastScanAt: new Date().toISOString()
-    })
-
-    lastUploadedAppsSignature = appsSignature
-    log(`[Apps] Uploaded ${apps.length} installed programs`)
-  } catch (err) {
-    log(`[Apps] Failed to upload programs: ${err.message}`)
-  } finally {
-    programScanInProgress = false
-  }
-}
-
-// ─── Graceful shutdown ─────────────────────────────────────────────────────────
-async function shutdownFromSignal(reason) {
+async function shutdown(reason) {
   if (isShuttingDown) return
   isShuttingDown = true
 
   log(`\n🛑 Stopping agent: ${reason}`)
 
-  const p1 = sendAlert('agent_stopped', reason)
+  const p1 = sendAlert('agent_stopped', reason).catch(() => {})
   const p2 = markDeviceOffline().catch(() => {})
 
   try {
@@ -125,81 +58,17 @@ async function shutdownFromSignal(reason) {
   process.exit(0)
 }
 
-process.on('SIGINT',  () => shutdownFromSignal('SIGINT'))
-process.on('SIGTERM', () => shutdownFromSignal('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))
+process.on('SIGTERM', () => shutdown('SIGTERM'))
 
-// Windows service stop integration
 if (process.platform === 'win32') {
-  const rl = require('readline').createInterface({
+  const rl = createInterface({
     input: process.stdin,
     output: process.stdout
   })
   rl.on('SIGINT', () => { process.emit('SIGINT') })
 }
 
-// ─── Command Handling ──────────────────────────────────────────────────────────
-eventBus.on(EVENTS.COMMAND_RECEIVED, async ({ doc: cmdDoc, cmd }) => {
-  log(`📥 Received command: ${cmd.action || cmd.command}`)
-
-  if (cmd.command === 'fetch_logs') {
-    try {
-      await pushRecentLogs()
-      await markCommandCompleted(cmdDoc)
-    } catch (err) {
-      await markCommandFailed(cmdDoc, err.message)
-    }
-    return
-  }
-
-  if (cmd.command === 'screenshot_request' || cmd.action === 'screenshot_request') {
-    try {
-      const result = await takeScreenshot('manual')
-      await markCommandCompleted(cmdDoc, result)
-    } catch (err) {
-      await markCommandFailed(cmdDoc, err.message, { code: err.code || 'screenshot_failed' })
-    }
-    return
-  }
-
-  try {
-    const action = cmd.action || cmd.command
-    if (action === 'lock') {
-      await ensureWidgetLocked()
-    } else if (action === 'unlock') {
-      eventBus.emit(EVENTS.UNLOCK_REQUESTED)
-    } else if (action === 'update_agent' || action === 'force_update') {
-      await checkAndUpdateSilently(log, true)
-    } else if (['shutdown', 'restart', 'sleep', 'hibernate'].includes(action)) {
-      await executePowerAction(action, log)
-    } else {
-      throw new Error(`Unknown command action: ${action}`)
-    }
-    await markCommandCompleted(cmdDoc)
-  } catch (err) {
-    await markCommandFailed(cmdDoc, err.message)
-  }
-})
-
-eventBus.on(EVENTS.DEVICE_CONFIG_UPDATED, (config) => {
-  const requestedAtMs = Number(config?.forceUpdateRequestedAtMs || 0)
-
-  if (!forceUpdateBaselineLoaded) {
-    forceUpdateBaselineLoaded = true
-    lastForceUpdateRequestMs = requestedAtMs
-    return
-  }
-
-  if (!requestedAtMs || requestedAtMs <= lastForceUpdateRequestMs) return
-
-  lastForceUpdateRequestMs = requestedAtMs
-  checkAndUpdateSilently(log, true).catch(err => {
-    log(`[Updater] Force update failed: ${err.message}`)
-  })
-})
-
-import { startIpcServer } from './network/ipcServer.js'
-
-// ─── Main Initialization ───────────────────────────────────────────────────────
 async function main() {
   const isService = process.argv.includes('--service')
   log('==============================================')
@@ -236,12 +105,11 @@ async function main() {
   }
 
   parentUid = pairing.parentUid
-  deviceId  = pairing.deviceId
+  deviceId = pairing.deviceId
 
   initFirebaseSync(parentUid, deviceId)
   startScreenshotService(parentUid, deviceId)
 
-  // Load cache immediately
   loadConfigCache()
   const dc = getDeviceConfig()
   if (dc && dc.isLocked) {
@@ -253,24 +121,24 @@ async function main() {
   log('💓 Heartbeat sent')
   await sendAlert('agent_started', 'Background program was started')
 
-  await performProgramRescan('startup')
-  
+  await performProgramRescan(parentUid, deviceId, log, 'startup')
+
   setTimeout(() => {
     if (!isShuttingDown) {
       log('🔁 Running delayed startup program re-scan...')
-      performProgramRescan('delayed-startup').catch(e => log(`⚠️ Delayed scan failed: ${e.message}`))
+      performProgramRescan(parentUid, deviceId, log, 'delayed-startup')
+        .catch(e => log(`⚠️ Delayed scan failed: ${e.message}`))
     }
   }, 3 * 60 * 1000)
 
-  // Start widget listener
   startTimerWidgetIfNeeded()
 
-  // Start timers
   setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS)
   setInterval(() => enforceRules(parentUid, deviceId, isShuttingDown), ENFORCE_INTERVAL_MS)
   setInterval(() => {
     if (!isShuttingDown) {
-      performProgramRescan('periodic').catch(e => log(`⚠️ Periodic scan failed: ${e.message}`))
+      performProgramRescan(parentUid, deviceId, log, 'periodic')
+        .catch(e => log(`⚠️ Periodic scan failed: ${e.message}`))
     }
   }, PROGRAM_SCAN_INTERVAL_MS)
   setInterval(() => checkAndUpdateSilently(log), 2 * 60 * 60 * 1000)
@@ -279,29 +147,6 @@ async function main() {
   log(`✅ Agent started and monitoring processes (DeviceID: ${deviceId})`)
 }
 
-async function shutdown(reason) {
-  if (isShuttingDown) return
-  isShuttingDown = true
-
-  console.log(`\n🛑 Stopping agent: ${reason}`)
-
-  const p1 = sendAlert('agent_stopped', reason).catch(() => {})
-  const p2 = markDeviceOffline().catch(() => {})
-
-  try {
-    await Promise.race([
-      Promise.all([p1, p2]),
-      delay(2000)
-    ])
-  } catch (err) { }
-
-  clearHostsBlock()
-  stopFirebaseSync()
-  process.exit(0)
-}
-
-process.on('SIGINT', () => shutdown('SIGINT (Ctrl+C)'))
-process.on('SIGTERM', () => shutdown('SIGTERM'))
 process.on('uncaughtException', async (err) => {
   console.log(`💥 Uncaught exception: ${err.message}`)
   await sendAlert('agent_error', err.message).catch(() => {})
