@@ -4,10 +4,14 @@ import { collection, addDoc, serverTimestamp, query, where, getDocs, deleteDoc, 
 import { getStorage, ref as storageRef, uploadBytes, deleteObject } from 'firebase/storage'
 import { db } from '../network/firebaseSync.js'
 import { PAIRING_FILE } from '../config.js'
+import { withOperationTimeout } from './operationTimeout.js'
 
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000
 const SCREENSHOT_TTL_MS = 60 * 60 * 1000
 const INLINE_SCREENSHOT_MAX_BYTES = 900 * 1024
+const UPLOAD_TOKEN_TIMEOUT_MS = 15000
+const STORAGE_UPLOAD_TIMEOUT_MS = 15000
+const FIRESTORE_SCREENSHOT_TIMEOUT_MS = 15000
 
 let lastCleanupAt = 0
 let uploadToken = null
@@ -44,7 +48,7 @@ export async function ensureUploadToken(parentUid, deviceId) {
 
 async function saveScreenshotDoc(fileInfo, source, token, parentUid, deviceId, extra = {}) {
   const screenshotsRef = collection(db, 'users', parentUid, 'devices', deviceId, 'screenshots')
-  const docRef = await addDoc(screenshotsRef, {
+  const docRef = await withOperationTimeout(addDoc(screenshotsRef, {
     source,
     status: 'ready',
     uploadToken: token,
@@ -54,7 +58,7 @@ async function saveScreenshotDoc(fileInfo, source, token, parentUid, deviceId, e
     createdAt: serverTimestamp(),
     expiresAt: new Date(Date.now() + SCREENSHOT_TTL_MS),
     ...extra
-  })
+  }), FIRESTORE_SCREENSHOT_TIMEOUT_MS, 'Screenshot metadata write timed out', 'screenshot_metadata_timeout')
 
   return { screenshotId: docRef.id, ...extra }
 }
@@ -65,15 +69,20 @@ async function uploadScreenshotToStorage(fileInfo, source, token, parentUid, dev
   const ref = storageRef(storage, storagePath)
   const bytes = fs.readFileSync(fileInfo.outputPath)
 
-  await uploadBytes(ref, bytes, {
-    contentType: 'image/jpeg',
-    customMetadata: {
-      source,
-      deviceId,
-      requestId: fileInfo.requestId,
-      uploadToken: token
-    }
-  })
+  await withOperationTimeout(
+    uploadBytes(ref, bytes, {
+      contentType: 'image/jpeg',
+      customMetadata: {
+        source,
+        deviceId,
+        requestId: fileInfo.requestId,
+        uploadToken: token
+      }
+    }),
+    STORAGE_UPLOAD_TIMEOUT_MS,
+    `Storage screenshot upload timed out after ${STORAGE_UPLOAD_TIMEOUT_MS / 1000}s`,
+    'screenshot_storage_timeout'
+  )
 
   return await saveScreenshotDoc(fileInfo, source, token, parentUid, deviceId, {
     storagePath,
@@ -94,7 +103,12 @@ async function saveInlineScreenshot(fileInfo, source, token, parentUid, deviceId
 }
 
 export async function uploadScreenshot(fileInfo, source, parentUid, deviceId, log) {
-  const token = await ensureUploadToken(parentUid, deviceId)
+  const token = await withOperationTimeout(
+    ensureUploadToken(parentUid, deviceId),
+    UPLOAD_TOKEN_TIMEOUT_MS,
+    'Screenshot upload token setup timed out',
+    'screenshot_token_timeout'
+  )
   try {
     return await uploadScreenshotToStorage(fileInfo, source, token, parentUid, deviceId)
   } catch (err) {
