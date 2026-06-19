@@ -58,6 +58,7 @@ export async function takeScreenshot(source = 'manual') {
     captureInProgress = false
     if (fileInfo?.outputPath) {
       try { fs.unlinkSync(fileInfo.outputPath) } catch {}
+      try { fs.unlinkSync(`${fileInfo.outputPath}.error.txt`) } catch {}
     }
   }
 }

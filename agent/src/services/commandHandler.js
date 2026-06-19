@@ -35,6 +35,7 @@ export function registerCommandHandlers(log) {
         const result = await takeScreenshot('manual')
         await markCommandCompleted(cmdDoc, result)
       } catch (err) {
+        log(`[Screenshot] Manual screenshot failed: ${err.message}`)
         await markCommandFailed(cmdDoc, err.message, { code: err.code || 'screenshot_failed' })
       }
       return
