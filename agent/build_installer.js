@@ -16,7 +16,11 @@ const widgetTaskName = isStaging ? 'KidsControlTimerWidgetDev' : 'KidsControlTim
 const registryRunValue = isStaging ? 'KidsControlTimerWidgetDev' : 'KidsControlTimerWidget'
 const uninstallKey = isStaging ? 'KidsControlAgentDev' : 'KidsControlAgent'
 const pairingFileName = isStaging ? 'pairing.staging.json' : 'pairing.json'
-const processCleanupCommands = isStaging ? '' : `  nsExec::ExecToLog 'taskkill /F /IM TimerWidget.exe'
+const processCleanupScriptName = 'stop_install_dir_processes.ps1'
+const processCleanupCommands = isStaging
+  ? `  nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\\${processCleanupScriptName}" -InstallDir "$INSTDIR"'
+`
+  : `  nsExec::ExecToLog 'taskkill /F /IM TimerWidget.exe'
   nsExec::ExecToLog 'taskkill /F /IM ReminderWidget.exe'
   nsExec::ExecToLog 'taskkill /F /IM node.exe'
 `
@@ -105,13 +109,35 @@ $Trigger = New-ScheduledTaskTrigger -AtLogOn
 # If TimerWidget is killed (e.g. by a silent update), it restarts within 2 min.
 # MultipleInstances=IgnoreNew prevents duplicates when it is already running.
 $Trigger.Repetition = (New-ScheduledTaskTrigger -Once -At '00:00' -RepetitionInterval (New-TimeSpan -Minutes 2)).Repetition
-$Principal = New-ScheduledTaskPrincipal -GroupId 'BUILTIN\\Users' -RunLevel Limited
+$Principal = New-ScheduledTaskPrincipal -GroupId 'S-1-5-32-545' -RunLevel Limited
 $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Seconds 0)
 
 Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Principal $Principal -Settings $Settings -Force | Out-Null
 Start-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 `
     fs.writeFileSync(path.join(distDir, 'register_widget_task.ps1'), widgetTaskScript)
+
+    const stopInstallDirProcessesScript = `
+param(
+  [Parameter(Mandatory=$true)]
+  [string]$InstallDir
+)
+
+$ErrorActionPreference = 'SilentlyContinue'
+$root = [System.IO.Path]::GetFullPath($InstallDir).TrimEnd('\\\\') + '\\\\'
+Get-CimInstance Win32_Process |
+  Where-Object {
+    $_.ExecutablePath -and
+    [System.IO.Path]::GetFullPath($_.ExecutablePath).StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)
+  } |
+  ForEach-Object {
+    try {
+      Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+    } catch {}
+  }
+Start-Sleep -Milliseconds 500
+`
+    fs.writeFileSync(path.join(distDir, processCleanupScriptName), stopInstallDirProcessesScript)
 
     const nsi = `
 !include "MUI2.nsh"
@@ -141,6 +167,7 @@ FunctionEnd
 
 Section "Install"
   SetOutPath "$INSTDIR"
+  File "${processCleanupScriptName}"
   
   ; Stop service if exists
   nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" stop'
@@ -212,6 +239,7 @@ Section "Uninstall"
   Delete "$INSTDIR\\WinSW.exe"
   Delete "$INSTDIR\\WinSW.xml"
   Delete "$INSTDIR\\register_widget_task.ps1"
+  Delete "$INSTDIR\\${processCleanupScriptName}"
   Delete "$INSTDIR\\${pairingFileName}"
   Delete "$INSTDIR\\uninstall.exe"
   
