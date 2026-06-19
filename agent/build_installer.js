@@ -18,7 +18,9 @@ const uninstallKey = isStaging ? 'KidsControlAgentDev' : 'KidsControlAgent'
 const pairingFileName = isStaging ? 'pairing.staging.json' : 'pairing.json'
 const processCleanupScriptName = 'stop_install_dir_processes.ps1'
 const processCleanupCommands = isStaging
-  ? `  nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\\${processCleanupScriptName}" -InstallDir "$INSTDIR"'
+  ? `  nsExec::ExecToLog 'schtasks /End /TN "${widgetTaskName}"'
+  nsExec::ExecToLog 'schtasks /Delete /TN "${widgetTaskName}" /F'
+  nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\\${processCleanupScriptName}" -InstallDir "$INSTDIR"'
 `
   : `  nsExec::ExecToLog 'taskkill /F /IM TimerWidget.exe'
   nsExec::ExecToLog 'taskkill /F /IM ReminderWidget.exe'
@@ -125,17 +127,57 @@ param(
 
 $ErrorActionPreference = 'SilentlyContinue'
 $root = [System.IO.Path]::GetFullPath($InstallDir).TrimEnd('\\\\') + '\\\\'
-Get-CimInstance Win32_Process |
-  Where-Object {
-    $_.ExecutablePath -and
-    [System.IO.Path]::GetFullPath($_.ExecutablePath).StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)
-  } |
-  ForEach-Object {
+
+function Stop-ProcessInInstallDir {
+  $script:stopped = 0
+
+  Get-CimInstance Win32_Process |
+    Where-Object {
+      $_.ExecutablePath -and
+      [System.IO.Path]::GetFullPath($_.ExecutablePath).StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)
+    } |
+    ForEach-Object {
+      try {
+        Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+        $script:stopped++
+      } catch {}
+    }
+
+  Get-Process |
+    Where-Object {
+      try {
+        $_.Path -and
+        [System.IO.Path]::GetFullPath($_.Path).StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)
+      } catch {
+        $false
+      }
+    } |
+    ForEach-Object {
+      try {
+        Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+        $script:stopped++
+      } catch {}
+    }
+
+  return $script:stopped
+}
+
+for ($i = 0; $i -lt 10; $i++) {
+  $count = Stop-ProcessInInstallDir
+  if ($count -eq 0) { break }
+  Start-Sleep -Milliseconds 500
+}
+
+foreach ($fileName in @('agent.exe', 'TimerWidget.exe', 'ReminderWidget.exe', 'ScreenBlockerWidget.exe', 'CustomDialogWidget.exe', 'ScreenshotHelper.exe')) {
+  $filePath = Join-Path $root $fileName
+  if (Test-Path $filePath) {
     try {
-      Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+      Rename-Item -LiteralPath $filePath -NewName "$fileName.old.$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())" -Force -ErrorAction SilentlyContinue
     } catch {}
   }
-Start-Sleep -Milliseconds 500
+}
+
+Start-Sleep -Milliseconds 1000
 `
     fs.writeFileSync(path.join(distDir, processCleanupScriptName), stopInstallDirProcessesScript)
 
@@ -177,7 +219,6 @@ Section "Install"
   nsExec::ExecToLog 'net stop ${serviceId}'
   nsExec::ExecToLog 'sc delete ${serviceId}'
 ${processCleanupCommands}
-  nsExec::ExecToLog 'schtasks /Delete /TN "${widgetTaskName}" /F'
   
   ; Delete old node-windows files
   RMDir /r "$INSTDIR\\daemon"
