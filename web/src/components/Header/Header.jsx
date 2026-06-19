@@ -16,7 +16,7 @@ function getAlertTitle(alert, devices) {
   return alert.type
 }
 
-export default function Header({ onSignOut }) {
+export default function Header({ onSignOut, onOpenDevices, onOpenSections, showSectionsButton = false }) {
   const { user, alerts, acknowledgeAlert, acknowledgeAllAlerts, setActiveTab, selectedDeviceId, devices } = useRulesStore()
   const unreadAlertsList = alerts.filter(a => !a.acknowledged)
   const unreadAlerts = unreadAlertsList.length
@@ -54,6 +54,17 @@ export default function Header({ onSignOut }) {
   return (
     <div className="header">
       <div className="header-left">
+        <button
+          aria-label="Открыть устройства"
+          className="header-mobile-btn"
+          onClick={onOpenDevices}
+          type="button"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <rect x="2" y="3" width="12" height="8" rx="1.4" stroke="currentColor" strokeWidth="1.4"/>
+            <path d="M6 13h4M8 11v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+          </svg>
+        </button>
         <div className="header-logo">
           <span className="header-logo-icon">🛡️</span>
           <span className="header-logo-name">KidsControl</span>
@@ -76,6 +87,18 @@ export default function Header({ onSignOut }) {
       </div>
 
       <div className="header-right">
+        {showSectionsButton && (
+          <button
+            aria-label="Открыть разделы"
+            className="header-mobile-btn"
+            onClick={onOpenSections}
+            type="button"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M3 4h10M3 8h10M3 12h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </button>
+        )}
         {/* Alerts bell */}
         <div className="alert-bell-wrapper" ref={bellRef}>
           {unreadAlerts > 0 && (

@@ -1,5 +1,6 @@
 .content-area {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -15,12 +16,14 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-6);
+  min-width: 0;
 }
 
 .content-title-row {
   display: flex;
   align-items: center;
   gap: var(--space-4);
+  min-width: 0;
 }
 
 .content-mode-icon {
@@ -35,12 +38,20 @@
   color: var(--text-primary);
   letter-spacing: -0.02em;
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .content-desc {
   font-size: 12px;
   color: var(--text-tertiary);
   margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+.content-device-badge {
+  display: inline-flex;
+  margin-left: var(--space-2);
+  color: var(--text-secondary);
 }
 
 /* Sub-tabs */
@@ -85,6 +96,7 @@
 /* Body */
 .content-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: var(--space-5) var(--space-6);
@@ -185,4 +197,78 @@
   font-size: 11px;
   font-weight: 700;
   flex-shrink: 0;
+}
+
+@media (max-width: 1180px) {
+  .content-header {
+    padding: var(--space-4) var(--space-5);
+  }
+
+  .content-body {
+    padding: var(--space-4) var(--space-5);
+  }
+}
+
+@media (max-width: 760px) {
+  .content-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .content-title-row {
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+
+  .content-mode-icon {
+    font-size: 22px;
+  }
+
+  .content-title {
+    font-size: 16px;
+  }
+
+  .content-device-badge {
+    display: flex;
+    margin: 3px 0 0;
+  }
+
+  .subtab-bar {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .subtab-btn {
+    flex: 1 0 0;
+    min-width: 0;
+    padding-inline: 10px;
+  }
+
+  .content-body {
+    padding: var(--space-3);
+  }
+
+  .no-device-state {
+    justify-content: flex-start;
+    padding: var(--space-8) var(--space-3);
+  }
+
+  .no-device-steps {
+    padding: var(--space-4);
+  }
+
+  .no-device-step {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 420px) {
+  .content-desc {
+    font-size: 11px;
+  }
+
+  .subtab-btn svg {
+    display: none;
+  }
 }

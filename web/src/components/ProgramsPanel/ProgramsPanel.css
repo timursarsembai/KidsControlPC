@@ -261,3 +261,60 @@
 .day-label:hover { border-color: var(--border-strong); color: var(--text-primary); }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 760px) {
+  .panel-controls {
+    flex-wrap: wrap;
+  }
+
+  .search-wrap {
+    flex: 1 1 100%;
+  }
+
+  .filter-select {
+    width: min(180px, 100%);
+  }
+
+  .filter-btn {
+    margin-left: 0;
+  }
+
+  .panel-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .scan-error {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .time-range,
+  .timer-input-wrap {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 520px) {
+  .programs-panel {
+    gap: var(--space-3);
+  }
+
+  .panel-controls {
+    flex-direction: column;
+  }
+
+  .filter-select,
+  .filter-btn {
+    width: 100%;
+  }
+
+  .filter-btn {
+    justify-content: center;
+  }
+
+  .prog-path {
+    max-width: 220px;
+  }
+}

@@ -267,3 +267,38 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 560px) {
+  .profile-schedule-card {
+    padding: 10px;
+  }
+
+  .profile-title-row,
+  .profile-ranges,
+  .profile-range-row {
+    flex-wrap: wrap;
+  }
+
+  .profile-save-btn,
+  .profile-add-group {
+    width: 100%;
+  }
+
+  .profile-range-row {
+    width: 100%;
+  }
+
+  .profile-range-row .time-input {
+    flex: 1 1 96px;
+    width: auto;
+  }
+
+  .profile-range-remove,
+  .profile-add-range {
+    flex: 1 1 auto;
+  }
+
+  .profile-desc {
+    white-space: normal;
+  }
+}

@@ -28,7 +28,7 @@ const MODES = [
 const MODE_TAB_IDS = new Set(MODES.map((m) => m.id))
 const DEVICE_TAB_IDS = new Set(['power', 'lock_screen', 'reminders', 'screenshots', 'agent_logs'])
 
-export default function Sidebar() {
+export default function Sidebar({ isMobileOpen = false, onMobileNavigate }) {
   const { t } = useTranslation()
   const {
     selectedDeviceId,
@@ -53,8 +53,9 @@ export default function Sidebar() {
     if (subTab) setActiveSubTab(subTab)
     setActiveTab(modeId)
     if (sectionToKeepOpen) {
-      setExpandedSections((prev) => ({ ...prev, [sectionToKeepOpen]: true }))
+        setExpandedSections((prev) => ({ ...prev, [sectionToKeepOpen]: true }))
     }
+    onMobileNavigate?.()
   }
 
   const isDeviceSectionActive = DEVICE_TAB_IDS.has(activeTab)
@@ -63,7 +64,7 @@ export default function Sidebar() {
   const isWebsitesSectionActive = MODE_TAB_IDS.has(activeTab) && activeSubTab === 'web'
 
   return (
-    <aside className="nav-sidebar">
+    <aside className={`nav-sidebar ${isMobileOpen ? 'mobile-open' : ''}`}>
       {selectedDeviceId && !showSettings && (
         <>
           <ProfileSection

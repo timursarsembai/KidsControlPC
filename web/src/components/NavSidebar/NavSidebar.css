@@ -271,3 +271,38 @@
 
 /* в”Ђв”Ђ Spacer + settings в”Ђв”Ђ */
 .nav-sidebar-spacer { flex: 1; }
+
+@media (max-width: 1180px) {
+  .nav-sidebar {
+    position: fixed;
+    top: 40px;
+    right: 0;
+    bottom: 0;
+    z-index: 160;
+    width: min(340px, calc(100vw - 48px));
+    max-width: 100vw;
+    border-left: 1px solid var(--border);
+    box-shadow: -16px 0 40px rgba(0, 0, 0, 0.34);
+    transform: translateX(100%);
+    transition: transform var(--dur-base) var(--ease);
+  }
+
+  .nav-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+}
+
+@media (max-width: 520px) {
+  .nav-sidebar {
+    width: min(320px, calc(100vw - 32px));
+  }
+
+  .nav-sidebar-item,
+  .nav-sidebar-dropdown-toggle {
+    min-height: 40px;
+  }
+
+  .nav-sidebar-sub {
+    display: none;
+  }
+}

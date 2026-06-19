@@ -129,3 +129,47 @@
 .notif-ack-btn {
   margin-top: 6px;
 }
+
+@media (max-width: 700px) {
+  .notifications-panel {
+    overflow: visible;
+  }
+
+  .notif-controls,
+  .notif-title-row {
+    align-items: stretch;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .notif-tabs {
+    overflow-x: auto;
+  }
+
+  .notif-tab {
+    flex: 1 0 auto;
+    justify-content: center;
+    padding-inline: 12px;
+  }
+
+  .notif-mark-all {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .notif-list {
+    overflow-y: visible;
+    padding-right: 0;
+  }
+}
+
+@media (max-width: 430px) {
+  .notif-item {
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .notif-icon {
+    display: none;
+  }
+}

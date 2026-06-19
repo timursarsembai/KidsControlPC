@@ -4,6 +4,7 @@
   gap: var(--space-4);
   padding: var(--space-4) 0;
   max-width: 800px;
+  width: 100%;
 }
 
 .power-card {
@@ -185,4 +186,26 @@
   padding: 12px;
   font-size: 14px;
   font-weight: 500;
+}
+
+@media (max-width: 760px) {
+  .power-panel {
+    padding: 0;
+  }
+
+  .lock-settings {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+    padding: var(--space-4);
+  }
+}
+
+@media (max-width: 420px) {
+  .power-actions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .checkbox-label.indent {
+    margin-left: 0;
+  }
 }
