@@ -72,9 +72,9 @@
 }
 
 .screenshots-day.active {
-  color: var(--primary);
-  border-color: var(--primary);
-  background: var(--primary-dim);
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-dim);
 }
 
 .screenshots-save {
