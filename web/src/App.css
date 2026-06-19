@@ -45,13 +45,15 @@
    AUTH SCREEN
 ═══════════════════════════════════════════════ */
 .auth-screen {
-  height: 100vh;
+  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--bg-base);
   position: relative;
-  overflow: hidden;
+  overflow: auto;
+  padding: var(--space-4);
 }
 
 .auth-drag-region {
@@ -99,6 +101,7 @@
   position: relative;
   z-index: 1;
   width: 400px;
+  max-width: 100%;
   background: var(--bg-surface);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-xl);
@@ -217,4 +220,25 @@
   color: var(--text-tertiary);
   text-align: center;
   line-height: 1.5;
+}
+
+@media (max-width: 520px) {
+  .auth-screen {
+    align-items: flex-start;
+    padding: var(--space-5) var(--space-3);
+  }
+
+  .auth-card {
+    padding: var(--space-5);
+    gap: var(--space-5);
+  }
+
+  .auth-logo {
+    align-items: flex-start;
+  }
+
+  .auth-tab {
+    font-size: 12px;
+    padding-inline: 6px;
+  }
 }

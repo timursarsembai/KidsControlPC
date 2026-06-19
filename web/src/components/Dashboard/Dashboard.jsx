@@ -9,17 +9,47 @@ import './Dashboard.css'
 
 export default function Dashboard({ onSignOut }) {
   const { showSettings, selectedDeviceId } = useRulesStore()
+  const [mobileDevicesOpen, setMobileDevicesOpen] = React.useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = React.useState(false)
+
+  const closeMobilePanels = React.useCallback(() => {
+    setMobileDevicesOpen(false)
+    setMobileNavOpen(false)
+  }, [])
+
+  React.useEffect(() => {
+    closeMobilePanels()
+  }, [showSettings, selectedDeviceId, closeMobilePanels])
 
   return (
     <div className="dashboard">
-      <Header onSignOut={onSignOut} />
+      <Header
+        onOpenDevices={() => setMobileDevicesOpen(true)}
+        onOpenSections={() => setMobileNavOpen(true)}
+        onSignOut={onSignOut}
+        showSectionsButton={Boolean(selectedDeviceId && !showSettings)}
+      />
       <div className="dashboard-body">
-        <DeviceSidebar />
+        <button
+          aria-label="Закрыть меню"
+          className={`dashboard-mobile-scrim ${mobileDevicesOpen || mobileNavOpen ? 'visible' : ''}`}
+          onClick={closeMobilePanels}
+          type="button"
+        />
+        <DeviceSidebar
+          isMobileOpen={mobileDevicesOpen}
+          onMobileNavigate={closeMobilePanels}
+        />
         {showSettings
           ? <SettingsPanel />
           : <ContentArea />
         }
-        {selectedDeviceId && !showSettings && <NavSidebar />}
+        {selectedDeviceId && !showSettings && (
+          <NavSidebar
+            isMobileOpen={mobileNavOpen}
+            onMobileNavigate={closeMobilePanels}
+          />
+        )}
       </div>
     </div>
   )

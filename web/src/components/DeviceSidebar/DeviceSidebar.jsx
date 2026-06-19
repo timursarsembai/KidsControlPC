@@ -35,22 +35,23 @@ function DeviceItem({ device, isSelected, onClick }) {
   )
 }
 
-export default function DeviceSidebar() {
+export default function DeviceSidebar({ isMobileOpen = false, onMobileNavigate }) {
   const { devices, selectedDeviceId, selectDevice, showSettings, setShowSettings, activeTab, setActiveTab, alerts } = useRulesStore()
 
   const handleAddDevice = () => {
     setShowSettings(true)
+    onMobileNavigate?.()
   }
 
   const unreadAlerts = alerts?.filter(a => !a.acknowledged).length || 0
 
   return (
-    <aside className="device-sidebar">
+    <aside className={`device-sidebar ${isMobileOpen ? 'mobile-open' : ''}`}>
       {/* ── Back button (when settings are open) ── */}
       {showSettings && (
         <button 
           className="device-sidebar-back-btn" 
-          onClick={() => setShowSettings(false)}
+          onClick={() => { setShowSettings(false); onMobileNavigate?.() }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <line x1="19" y1="12" x2="5" y2="12"></line>
@@ -76,7 +77,7 @@ export default function DeviceSidebar() {
                 key={device.id}
                 device={device}
                 isSelected={selectedDeviceId === device.id && !showSettings && activeTab !== 'notifications'}
-                onClick={() => { selectDevice(device.id); setShowSettings(false); if(activeTab === 'notifications') setActiveTab('permanent'); }}
+                onClick={() => { selectDevice(device.id); setShowSettings(false); if(activeTab === 'notifications') setActiveTab('permanent'); onMobileNavigate?.() }}
               />
             ))}
           </div>
@@ -96,7 +97,7 @@ export default function DeviceSidebar() {
       {/* ── Notifications button ── */}
       <button
         className={`device-sidebar-settings-btn ${activeTab === 'notifications' && !showSettings ? 'active' : ''}`}
-        onClick={() => { setActiveTab('notifications'); setShowSettings(false); }}
+        onClick={() => { setActiveTab('notifications'); setShowSettings(false); onMobileNavigate?.() }}
       >
         <svg width="14" height="14" viewBox="0 0 15 15" fill="none">
           <path d="M7.5 1.5C5 1.5 3 3.5 3 6v3.5L2 11h11l-1-1.5V6c0-2.5-2-4.5-4.5-4.5zM5.5 12.5a2 2 0 004 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -115,7 +116,7 @@ export default function DeviceSidebar() {
       {/* ── Settings button ── */}
       <button
         className={`device-sidebar-settings-btn ${showSettings ? 'active' : ''}`}
-        onClick={() => setShowSettings(!showSettings)}
+        onClick={() => { setShowSettings(!showSettings); onMobileNavigate?.() }}
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
           <path d="M5.5 1.5h3M7 1.5v1.2A4.5 4.5 0 0110.8 5l1-.6 1.5 2.6-1 .6a4.5 4.5 0 010 1.8l1 .6L11.8 12l-1-.6A4.5 4.5 0 018.5 13v1.5h-3V13a4.5 4.5 0 01-2.3-1.6l-1 .6L.7 9.4l1-.6a4.5 4.5 0 010-1.8l-1-.6L2.2 4l1 .6A4.5 4.5 0 015.5 2.7V1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>

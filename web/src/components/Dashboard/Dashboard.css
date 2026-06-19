@@ -1,5 +1,6 @@
 .dashboard {
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -9,4 +10,28 @@
   flex: 1;
   display: flex;
   overflow: hidden;
+  position: relative;
+}
+
+.dashboard-mobile-scrim {
+  display: none;
+}
+
+@media (max-width: 1180px) {
+  .dashboard-mobile-scrim {
+    position: fixed;
+    inset: 40px 0 0;
+    z-index: 120;
+    display: block;
+    background: rgba(0, 0, 0, 0.46);
+    border: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-base) var(--ease);
+  }
+
+  .dashboard-mobile-scrim.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }

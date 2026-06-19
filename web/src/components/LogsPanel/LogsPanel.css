@@ -233,3 +233,38 @@
   transform: translateX(-50%) translateY(-2px);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
 }
+
+@media (max-width: 700px) {
+  .logs-toolbar {
+    align-items: stretch;
+    padding: var(--space-3);
+  }
+
+  .logs-search-wrap {
+    max-width: none;
+    width: 100%;
+  }
+
+  .logs-level-filter {
+    overflow-x: auto;
+  }
+
+  .logs-count {
+    margin-left: 0;
+  }
+
+  .log-line {
+    padding: 3px var(--space-3);
+  }
+}
+
+@media (max-width: 430px) {
+  .log-line {
+    gap: 5px;
+  }
+
+  .log-time {
+    min-width: 48px;
+    font-size: 9.5px;
+  }
+}

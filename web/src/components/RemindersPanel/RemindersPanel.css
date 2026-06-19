@@ -105,8 +105,26 @@
 }
 
 @media (max-width: 768px) {
+  .reminders-panel {
+    padding: 0;
+  }
+
+  .reminders-header,
+  .reminder-top,
+  .reminder-schedule,
+  .form-actions {
+    align-items: stretch;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
   .reminder-form {
     grid-template-columns: 1fr;
+  }
+
+  .reminder-actions,
+  .schedule-tabs {
+    flex-wrap: wrap;
   }
 }
 
@@ -254,4 +272,21 @@ input:checked + .slider {
 input:checked + .slider:before {
   background-color: #fff;
   transform: translateX(20px);
+}
+
+@media (max-width: 420px) {
+  .reminder-card,
+  .reminder-form {
+    padding: var(--space-3);
+  }
+
+  .reminder-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .reminder-actions .btn,
+  .form-actions .btn {
+    width: 100%;
+  }
 }

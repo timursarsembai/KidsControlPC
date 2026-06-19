@@ -155,3 +155,42 @@
   color: var(--accent);
 }
 .day-label:hover { border-color: var(--border-strong); color: var(--text-primary); }
+
+@media (max-width: 760px) {
+  .web-add-header,
+  .web-add-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .scope-select-wrap {
+    width: 100%;
+  }
+
+  .add-btn {
+    width: 100%;
+  }
+
+  .time-range,
+  .timer-input-wrap {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 520px) {
+  .web-panel {
+    gap: var(--space-3);
+  }
+
+  .web-add-card {
+    padding: var(--space-4);
+  }
+
+  .web-add-hint {
+    line-height: 1.4;
+  }
+
+  .site-pattern {
+    overflow-wrap: anywhere;
+  }
+}
