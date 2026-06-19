@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import TimeInput from '../TimeInput/TimeInput'
 import './ScreenshotsPanel.css'
@@ -96,6 +97,31 @@ export default function ScreenshotsPanel() {
   useEffect(() => {
     setSettings(initialSettings)
   }, [initialSettings])
+
+  useEffect(() => {
+    if (!selectedScreenshotId) return undefined
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setSelectedScreenshotId(null)
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+
+      const index = screenshots.findIndex(screenshot => screenshot.id === selectedScreenshotId)
+      if (index < 0 || screenshots.length === 0) return
+
+      const direction = event.key === 'ArrowLeft' ? -1 : 1
+      const nextIndex = (index + direction + screenshots.length) % screenshots.length
+      setSelectedScreenshotId(screenshots[nextIndex].id)
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [selectedScreenshotId, screenshots])
 
   useEffect(() => {
     let cancelled = false
@@ -283,6 +309,25 @@ export default function ScreenshotsPanel() {
     }
   }
 
+  const lightbox = selectedScreenshot ? createPortal(
+    <div className="screenshots-lightbox" role="dialog" aria-modal="true">
+      <button className="screenshots-lightbox-close" type="button" onClick={() => setSelectedScreenshotId(null)}>×</button>
+      <button className="screenshots-lightbox-nav left" type="button" onClick={() => moveViewer(-1)}>‹</button>
+      <div className="screenshots-lightbox-content">
+        {selectedImageSrc ? (
+          <img src={selectedImageSrc} alt="Скриншот экрана" />
+        ) : (
+          <div className="screenshots-lightbox-empty">Изображение загружается</div>
+        )}
+        <div className="screenshots-lightbox-meta">
+          {selectedScreenshot.source === 'scheduled' ? 'По расписанию' : 'Ручной запрос'} · {formatMeta(selectedScreenshot)}
+        </div>
+      </div>
+      <button className="screenshots-lightbox-nav right" type="button" onClick={() => moveViewer(1)}>›</button>
+    </div>,
+    document.body
+  ) : null
+
   return (
     <div className="screenshots-panel animate-in">
       <div className="screenshots-card">
@@ -441,23 +486,7 @@ export default function ScreenshotsPanel() {
         )}
       </div>
 
-      {selectedScreenshot && (
-        <div className="screenshots-lightbox" role="dialog" aria-modal="true">
-          <button className="screenshots-lightbox-close" type="button" onClick={() => setSelectedScreenshotId(null)}>×</button>
-          <button className="screenshots-lightbox-nav left" type="button" onClick={() => moveViewer(-1)}>‹</button>
-          <div className="screenshots-lightbox-content">
-            {selectedImageSrc ? (
-              <img src={selectedImageSrc} alt="Скриншот экрана" />
-            ) : (
-              <div className="screenshots-lightbox-empty">Изображение загружается</div>
-            )}
-            <div className="screenshots-lightbox-meta">
-              {selectedScreenshot.source === 'scheduled' ? 'По расписанию' : 'Ручной запрос'} · {formatMeta(selectedScreenshot)}
-            </div>
-          </div>
-          <button className="screenshots-lightbox-nav right" type="button" onClick={() => moveViewer(1)}>›</button>
-        </div>
-      )}
+      {lightbox}
     </div>
   )
 }
