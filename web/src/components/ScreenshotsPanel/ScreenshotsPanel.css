@@ -69,6 +69,7 @@
   height: 34px;
   padding: 0 10px;
   font-weight: 700;
+  cursor: pointer;
 }
 
 .screenshots-day.active {
