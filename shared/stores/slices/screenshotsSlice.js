@@ -1,7 +1,9 @@
 import { sendDeviceCommand as fsSendDeviceCommand } from '../../firebase/commands.repo.js'
 import {
   deleteScreenshot as fsDeleteScreenshot,
-  getScreenshotDownloadURL as fsGetScreenshotDownloadURL
+  getScreenshotDownloadURL as fsGetScreenshotDownloadURL,
+  getScreenshotFullDownloadURL as fsGetScreenshotFullDownloadURL,
+  markScreenshotDownloaded as fsMarkScreenshotDownloaded
 } from '../../firebase/screenshots.repo.js'
 import { logger } from '../../utils/logger.js'
 
@@ -27,7 +29,17 @@ export const createScreenshotsSlice = (set, get) => ({
     await fsDeleteScreenshot(user.uid, selectedDeviceId, screenshot)
   },
 
+  markScreenshotDownloaded: async (screenshotId) => {
+    const { user, selectedDeviceId } = get()
+    if (!user || !selectedDeviceId) return
+    await fsMarkScreenshotDownloaded(user.uid, selectedDeviceId, screenshotId)
+  },
+
   getScreenshotDownloadURL: async (screenshot) => {
     return await fsGetScreenshotDownloadURL(screenshot)
+  },
+
+  getScreenshotFullDownloadURL: async (screenshot) => {
+    return await fsGetScreenshotFullDownloadURL(screenshot)
   }
 })

@@ -9,7 +9,8 @@ import {
 } from './screenshotUpload.js'
 import { withOperationTimeout } from './operationTimeout.js'
 
-const MIN_SCREENSHOT_INTERVAL_MS = 60 * 1000
+const MIN_MANUAL_SCREENSHOT_INTERVAL_MS = 15 * 1000
+const MIN_SCHEDULED_SCREENSHOT_INTERVAL_MS = 60 * 60 * 1000
 const SCHEDULE_CHECK_INTERVAL_MS = 30 * 1000
 const CAPTURE_OPERATION_TIMEOUT_MS = 65 * 1000
 const UPLOAD_OPERATION_TIMEOUT_MS = 65 * 1000
@@ -40,8 +41,11 @@ export async function takeScreenshot(source = 'manual') {
 
   const now = Date.now()
   const lastAt = source === 'manual' ? lastManualScreenshotAt : lastScheduledScreenshotAt
-  if (now - lastAt < MIN_SCREENSHOT_INTERVAL_MS) {
-    const waitSeconds = Math.ceil((MIN_SCREENSHOT_INTERVAL_MS - (now - lastAt)) / 1000)
+  const minIntervalMs = source === 'manual'
+    ? MIN_MANUAL_SCREENSHOT_INTERVAL_MS
+    : MIN_SCHEDULED_SCREENSHOT_INTERVAL_MS
+  if (now - lastAt < minIntervalMs) {
+    const waitSeconds = Math.ceil((minIntervalMs - (now - lastAt)) / 1000)
     const err = new Error(`Rate limited. Try again in ${waitSeconds}s`)
     err.code = 'rate_limited'
     throw err
@@ -83,7 +87,7 @@ export async function takeScreenshot(source = 'manual') {
 async function maybeTakeScheduledScreenshot() {
   const settings = getScreenshotSettings()
   if (!settings.enabled) return
-  const intervalMinutes = normalizeNumber(settings.intervalMinutes, 1, 1, 1440)
+  const intervalMinutes = normalizeNumber(settings.intervalMinutes, 60, 60, 1440)
   if (Date.now() - lastScheduledScreenshotAt < intervalMinutes * 60 * 1000) return
   if (!isScheduleActive(settings.schedule, new Date())) return
 

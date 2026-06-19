@@ -7,7 +7,7 @@ import { PAIRING_FILE } from '../config.js'
 import { withOperationTimeout } from './operationTimeout.js'
 
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000
-const SCREENSHOT_TTL_MS = 60 * 60 * 1000
+const SCREENSHOT_TTL_MS = 3 * 24 * 60 * 60 * 1000
 const INLINE_SCREENSHOT_MAX_BYTES = 900 * 1024
 const UPLOAD_TOKEN_TIMEOUT_MS = 15000
 const STORAGE_UPLOAD_TIMEOUT_MS = 15000
