@@ -32,6 +32,7 @@ export function registerCommandHandlers(log) {
 
     if (cmd.command === 'screenshot_request' || cmd.action === 'screenshot_request') {
       try {
+        log('[Screenshot] Manual screenshot command accepted')
         const result = await takeScreenshot('manual')
         await markCommandCompleted(cmdDoc, result)
       } catch (err) {

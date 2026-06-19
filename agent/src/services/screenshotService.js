@@ -7,9 +7,12 @@ import {
   ensureUploadToken,
   uploadScreenshot
 } from './screenshotUpload.js'
+import { withOperationTimeout } from './operationTimeout.js'
 
 const MIN_SCREENSHOT_INTERVAL_MS = 60 * 1000
 const SCHEDULE_CHECK_INTERVAL_MS = 30 * 1000
+const CAPTURE_OPERATION_TIMEOUT_MS = 65 * 1000
+const UPLOAD_OPERATION_TIMEOUT_MS = 65 * 1000
 
 let parentUid = null
 let deviceId = null
@@ -48,8 +51,22 @@ export async function takeScreenshot(source = 'manual') {
   const settings = getScreenshotSettings()
   let fileInfo = null
   try {
-    fileInfo = await captureScreenshotFile(settings)
-    const result = await uploadScreenshot(fileInfo, source, parentUid, deviceId, log)
+    log(`Starting ${source} screenshot capture`)
+    fileInfo = await withOperationTimeout(
+      captureScreenshotFile(settings),
+      CAPTURE_OPERATION_TIMEOUT_MS,
+      `${source} screenshot capture timed out after ${CAPTURE_OPERATION_TIMEOUT_MS / 1000}s`,
+      'screenshot_capture_timeout'
+    )
+    log(`Captured ${source} screenshot: ${fileInfo.size} bytes`)
+
+    log(`Uploading ${source} screenshot`)
+    const result = await withOperationTimeout(
+      uploadScreenshot(fileInfo, source, parentUid, deviceId, log),
+      UPLOAD_OPERATION_TIMEOUT_MS,
+      `${source} screenshot upload timed out after ${UPLOAD_OPERATION_TIMEOUT_MS / 1000}s`,
+      'screenshot_upload_timeout'
+    )
     if (source === 'manual') lastManualScreenshotAt = now
     else lastScheduledScreenshotAt = now
     log(`Uploaded ${source} screenshot: ${result.screenshotId}`)
