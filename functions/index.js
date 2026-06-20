@@ -151,7 +151,7 @@ async function readInvitationByToken(invitationId, token) {
   return { invitation, ref: snap.ref }
 }
 
-exports.createParentInvitation = onCall({ region: REGION }, async (request) => {
+exports.createParentInvitation = onCall({ region: REGION, secrets: ['SMTP_PASS'] }, async (request) => {
   const ownerUid = requireAuth(request)
   const email = normalizeEmail(request.data?.email)
   const ownerRecord = await auth.getUser(ownerUid)

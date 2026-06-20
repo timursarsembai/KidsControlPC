@@ -4,8 +4,8 @@ Parent invitations use Firebase Auth, Firestore, Cloud Functions, and SMTP.
 
 ## Runtime configuration
 
-Set these environment variables for the Firebase Functions runtime before deploying
-to staging or production:
+Set these non-secret environment variables for the Firebase Functions runtime
+before deploying to staging or production:
 
 ```text
 APP_BASE_URL=https://kidscontrolpc-dev.web.app
@@ -14,12 +14,18 @@ SMTP_HOST=
 SMTP_PORT=587
 SMTP_SECURE=false
 SMTP_USER=
-SMTP_PASS=
 MAIL_FROM=
 ```
 
+Store the SMTP password in Firebase Secret Manager:
+
+```powershell
+firebase functions:secrets:set SMTP_PASS --project dev
+```
+
 Use the staging URL for the `dev` Firebase project and the production URL only
-when production deployment is explicitly requested.
+when production deployment is explicitly requested. Keep local `.env` files with
+real SMTP settings uncommitted.
 
 ## Behavior
 
