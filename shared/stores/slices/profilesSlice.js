@@ -2,11 +2,12 @@ import { addRule, deleteRule, updateRule } from '../../firebase/rules.repo.js'
 
 export const createProfilesSlice = (set, get) => ({
   addProfileMode: async (profileName, profileIcon = '🧩') => {
-    const { user, selectedDeviceId } = get()
+    const { user, activeOwnerUid, selectedDeviceId } = get()
     if (!user || !selectedDeviceId) return null
+    const ownerUid = activeOwnerUid || user.uid
     const name = profileName?.trim() || 'Новый режим'
     const profileId = `profile_${Date.now()}`
-    await addRule(user.uid, selectedDeviceId, {
+    await addRule(ownerUid, selectedDeviceId, {
       type: 'profile_config',
       mode: 'profile',
       profileId,
@@ -26,11 +27,12 @@ export const createProfilesSlice = (set, get) => ({
   },
 
   deleteProfileMode: async (profileId) => {
-    const { user, selectedDeviceId, rules } = get()
+    const { user, activeOwnerUid, selectedDeviceId, rules } = get()
     if (!user || !selectedDeviceId || !profileId) return
+    const ownerUid = activeOwnerUid || user.uid
     const profileRules = rules.filter(r => r.mode === 'profile' && r.profileId === profileId)
     for (const rule of profileRules) {
-      await deleteRule(user.uid, selectedDeviceId, rule.id)
+      await deleteRule(ownerUid, selectedDeviceId, rule.id)
     }
     if (get().activeTab === profileId) {
       set({ activeTab: 'permanent', activeSubTab: 'programs' })
@@ -38,8 +40,9 @@ export const createProfilesSlice = (set, get) => ({
   },
 
   saveProfileRules: async (profileId, profileName, schedule, targets = {}, profileIcon = '🧩') => {
-    const { user, selectedDeviceId, rules } = get()
+    const { user, activeOwnerUid, selectedDeviceId, rules } = get()
     if (!user || !selectedDeviceId || !profileId) return
+    const ownerUid = activeOwnerUid || user.uid
 
     const profileRules = rules.filter(r => r.mode === 'profile' && r.profileId === profileId)
     const profileConfig = profileRules.find(r => r.type === 'profile_config')
@@ -52,12 +55,12 @@ export const createProfilesSlice = (set, get) => ({
     }
 
     if (profileConfig) {
-      await updateRule(user.uid, selectedDeviceId, profileConfig.id, {
+      await updateRule(ownerUid, selectedDeviceId, profileConfig.id, {
         ...basePayload,
         status: 'active'
       })
     } else {
-      await addRule(user.uid, selectedDeviceId, {
+      await addRule(ownerUid, selectedDeviceId, {
         ...basePayload,
         type: 'profile_config'
       })
@@ -69,7 +72,7 @@ export const createProfilesSlice = (set, get) => ({
     for (const rule of existingPrograms) {
       const name = rule.program?.name
       if (!desiredPrograms.has(name)) {
-        await deleteRule(user.uid, selectedDeviceId, rule.id)
+        await deleteRule(ownerUid, selectedDeviceId, rule.id)
       }
     }
 
@@ -89,9 +92,9 @@ export const createProfilesSlice = (set, get) => ({
       }
 
       if (existing) {
-        await updateRule(user.uid, selectedDeviceId, existing.id, payload)
+        await updateRule(ownerUid, selectedDeviceId, existing.id, payload)
       } else {
-        await addRule(user.uid, selectedDeviceId, {
+        await addRule(ownerUid, selectedDeviceId, {
           ...payload,
           type: 'program'
         })
@@ -107,7 +110,7 @@ export const createProfilesSlice = (set, get) => ({
     for (const rule of existingWebsites) {
       const pattern = rule.web?.resolvedPattern || rule.web?.inputUrl
       if (!desiredWebsites.has(pattern)) {
-        await deleteRule(user.uid, selectedDeviceId, rule.id)
+        await deleteRule(ownerUid, selectedDeviceId, rule.id)
       }
     }
 
@@ -127,9 +130,9 @@ export const createProfilesSlice = (set, get) => ({
       }
 
       if (existing) {
-        await updateRule(user.uid, selectedDeviceId, existing.id, payload)
+        await updateRule(ownerUid, selectedDeviceId, existing.id, payload)
       } else {
-        await addRule(user.uid, selectedDeviceId, {
+        await addRule(ownerUid, selectedDeviceId, {
           ...payload,
           type: 'web'
         })

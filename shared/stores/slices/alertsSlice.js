@@ -7,16 +7,18 @@ export const createAlertsSlice = (set, get) => ({
   alerts: [],
 
   acknowledgeAlert: async (alertId) => {
-    const { user } = get()
+    const { user, activeOwnerUid } = get()
     if (!user) return
-    await fsAcknowledgeAlert(user.uid, alertId)
+    const ownerUid = activeOwnerUid || user.uid
+    await fsAcknowledgeAlert(ownerUid, alertId)
   },
 
   acknowledgeAllAlerts: async () => {
-    const { user, alerts } = get()
+    const { user, activeOwnerUid, alerts } = get()
     if (!user) return
     const unread = alerts.filter(a => !a.acknowledged).map(a => a.id)
     if (unread.length === 0) return
-    await fsAcknowledgeAllAlerts(user.uid, unread)
+    const ownerUid = activeOwnerUid || user.uid
+    await fsAcknowledgeAllAlerts(ownerUid, unread)
   }
 })

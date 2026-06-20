@@ -16,7 +16,7 @@ const TABS = [
 
 export default function SettingsPanel() {
   const { t } = useTranslation()
-  const { user } = useRulesStore()
+  const { user, activeOwnerUid } = useRulesStore()
   const [activeTab, setActiveTab] = useState('devices')
 
   if (!user) return null
@@ -38,7 +38,7 @@ export default function SettingsPanel() {
       </div>
 
       <div className="settings-content">
-        {activeTab === 'devices' && <DevicesSection uid={user.uid} />}
+        {activeTab === 'devices' && <DevicesSection uid={activeOwnerUid || user.uid} />}
         {activeTab === 'account' && <AccountSection user={user} />}
         {activeTab === 'logs' && <AppLogsSection />}
         {activeTab === 'about' && <AboutSection />}

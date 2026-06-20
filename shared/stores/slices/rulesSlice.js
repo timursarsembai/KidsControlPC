@@ -28,8 +28,9 @@ export const createRulesSlice = (set, get) => ({
   },
 
   toggleProgramBlock: async (ruleId, currentlyBlocked, modeConfig = {}) => {
-    const { user, selectedDeviceId, rules } = get()
+    const { user, activeOwnerUid, selectedDeviceId, rules } = get()
     if (!user || !selectedDeviceId) return
+    const ownerUid = activeOwnerUid || user.uid
     const rule = rules.find(r => r.id === ruleId)
     const updates = { status: currentlyBlocked ? 'inactive' : 'active' }
 
@@ -42,12 +43,13 @@ export const createRulesSlice = (set, get) => ({
       updates.timer = { ...(updates.timer || rule.timer), startedAt: serverTimestamp() }
     }
     logger.info(selectedDeviceId, `Изменение блокировки программы ${ruleId}: status = ${updates.status}`)
-    await updateRule(user.uid, selectedDeviceId, ruleId, updates)
+    await updateRule(ownerUid, selectedDeviceId, ruleId, updates)
   },
 
   toggleWebsiteBlock: async (ruleId, currentlyBlocked, modeConfig = {}) => {
-    const { user, selectedDeviceId, rules } = get()
+    const { user, activeOwnerUid, selectedDeviceId, rules } = get()
     if (!user || !selectedDeviceId) return
+    const ownerUid = activeOwnerUid || user.uid
     const rule = rules.find(r => r.id === ruleId)
     const updates = { status: currentlyBlocked ? 'inactive' : 'active' }
 
@@ -60,15 +62,16 @@ export const createRulesSlice = (set, get) => ({
       updates.timer = { ...(updates.timer || rule.timer), startedAt: serverTimestamp() }
     }
     logger.info(selectedDeviceId, `Изменение блокировки сайта ${ruleId}: status = ${updates.status}`)
-    await updateRule(user.uid, selectedDeviceId, ruleId, updates)
+    await updateRule(ownerUid, selectedDeviceId, ruleId, updates)
   },
 
   addProgramRule: async (programData, mode, modeConfig = {}) => {
-    const { user, selectedDeviceId, activeTab } = get()
+    const { user, activeOwnerUid, selectedDeviceId, activeTab } = get()
     if (!user || !selectedDeviceId) return
+    const ownerUid = activeOwnerUid || user.uid
     const finalMode = mode || activeTab
     const timerConfig = modeConfig.timer ? { ...modeConfig.timer, startedAt: serverTimestamp() } : undefined
-    await addRule(user.uid, selectedDeviceId, {
+    await addRule(ownerUid, selectedDeviceId, {
       type: 'program',
       mode: finalMode,
       program: { name: programData.name, executablePath: programData.path, hash: '' },
@@ -81,10 +84,11 @@ export const createRulesSlice = (set, get) => ({
   },
 
   addWebsite: async (entry, modeConfig = {}) => {
-    const { user, selectedDeviceId, activeTab } = get()
+    const { user, activeOwnerUid, selectedDeviceId, activeTab } = get()
     if (!user || !selectedDeviceId) return
+    const ownerUid = activeOwnerUid || user.uid
     const timerConfig = modeConfig.timer ? { ...modeConfig.timer, startedAt: serverTimestamp() } : undefined
-    await addRule(user.uid, selectedDeviceId, {
+    await addRule(ownerUid, selectedDeviceId, {
       type: 'web',
       mode: activeTab,
       web: {
@@ -102,10 +106,11 @@ export const createRulesSlice = (set, get) => ({
   },
 
   addPowerRule: async (action, mode, modeConfig = {}) => {
-    const { user, selectedDeviceId } = get()
+    const { user, activeOwnerUid, selectedDeviceId } = get()
     if (!user || !selectedDeviceId) return
+    const ownerUid = activeOwnerUid || user.uid
     const timerConfig = modeConfig.timer ? { ...modeConfig.timer, startedAt: serverTimestamp() } : undefined
-    await addRule(user.uid, selectedDeviceId, {
+    await addRule(ownerUid, selectedDeviceId, {
       type: 'power',
       mode: mode,
       action: action,
@@ -117,10 +122,11 @@ export const createRulesSlice = (set, get) => ({
   },
 
   addLockRule: async (message, mode, modeConfig = {}) => {
-    const { user, selectedDeviceId } = get()
+    const { user, activeOwnerUid, selectedDeviceId } = get()
     if (!user || !selectedDeviceId) return
+    const ownerUid = activeOwnerUid || user.uid
     const timerConfig = modeConfig.timer ? { ...modeConfig.timer, startedAt: serverTimestamp() } : undefined
-    await addRule(user.uid, selectedDeviceId, {
+    await addRule(ownerUid, selectedDeviceId, {
       type: 'lock',
       mode: mode,
       message: message || '',
@@ -132,10 +138,11 @@ export const createRulesSlice = (set, get) => ({
   },
 
   addReminderRule: async (message, settings, modeConfig) => {
-    const { user, selectedDeviceId } = get()
+    const { user, activeOwnerUid, selectedDeviceId } = get()
     if (!user || !selectedDeviceId) return
+    const ownerUid = activeOwnerUid || user.uid
     const mode = modeConfig.date ? 'date' : modeConfig.monthly_date ? 'monthly_date' : modeConfig.schedule ? 'schedule' : 'once'
-    await addRule(user.uid, selectedDeviceId, {
+    await addRule(ownerUid, selectedDeviceId, {
       type: 'reminder',
       mode: mode,
       message: message || '',
@@ -148,8 +155,9 @@ export const createRulesSlice = (set, get) => ({
   },
 
   updateReminderRule: async (ruleId, message, settings, modeConfig) => {
-    const { user, selectedDeviceId } = get()
+    const { user, activeOwnerUid, selectedDeviceId } = get()
     if (!user || !selectedDeviceId) return
+    const ownerUid = activeOwnerUid || user.uid
     const mode = modeConfig.date ? 'date' : modeConfig.monthly_date ? 'monthly_date' : modeConfig.schedule ? 'schedule' : 'once'
 
     const updates = {
@@ -161,22 +169,24 @@ export const createRulesSlice = (set, get) => ({
       date: modeConfig.date || null,
       monthly_date: modeConfig.monthly_date || null
     }
-    await updateRule(user.uid, selectedDeviceId, ruleId, updates)
+    await updateRule(ownerUid, selectedDeviceId, ruleId, updates)
   },
 
   removeRule: async (ruleId) => {
-    const { user, selectedDeviceId } = get()
+    const { user, activeOwnerUid, selectedDeviceId } = get()
     if (!user || !selectedDeviceId) return
+    const ownerUid = activeOwnerUid || user.uid
     logger.info(selectedDeviceId, `Удаление правила ${ruleId}`)
-    await deleteRule(user.uid, selectedDeviceId, ruleId)
+    await deleteRule(ownerUid, selectedDeviceId, ruleId)
   },
 
   removeWebsiteGlobally: async (pattern) => {
-    const { user, selectedDeviceId, rules } = get()
+    const { user, activeOwnerUid, selectedDeviceId, rules } = get()
     if (!user || !selectedDeviceId) return
+    const ownerUid = activeOwnerUid || user.uid
     const matchingRules = rules.filter(r => r.type === 'web' && (r.web?.resolvedPattern || r.web?.inputUrl) === pattern)
     for (const r of matchingRules) {
-      await deleteRule(user.uid, selectedDeviceId, r.id)
+      await deleteRule(ownerUid, selectedDeviceId, r.id)
     }
   }
 })

@@ -11,12 +11,13 @@ export const createScreenshotsSlice = (set, get) => ({
   screenshots: [],
 
   requestScreenshot: async () => {
-    const { user, selectedDeviceId, devices } = get()
+    const { user, activeOwnerUid, selectedDeviceId, devices } = get()
     if (!user || !selectedDeviceId) throw new Error('No device selected')
+    const ownerUid = activeOwnerUid || user.uid
     const selectedDevice = devices.find(d => d.id === selectedDeviceId)
     if (!selectedDevice?.screenshotUploadToken) throw new Error('Device command token is not ready')
     logger.info(selectedDeviceId, 'Запрос скриншота экрана')
-    await fsSendDeviceCommand(user.uid, selectedDeviceId, {
+    await fsSendDeviceCommand(ownerUid, selectedDeviceId, {
       command: 'screenshot_request',
       uploadToken: selectedDevice.screenshotUploadToken,
       requestedAtClientMs: Date.now()
@@ -24,15 +25,17 @@ export const createScreenshotsSlice = (set, get) => ({
   },
 
   deleteScreenshot: async (screenshot) => {
-    const { user, selectedDeviceId } = get()
+    const { user, activeOwnerUid, selectedDeviceId } = get()
     if (!user || !selectedDeviceId) return
-    await fsDeleteScreenshot(user.uid, selectedDeviceId, screenshot)
+    const ownerUid = activeOwnerUid || user.uid
+    await fsDeleteScreenshot(ownerUid, selectedDeviceId, screenshot)
   },
 
   markScreenshotDownloaded: async (screenshotId) => {
-    const { user, selectedDeviceId } = get()
+    const { user, activeOwnerUid, selectedDeviceId } = get()
     if (!user || !selectedDeviceId) return
-    await fsMarkScreenshotDownloaded(user.uid, selectedDeviceId, screenshotId)
+    const ownerUid = activeOwnerUid || user.uid
+    await fsMarkScreenshotDownloaded(ownerUid, selectedDeviceId, screenshotId)
   },
 
   getScreenshotDownloadURL: async (screenshot) => {

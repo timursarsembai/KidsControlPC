@@ -1,6 +1,20 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function activeParentAccess(userId) {
+      return isSignedIn()
+        && firestore.exists(/databases/(default)/documents/users/$(userId)/parentAccess/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/users/$(userId)/parentAccess/$(request.auth.uid)).data.status == 'active';
+    }
+
+    function canManageUser(userId) {
+      return isSignedIn() && (request.auth.uid == userId || activeParentAccess(userId));
+    }
+
     function deviceScreenshotToken(userId, deviceId) {
       return firestore.get(/databases/(default)/documents/users/$(userId)/devices/$(deviceId)).data.screenshotUploadToken;
     }
@@ -11,12 +25,12 @@ service firebase.storage {
     }
 
     match /users/{userId}/devices/{deviceId}/screenshots/{fileName} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow create: if ((request.auth != null && request.auth.uid == userId) || hasValidScreenshotToken(userId, deviceId))
+      allow read: if canManageUser(userId);
+      allow create: if (canManageUser(userId) || hasValidScreenshotToken(userId, deviceId))
         && request.resource.contentType == 'image/jpeg'
         && request.resource.size < 5 * 1024 * 1024;
       allow update: if false;
-      allow delete: if (request.auth != null && request.auth.uid == userId)
+      allow delete: if canManageUser(userId)
         || (resource.metadata.uploadToken == deviceScreenshotToken(userId, deviceId));
     }
   }

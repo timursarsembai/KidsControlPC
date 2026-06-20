@@ -15,8 +15,9 @@ export const createDevicesSlice = (set, get) => ({
   _unsubScreenshots: null,
 
   selectDevice: (deviceId) => {
-    const { user, _unsubRules, _unsubApps, _unsubScreenshots } = get()
+    const { user, activeOwnerUid, _unsubRules, _unsubApps, _unsubScreenshots } = get()
     if (!user) return
+    const ownerUid = activeOwnerUid || user.uid
 
     _unsubRules?.()
     _unsubApps?.()
@@ -38,15 +39,15 @@ export const createDevicesSlice = (set, get) => ({
 
     logger.info('general', `Выбрано устройство: ${deviceId}`)
 
-    const unsubRules = subscribeToRules(user.uid, deviceId, (rules) => {
+    const unsubRules = subscribeToRules(ownerUid, deviceId, (rules) => {
       set({ rules, rulesLoading: false })
     })
 
-    const unsubApps = subscribeToInstalledApps(user.uid, deviceId, (apps) => {
+    const unsubApps = subscribeToInstalledApps(ownerUid, deviceId, (apps) => {
       set({ installedApps: apps, appsLoading: false })
     })
 
-    const unsubScreenshots = subscribeToScreenshots(user.uid, deviceId, (screenshots) => {
+    const unsubScreenshots = subscribeToScreenshots(ownerUid, deviceId, (screenshots) => {
       set({ screenshots })
     })
 
@@ -54,16 +55,18 @@ export const createDevicesSlice = (set, get) => ({
   },
 
   renameDevice: async (deviceId, alias) => {
-    const { user } = get()
+    const { user, activeOwnerUid } = get()
     if (!user) return
+    const ownerUid = activeOwnerUid || user.uid
     logger.info('general', `Переименование устройства ${deviceId} в ${alias}`)
-    await updateDeviceAlias(user.uid, deviceId, alias)
+    await updateDeviceAlias(ownerUid, deviceId, alias)
   },
 
   deleteDevice: async (deviceId) => {
-    const { user } = get()
+    const { user, activeOwnerUid } = get()
     if (!user) return
+    const ownerUid = activeOwnerUid || user.uid
     logger.info('general', `Удаление устройства ${deviceId}`)
-    await removeDevice(user.uid, deviceId)
+    await removeDevice(ownerUid, deviceId)
   }
 })

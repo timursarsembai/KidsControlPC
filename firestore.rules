@@ -1,10 +1,37 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
 
-    // ── User's own data ───────────────────────────────────────────────────────
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function activeParentAccess(userId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(userId)/parentAccess/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(userId)/parentAccess/$(request.auth.uid)).data.status == 'active';
+    }
+
+    function canManageUser(userId) {
+      return isOwner(userId) || activeParentAccess(userId);
+    }
+
+    // ── User's own profile ────────────────────────────────────────────────────
+    match /users/{userId}/profile/{document} {
+      allow read, write: if isOwner(userId);
+    }
+
+    match /users/{userId}/parentInvitations/{invitationId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+    }
+
+    match /users/{userId}/parentAccess/{parentUid} {
+      allow read: if canManageUser(userId) || (isSignedIn() && request.auth.uid == parentUid);
+      allow write: if false;
     }
 
     // ── Pairing codes — root collection ───────────────────────────────────────
@@ -22,7 +49,7 @@ service cloud.firestore {
     // ── Device Rules — agent needs to read rules ──────────────────────────────
     match /users/{userId}/devices/{deviceId}/rules/{ruleId} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if canManageUser(userId);
     }
 
     // ── Installed Apps — agent needs to upload its apps ───────────────────────
@@ -46,13 +73,13 @@ service cloud.firestore {
 
     // Commands - parent creates commands; agent reads and marks only token-matched commands.
     match /users/{userId}/devices/{deviceId}/commands/{commandId} {
-      allow create: if request.auth != null && request.auth.uid == userId
+      allow create: if canManageUser(userId)
         && hasValidNewCommandToken(userId, deviceId);
-      allow read: if (request.auth != null && request.auth.uid == userId)
+      allow read: if canManageUser(userId)
         || hasValidExistingCommandToken(userId, deviceId);
       allow update: if hasValidExistingCommandToken(userId, deviceId)
         && hasValidNewCommandToken(userId, deviceId);
-      allow delete: if request.auth != null && request.auth.uid == userId;
+      allow delete: if canManageUser(userId);
     }
 
     function hasValidScreenshotToken(userId, deviceId) {
@@ -62,10 +89,10 @@ service cloud.firestore {
 
     // Screenshots - agent can create metadata only with this device's upload token.
     match /users/{userId}/devices/{deviceId}/screenshots/{screenshotId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow create: if (request.auth != null && request.auth.uid == userId) || hasValidScreenshotToken(userId, deviceId);
-      allow update: if request.auth != null && request.auth.uid == userId;
-      allow delete: if (request.auth != null && request.auth.uid == userId)
+      allow read: if canManageUser(userId);
+      allow create: if canManageUser(userId) || hasValidScreenshotToken(userId, deviceId);
+      allow update: if canManageUser(userId);
+      allow delete: if canManageUser(userId)
         || (resource.data.uploadToken == deviceScreenshotToken(userId, deviceId));
     }
 

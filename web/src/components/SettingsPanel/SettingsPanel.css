@@ -333,6 +333,78 @@
   color: var(--text-tertiary);
 }
 
+.account-details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.parent-invite-form {
+  padding: var(--space-5) var(--space-6);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.parent-invite-btn {
+  align-self: flex-end;
+  min-width: 120px;
+}
+
+.parents-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.parent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.parent-email {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.parent-meta {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.parent-status {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.parent-status.active,
+.parent-status.accepted {
+  background: var(--success-dim);
+  border-color: rgba(0,217,126,0.2);
+  color: var(--success);
+}
+
+.parent-status.declined {
+  background: var(--danger-dim);
+  border-color: rgba(255,77,109,0.2);
+  color: var(--danger);
+}
+
 /* ── Settings subsection ── */
 .settings-subsection {
   display: flex;
@@ -577,6 +649,7 @@
 
   .device-meta,
   .account-plan,
+  .parent-row,
   .code-actions,
   .code-value {
     flex-wrap: wrap;

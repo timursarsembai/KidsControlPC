@@ -4,14 +4,25 @@ import { initUserProfile } from '../../firebase/profile.repo.js'
 
 export const createAuthSlice = (set, get) => ({
   user: null,
+  userProfile: null,
+  activeOwnerUid: null,
+  accountRole: 'owner',
   _unsubDevices: null,
   _unsubAlerts: null,
 
   initFirebase: async (firebaseUser) => {
-    set({ user: firebaseUser })
-    await initUserProfile(firebaseUser.uid, firebaseUser.email)
+    const profile = await initUserProfile(firebaseUser.uid, firebaseUser.email)
+    const activeOwnerUid = profile.ownerUid || firebaseUser.uid
+    const accountRole = profile.role || (activeOwnerUid === firebaseUser.uid ? 'owner' : 'parent')
 
-    const unsubDevices = subscribeToDevices(firebaseUser.uid, (devices) => {
+    set({
+      user: firebaseUser,
+      userProfile: profile,
+      activeOwnerUid,
+      accountRole
+    })
+
+    const unsubDevices = subscribeToDevices(activeOwnerUid, (devices) => {
       const prev = get()
       set({ devices })
 
@@ -24,7 +35,7 @@ export const createAuthSlice = (set, get) => ({
       }
     })
 
-    const unsubAlerts = subscribeToAlerts(firebaseUser.uid, (alerts) => {
+    const unsubAlerts = subscribeToAlerts(activeOwnerUid, (alerts) => {
       set({ alerts })
     })
 
@@ -40,6 +51,9 @@ export const createAuthSlice = (set, get) => ({
     _unsubAlerts?.()
     set({
       user: null,
+      userProfile: null,
+      activeOwnerUid: null,
+      accountRole: 'owner',
       devices: [],
       rules: [],
       installedApps: [],

@@ -8,8 +8,9 @@ export const createPomodoroSlice = (set, get) => ({
   },
 
   togglePomodoroSession: async (active, data = {}) => {
-    const { user, selectedDeviceId } = get()
+    const { user, activeOwnerUid, selectedDeviceId } = get()
     if (!user || !selectedDeviceId) return
+    const ownerUid = activeOwnerUid || user.uid
     const payload = {
       type: 'pomodoro',
       status: active ? 'active' : 'inactive',
@@ -19,6 +20,6 @@ export const createPomodoroSlice = (set, get) => ({
       payload.startedAt = serverTimestamp()
       payload.startedAtClientMs = Date.now()
     }
-    await savePomodoroRule(user.uid, selectedDeviceId, payload)
+    await savePomodoroRule(ownerUid, selectedDeviceId, payload)
   }
 })
