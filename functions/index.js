@@ -215,7 +215,15 @@ exports.createParentInvitation = onCall({ region: REGION, secrets: ['SMTP_PASS']
   } catch (error) {
     await Promise.allSettled([rootRef.delete(), ownerRef.delete()])
     if (accountCreated) await auth.deleteUser(invitedRecord.uid).catch(() => {})
-    throw error
+    logger.error('Failed to send parent invitation email', {
+      code: error.code,
+      command: error.command,
+      responseCode: error.responseCode
+    })
+    if (error.code === 'EAUTH' || error.responseCode === 535) {
+      throw new HttpsError('failed-precondition', 'SMTP authentication failed. Check the Gmail app password and SMTP_USER.')
+    }
+    throw new HttpsError('internal', 'Failed to send invitation email. Check SMTP settings and try again.')
   }
 
   return {
