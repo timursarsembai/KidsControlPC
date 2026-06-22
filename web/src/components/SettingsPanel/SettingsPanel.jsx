@@ -5,11 +5,13 @@ import AccountSection from './AccountSection'
 import AppLogsSection from './AppLogsSection'
 import AboutSection from './AboutSection'
 import DevicesSection from './DevicesSection'
+import ParentAccessSection from './ParentAccessSection'
 import './SettingsPanel.css'
 
 const TABS = [
   { id: 'devices', label: 'Устройства', icon: '🖥️' },
   { id: 'account', label: 'Аккаунт', icon: '👤' },
+  { id: 'parents', label: 'Добавить родителя', icon: '👥' },
   { id: 'logs', label: 'Логи', icon: '📋' },
   { id: 'about', label: 'О приложении', icon: 'ℹ️' }
 ]
@@ -40,6 +42,7 @@ export default function SettingsPanel() {
       <div className="settings-content">
         {activeTab === 'devices' && <DevicesSection uid={activeOwnerUid || user.uid} />}
         {activeTab === 'account' && <AccountSection user={user} />}
+        {activeTab === 'parents' && <ParentAccessSection user={user} />}
         {activeTab === 'logs' && <AppLogsSection />}
         {activeTab === 'about' && <AboutSection />}
       </div>
