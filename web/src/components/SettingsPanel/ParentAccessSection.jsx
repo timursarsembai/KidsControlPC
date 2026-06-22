@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   createParentInvitation,
+  revokeParentAccess,
   subscribeToParentAccess,
   subscribeToParentInvitations
 } from '@kidscontrol/shared/firebase/parents'
@@ -25,6 +26,7 @@ export default function ParentAccessSection({ user }) {
   const [invitations, setInvitations] = useState([])
   const [parents, setParents] = useState([])
   const [loadingInvite, setLoadingInvite] = useState(false)
+  const [removingParentId, setRemovingParentId] = useState(null)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -60,6 +62,25 @@ export default function ParentAccessSection({ user }) {
       setError(err.message || 'Не удалось отправить приглашение.')
     } finally {
       setLoadingInvite(false)
+    }
+  }
+
+  async function handleRemoveParent(parent) {
+    if (!parent?.id) return
+    const confirmed = window.confirm(`Удалить доступ родителя ${parent.email}? Он больше не сможет управлять устройствами семьи.`)
+    if (!confirmed) return
+
+    setMessage('')
+    setError('')
+    setRemovingParentId(parent.id)
+
+    try {
+      await revokeParentAccess(parent.id)
+      setMessage(`Доступ родителя ${parent.email} удален.`)
+    } catch (err) {
+      setError(err.message || 'Не удалось удалить доступ родителя.')
+    } finally {
+      setRemovingParentId(null)
     }
   }
 
@@ -115,7 +136,19 @@ export default function ParentAccessSection({ user }) {
               <div className="parent-email">{parent.email}</div>
               <div className="parent-meta">Принято {formatDate(parent.acceptedAt)}</div>
             </div>
-            <span className="parent-status active">{statusLabel(parent.status)}</span>
+            <div className="parent-actions">
+              <span className="parent-status active">{statusLabel(parent.status)}</span>
+              {isPrimaryOwner && (
+                <button
+                  className="btn btn-danger parent-remove-btn"
+                  disabled={removingParentId === parent.id}
+                  onClick={() => handleRemoveParent(parent)}
+                  type="button"
+                >
+                  {removingParentId === parent.id ? <span className="btn-spinner-sm" /> : 'Удалить'}
+                </button>
+              )}
+            </div>
           </div>
         ))}
 

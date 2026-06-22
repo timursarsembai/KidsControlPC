@@ -415,6 +415,41 @@ exports.declineParentInvitation = onCall({ region: REGION }, async (request) => 
   return { status: 'declined', cleanupAt: cleanupAt.toDate().toISOString() }
 })
 
+exports.revokeParentAccess = onCall({ region: REGION }, async (request) => {
+  const ownerUid = requireAuth(request)
+  const parentUid = String(request.data?.parentUid || '').trim()
+
+  if (!parentUid) {
+    throw new HttpsError('invalid-argument', 'Parent uid is required.')
+  }
+  if (parentUid === ownerUid) {
+    throw new HttpsError('invalid-argument', 'You cannot remove your own owner access.')
+  }
+
+  await assertPrimaryOwner(ownerUid)
+
+  const accessRef = db.collection('users').doc(ownerUid).collection('parentAccess').doc(parentUid)
+  const profileRef = db.collection('users').doc(parentUid).collection('profile').doc('data')
+  const now = admin.firestore.Timestamp.now()
+
+  await db.runTransaction(async (transaction) => {
+    const accessSnap = await transaction.get(accessRef)
+    if (!accessSnap.exists || accessSnap.data().status !== 'active') {
+      throw new HttpsError('not-found', 'Parent access was not found.')
+    }
+
+    transaction.delete(accessRef)
+    transaction.set(profileRef, {
+      ownerUid: parentUid,
+      role: 'owner',
+      accessRevokedAt: now,
+      revokedByUid: ownerUid
+    }, { merge: true })
+  })
+
+  return { parentUid, status: 'revoked' }
+})
+
 exports.cleanupExpiredParentInvitations = onSchedule({ region: REGION, schedule: 'every 6 hours' }, async () => {
   const now = admin.firestore.Timestamp.now()
   const snap = await db.collection('parentInvitations')

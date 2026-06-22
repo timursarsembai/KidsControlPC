@@ -42,3 +42,9 @@ export async function declineParentInvitation(invitationId, token) {
   const result = await declineInvitation({ invitationId, token })
   return result.data
 }
+
+export async function revokeParentAccess(parentUid) {
+  const revokeAccess = httpsCallable(functions, 'revokeParentAccess')
+  const result = await revokeAccess({ parentUid })
+  return result.data
+}
