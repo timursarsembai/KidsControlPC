@@ -44,6 +44,27 @@ function isRobloxPlayerProcess(proc) {
   return haystack.includes('roblox') && haystack.includes('player') && !haystack.includes('studio')
 }
 
+function isMinecraftLauncherRule(rulePathLow, ruleNameLow) {
+  const normalizedName = normalizeText(ruleNameLow)
+  return (
+    normalizedName.includes('minecraftwindowsbeta') ||
+    normalizedName.includes('minecraftlauncher') ||
+    rulePathLow.includes('minecraftwindowsbeta')
+  )
+}
+
+function isMinecraftGameProcess(proc) {
+  const name = (proc.name || '').toLowerCase()
+  const base = (proc.base || '').toLowerCase()
+  const path = (proc.path || '').toLowerCase()
+  return (
+    name === 'minecraft.windows' ||
+    base === 'minecraft.windows' ||
+    path.includes('minecraftuwp') ||
+    path.includes('minecraft - bedrock')
+  )
+}
+
 function directoryRuleMatchesProcess(rulePathLow, procPath) {
   if (!rulePathLow || !procPath || rulePathLow.endsWith('.exe')) return false
   if (procPath.startsWith(rulePathLow + '\\')) return true
@@ -75,7 +96,8 @@ function ruleMatchesProcess(rule, proc) {
   }
 
   if (isRobloxPlayerRule(rulePathLow, ruleNameLow) && isRobloxPlayerProcess(proc)) return true
-  
+  if (isMinecraftLauncherRule(rulePathLow, ruleNameLow) && isMinecraftGameProcess(proc)) return true
+
   // Match by exe basename
   if (ruleBaseLow && procBase && ruleBaseLow === procBase) return true
   // Match by name similarity

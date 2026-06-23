@@ -92,6 +92,49 @@ if ($appx) {
     }
 }
 
+# Scan Xbox Games library (Minecraft Launcher and Game Pass installs)
+$xboxDirs = @("C:\XboxGames", "$env:LOCALAPPDATA\XboxGames")
+foreach ($xboxDir in $xboxDirs) {
+    if (Test-Path $xboxDir) {
+        $gameFolders = Get-ChildItem -Path $xboxDir -Directory -ErrorAction SilentlyContinue
+        foreach ($folder in $gameFolders) {
+            $contentDir = Join-Path $folder.FullName "Content"
+            $searchDir = if (Test-Path $contentDir) { $contentDir } else { $folder.FullName }
+            $exe = Get-ChildItem -Path $searchDir -Filter "*.exe" -Depth 2 -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -notmatch 'unins|setup|install|update|crash|redist|vcredist' } |
+                Sort-Object Length -Descending | Select-Object -First 1
+            if ($exe) {
+                $game = [PSCustomObject]@{
+                    DisplayName = $folder.Name
+                    InstallLocation = $exe.FullName
+                    DisplayIcon = $exe.FullName
+                    Publisher = ""
+                    DisplayVersion = ""
+                    QuietUninstallString = ""
+                    UninstallString = ""
+                }
+                $apps += $game
+            }
+        }
+    }
+}
+
+# Explicitly find Minecraft for Windows (installed via Minecraft Launcher)
+$mcPkg = Get-AppxPackage -AllUsers -Name "Microsoft.MinecraftUWP" -ErrorAction SilentlyContinue
+if ($mcPkg) {
+    $mcExe = Join-Path $mcPkg.InstallLocation "Minecraft.Windows.exe"
+    $mc = [PSCustomObject]@{
+        DisplayName = "Minecraft for Windows"
+        InstallLocation = if (Test-Path $mcExe) { $mcExe } else { $mcPkg.InstallLocation }
+        DisplayIcon = if (Test-Path $mcExe) { $mcExe } else { "" }
+        Publisher = $mcPkg.Publisher
+        DisplayVersion = $mcPkg.Version
+        QuietUninstallString = ""
+        UninstallString = ""
+    }
+    $apps += $mc
+}
+
 $result = $apps |
   Where-Object { $_.DisplayName -and $_.DisplayName.Trim() -ne '' -and $_.SystemComponent -ne 1 -and -not $_.ParentKeyName } |
   Select-Object DisplayName, InstallLocation, DisplayIcon, Publisher, DisplayVersion, QuietUninstallString, UninstallString |
