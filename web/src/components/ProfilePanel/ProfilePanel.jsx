@@ -229,9 +229,11 @@ export default function ProfilePanel({ profileId }) {
         index === groupIndex
           ? {
               ...group,
-              ranges: group.ranges.map((range, currentRangeIndex) =>
-                currentRangeIndex === rangeIndex ? { ...range, ...patch } : range
-              )
+              ranges: group.ranges
+                .map((range, currentRangeIndex) =>
+                  currentRangeIndex === rangeIndex ? { ...range, ...patch } : range
+                )
+                .sort((a, b) => a.timeFrom.localeCompare(b.timeFrom))
             }
           : group
       )
@@ -243,7 +245,7 @@ export default function ProfilePanel({ profileId }) {
       ...prev,
       groups: prev.groups.map((group, index) =>
         index === groupIndex
-          ? { ...group, ranges: [...group.ranges, { timeFrom: '16:00', timeTo: '19:00' }] }
+          ? { ...group, ranges: [...group.ranges, { timeFrom: '16:00', timeTo: '19:00' }].sort((a, b) => a.timeFrom.localeCompare(b.timeFrom)) }
           : group
       )
     }))
