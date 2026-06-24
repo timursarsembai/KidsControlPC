@@ -36,7 +36,7 @@ function normalizeSchedule(schedule) {
     action: group?.action || schedule?.action || 'allow',
     weekdays: Array.isArray(group?.weekdays) ? group.weekdays : [0, 1, 2, 3, 4, 5, 6],
     ranges: Array.isArray(group?.ranges) && group.ranges.length > 0
-      ? group.ranges.map(range => normalizeRange(range))
+      ? group.ranges.map(range => normalizeRange(range)).sort((a, b) => a.timeFrom.localeCompare(b.timeFrom))
       : [{ timeFrom: '07:00', timeTo: '21:00' }]
   })
 
