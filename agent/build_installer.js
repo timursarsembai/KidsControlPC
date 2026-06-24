@@ -246,8 +246,8 @@ ${processCleanupCommands}
   nsExec::ExecToLog 'sc failure ${serviceId} reset= 60 actions= restart/10000/restart/30000/restart/60000'
   nsExec::ExecToLog 'sc failureflag ${serviceId} 1'
   
-  ; Add ChatTrayApp to Run registry for all users (HKLM)
-  WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "KidsControlChatTray" '"$INSTDIR\\ChatTrayApp.exe"'
+  ; Add ChatTrayApp to Run registry for all users (HKLM) — starts to tray at logon
+  WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "KidsControlChatTray" '"$INSTDIR\\ChatTrayApp.exe" --tray'
 
   ; Add TimerWidget to Run registry for all users (HKLM)
   WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "${registryRunValue}" '"$INSTDIR\\TimerWidget.exe"'

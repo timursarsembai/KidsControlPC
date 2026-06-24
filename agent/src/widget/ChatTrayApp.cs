@@ -46,10 +46,22 @@ namespace KidsControl
             }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            string dir = (args != null && args.Length > 0 && !string.IsNullOrWhiteSpace(args[0]))
-                ? args[0]
-                : null;
-            Application.Run(new ChatTrayApp(dir));
+
+            string dir = null;
+            bool startMinimized = false;
+            if (args != null)
+            {
+                foreach (string a in args)
+                {
+                    if (string.IsNullOrWhiteSpace(a)) continue;
+                    if (a.Equals("--tray", StringComparison.OrdinalIgnoreCase))
+                        startMinimized = true;
+                    else if (dir == null)
+                        dir = a;
+                }
+            }
+
+            Application.Run(new ChatTrayApp(dir, startMinimized));
             appMutex.ReleaseMutex();
             appMutex.Close();
         }
@@ -68,8 +80,9 @@ namespace KidsControl
         private HashSet<string> seenIds = new HashSet<string>();
         private int unread = 0;
         private string activeChatId = null;
+        private bool firstLoad = true;
 
-        public ChatTrayApp(string dataDir)
+        public ChatTrayApp(string dataDir, bool startMinimized)
         {
             string dir = dataDir;
             if (string.IsNullOrWhiteSpace(dir))
@@ -106,6 +119,8 @@ namespace KidsControl
             }
 
             LoadData();
+
+            if (!startMinimized) ShowWindow();
         }
 
         public static Icon LoadAppIcon()
@@ -213,7 +228,7 @@ namespace KidsControl
                                 if (msg.Id != null && !seenIds.Contains(msg.Id))
                                 {
                                     seenIds.Add(msg.Id);
-                                    if (msg.SenderType == "parent")
+                                    if (!firstLoad && msg.SenderType == "parent")
                                     {
                                         bool winOpen = window != null && window.Visible && activeChatId == kv.Key;
                                         if (!winOpen)
@@ -253,6 +268,8 @@ namespace KidsControl
 
                 if (window != null && window.Visible && window.IsHandleCreated)
                     window.BeginInvoke(new Action(delegate { window.RefreshData(chats, messages); }));
+
+                firstLoad = false;
             }
             catch { }
         }

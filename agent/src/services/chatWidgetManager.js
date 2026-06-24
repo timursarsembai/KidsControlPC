@@ -41,7 +41,7 @@ async function launchInUserSession(exe, dataDir) {
     'if (-not $explorer) { exit 1 }',
     '$owner = Invoke-CimMethod -InputObject $explorer -MethodName GetOwner',
     '$userId = \"$($owner.Domain)\\$($owner.User)\"',
-    `$action = New-ScheduledTaskAction -Execute '${escExe}' -Argument '\"${escDir}\"'`,
+    `$action = New-ScheduledTaskAction -Execute '${escExe}' -Argument '\"${escDir}\" --tray'`,
     '$principal = New-ScheduledTaskPrincipal -UserId $userId -LogonType Interactive -RunLevel Limited',
     '$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries',
     "Register-ScheduledTask -TaskName 'KCChatTrayStart' -Action $action -Principal $principal -Settings $settings -Force | Out-Null",
@@ -70,7 +70,7 @@ export async function startChatWidgetIfNeeded() {
     if (process.argv.includes('--service')) {
       await launchInUserSession(exe, CHAT_DATA_DIR)
     } else {
-      const child = spawn(exe, [CHAT_DATA_DIR], { detached: true, stdio: 'ignore' })
+      const child = spawn(exe, [CHAT_DATA_DIR, '--tray'], { detached: true, stdio: 'ignore' })
       child.unref()
     }
 
