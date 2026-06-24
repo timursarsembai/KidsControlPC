@@ -81,7 +81,7 @@ async function build() {
     execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /target:winexe /out:dist\\ScreenshotHelper.exe src\\widget\\ScreenshotHelper.cs', { stdio: 'inherit' })
 
     console.log('📦 2.95/5 Compiling ChatTrayApp.cs...')
-    execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /target:winexe /out:dist\\ChatTrayApp.exe src\\widget\\ChatTrayApp.cs', { stdio: 'inherit' })
+    execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /win32icon:assets\\chat.ico /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /target:winexe /out:dist\\ChatTrayApp.exe src\\widget\\ChatTrayApp.cs', { stdio: 'inherit' })
 
     console.log('📦 3/5 Downloading WinSW...')
     const winswPath = path.join(distDir, 'WinSW.exe')
@@ -266,6 +266,12 @@ ${processCleanupCommands}
 
   ; Start ChatTrayApp immediately for the current user (also autostarts at logon via Run key)
   Exec '"$INSTDIR\\ChatTrayApp.exe"'
+
+  ; Shortcuts for the messenger, visible to all users (parental-control context)
+  SetShellVarContext all
+  CreateShortcut "$DESKTOP\\KidsControlPC Chat.lnk" "$INSTDIR\\ChatTrayApp.exe" "" "$INSTDIR\\ChatTrayApp.exe" 0
+  CreateDirectory "$SMPROGRAMS\\KidsControlPC"
+  CreateShortcut "$SMPROGRAMS\\KidsControlPC\\KidsControlPC Chat.lnk" "$INSTDIR\\ChatTrayApp.exe" "" "$INSTDIR\\ChatTrayApp.exe" 0
   
   ; Create uninstaller
   WriteUninstaller "$INSTDIR\\uninstall.exe"
@@ -280,6 +286,12 @@ Section "Uninstall"
   ; Stop and uninstall service
   nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" stop'
   nsExec::ExecToLog '"$INSTDIR\\WinSW.exe" uninstall'
+
+  ; Remove messenger shortcuts (all users)
+  SetShellVarContext all
+  Delete "$DESKTOP\\KidsControlPC Chat.lnk"
+  Delete "$SMPROGRAMS\\KidsControlPC\\KidsControlPC Chat.lnk"
+  RMDir "$SMPROGRAMS\\KidsControlPC"
   
   ; Delete files
   Delete "$INSTDIR\\agent.exe"

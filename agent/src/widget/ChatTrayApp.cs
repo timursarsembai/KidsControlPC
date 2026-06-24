@@ -108,7 +108,23 @@ namespace KidsControl
             LoadData();
         }
 
+        public static Icon LoadAppIcon()
+        {
+            try
+            {
+                Icon ex = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+                if (ex != null) return ex;
+            }
+            catch { }
+            return DrawFallbackIcon();
+        }
+
         private Icon CreateIcon()
+        {
+            return LoadAppIcon();
+        }
+
+        private static Icon DrawFallbackIcon()
         {
             var bmp = new Bitmap(32, 32);
             using (var g = Graphics.FromImage(bmp))
@@ -331,6 +347,7 @@ namespace KidsControl
         {
             this.app = app;
             Text = "KidsControlPC — Чат";
+            try { Icon = ChatTrayApp.LoadAppIcon(); } catch { }
             Size = new Size(700, 540);
             MinimumSize = new Size(480, 380);
             StartPosition = FormStartPosition.CenterScreen;
