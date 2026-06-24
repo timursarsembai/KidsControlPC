@@ -2,7 +2,7 @@ import {
   addDoc, updateDoc, deleteDoc,
   onSnapshot, query, orderBy, limit,
   serverTimestamp as fsServerTimestamp,
-  arrayUnion, getDoc, getDocs
+  arrayUnion, getDocs
 } from 'firebase/firestore'
 import { chatsCol, chatDoc, messagesCol, messageDoc } from './paths.js'
 
@@ -33,9 +33,14 @@ export async function deleteChat(ownerUid, chatId) {
 }
 
 export function subscribeToChats(ownerUid, callback) {
-  const q = query(chatsCol(ownerUid), orderBy('updatedAt', 'desc'))
-  return onSnapshot(q, snap => {
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  return onSnapshot(chatsCol(ownerUid), snap => {
+    const chats = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.updatedAt?.toMillis?.() || 0) - (a.updatedAt?.toMillis?.() || 0))
+    callback(chats)
+  }, (err) => {
+    console.error('subscribeToChats error:', err)
+    callback([])
   })
 }
 
