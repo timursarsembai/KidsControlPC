@@ -4,6 +4,7 @@ import { eventBus, EVENTS } from './eventBus.js'
 
 let deviceConfig = null
 let activeRules = []
+let parentConfig = null
 
 function log(msg) {
   console.log(`[ConfigManager] ${msg}`)
@@ -52,4 +53,12 @@ export function setActiveRules(rules) {
   activeRules = rules
   saveConfigCache()
   eventBus.emit(EVENTS.RULES_UPDATED, rules)
+}
+
+export function getParentConfig() {
+  return parentConfig
+}
+
+export function setParentConfig(config) {
+  parentConfig = config
 }

@@ -1,6 +1,6 @@
 import path from 'path'
 import { updateDoc, doc, serverTimestamp } from 'firebase/firestore'
-import { getDeviceConfig, getActiveRules } from '../core/configManager.js'
+import { getDeviceConfig, getActiveRules, getParentConfig } from '../core/configManager.js'
 import { getRunningProcesses } from '../scanner.js'
 import { processReminders } from '../reminder.js'
 import { enforceProcessRules } from '../processEnforcer.js'
@@ -56,6 +56,12 @@ async function updateRunningStatuses(parentUid, deviceId, currentProcesses) {
 
 export async function enforceRules(parentUid, deviceId, isShuttingDown) {
   if (isShuttingDown) return
+
+  const parentConfig = getParentConfig()
+  if (parentConfig?.pauseAllRules) {
+    applyHostsBlock([])
+    return
+  }
 
   const deviceConfig = getDeviceConfig()
   const activeRules = getActiveRules()

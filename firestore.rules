@@ -19,6 +19,12 @@ service cloud.firestore {
       return isOwner(userId) || activeParentAccess(userId);
     }
 
+    // ── User root document (e.g. pauseAllRules flag) ─────────────────────────
+    match /users/{userId} {
+      allow read: if true;  // Agent reads pauseAllRules without auth
+      allow write: if canManageUser(userId);
+    }
+
     // ── User's own profile ────────────────────────────────────────────────────
     match /users/{userId}/profile/{document} {
       allow read, write: if isOwner(userId);

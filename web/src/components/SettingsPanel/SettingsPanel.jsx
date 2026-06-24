@@ -6,12 +6,14 @@ import AppLogsSection from './AppLogsSection'
 import AboutSection from './AboutSection'
 import DevicesSection from './DevicesSection'
 import ParentAccessSection from './ParentAccessSection'
+import PauseSection from './PauseSection'
 import './SettingsPanel.css'
 
 const TABS = [
   { id: 'devices', label: 'Устройства', icon: '🖥️' },
   { id: 'account', label: 'Аккаунт', icon: '👤' },
   { id: 'parents', label: 'Добавить родителя', icon: '👥' },
+  { id: 'pause', label: 'Снять блокировки', icon: '🔓' },
   { id: 'logs', label: 'Логи', icon: '📋' },
   { id: 'about', label: 'О приложении', icon: 'ℹ️' }
 ]
@@ -43,6 +45,7 @@ export default function SettingsPanel() {
         {activeTab === 'devices' && <DevicesSection uid={activeOwnerUid || user.uid} />}
         {activeTab === 'account' && <AccountSection user={user} />}
         {activeTab === 'parents' && <ParentAccessSection user={user} />}
+        {activeTab === 'pause' && <PauseSection />}
         {activeTab === 'logs' && <AppLogsSection />}
         {activeTab === 'about' && <AboutSection />}
       </div>

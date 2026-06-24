@@ -526,6 +526,81 @@
 .roadmap-item.pending { color: var(--accent); }
 .roadmap-item.future { color: var(--text-tertiary); }
 
+/* ── Pause (emergency unlock) ── */
+.pause-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.pause-card--active {
+  border-color: var(--warning, #f59e0b);
+}
+
+.pause-card-body {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-6);
+}
+
+.pause-card-info { flex: 1; }
+
+.pause-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.pause-card-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.pause-toggle {
+  flex-shrink: 0;
+  width: 52px;
+  height: 28px;
+  border-radius: 14px;
+  border: none;
+  background: var(--border-strong, #3a3a4a);
+  cursor: pointer;
+  position: relative;
+  transition: background 0.2s;
+  padding: 0;
+}
+.pause-toggle--on {
+  background: var(--warning, #f59e0b);
+}
+.pause-toggle:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.pause-toggle-knob {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+.pause-toggle--on .pause-toggle-knob {
+  transform: translateX(24px);
+}
+
+.pause-warning {
+  padding: 10px var(--space-6);
+  background: rgba(245, 158, 11, 0.1);
+  border-top: 1px solid rgba(245, 158, 11, 0.25);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--warning, #f59e0b);
+}
+
 /* Spinner */
 .btn-spinner-sm {
   width: 12px; height: 12px;

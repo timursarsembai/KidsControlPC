@@ -8,7 +8,7 @@ import {
 import { hostname } from 'os'
 import { firebaseConfig, AGENT_VERSION } from '../config.js'
 import { eventBus, EVENTS } from '../core/eventBus.js'
-import { setDeviceConfig, setActiveRules } from '../core/configManager.js'
+import { setDeviceConfig, setActiveRules, setParentConfig } from '../core/configManager.js'
 import { getRecentLogs } from '../core/logBuffer.js'
 
 export const app = initializeApp(firebaseConfig)
@@ -16,6 +16,7 @@ export const db = getFirestore(app)
 
 let parentUid = null
 let deviceId = null
+let unsubParent = null
 let unsubDevice = null
 let unsubRules = null
 let unsubCommands = null
@@ -54,6 +55,14 @@ export function initFirebaseSync(pUid, dId) {
   parentUid = pUid
   deviceId = dId
 
+  const parentRef = doc(db, 'users', parentUid)
+  unsubParent = onSnapshot(parentRef, (snap) => {
+    if (!snap.exists()) return
+    setParentConfig(snap.data())
+  }, (err) => {
+    log(`Firestore parent config error: ${err.message}`)
+  })
+
   const deviceRef = doc(db, 'users', parentUid, 'devices', deviceId)
   unsubDevice = onSnapshot(deviceRef, (snap) => {
     if (!snap.exists()) return
@@ -78,6 +87,7 @@ export function initFirebaseSync(pUid, dId) {
 }
 
 export function stopFirebaseSync() {
+  if (unsubParent) unsubParent()
   if (unsubDevice) unsubDevice()
   if (unsubRules) unsubRules()
   if (unsubCommands) unsubCommands()
