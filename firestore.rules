@@ -106,5 +106,20 @@ service cloud.firestore {
     match /users/{userId}/alerts/{alertId} {
       allow read, write: if true;  // Tighten after MVP
     }
+
+    // ── Chats ─────────────────────────────────────────────────────────────────
+    match /users/{userId}/chats/{chatId} {
+      allow read: if canManageUser(userId);
+      allow create: if canManageUser(userId);
+      allow update: if canManageUser(userId);
+      allow delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/chats/{chatId}/messages/{msgId} {
+      allow read: if canManageUser(userId) || true;  // agent reads without auth
+      allow create: if canManageUser(userId) || true; // agent writes without auth
+      allow update: if canManageUser(userId) || true; // agent marks readBy
+      allow delete: if isOwner(userId);
+    }
   }
 }

@@ -7,6 +7,10 @@
   background: var(--bg-base);
 }
 
+.content-area--chat {
+  padding: 0;
+}
+
 .content-header {
   padding: var(--space-5) var(--space-6);
   border-bottom: 1px solid var(--border);

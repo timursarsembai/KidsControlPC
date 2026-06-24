@@ -40,6 +40,8 @@ export const createAuthSlice = (set, get) => ({
     })
 
     set({ _unsubDevices: unsubDevices, _unsubAlerts: unsubAlerts })
+
+    get().initChats()
   },
 
   cleanup: () => {
@@ -66,5 +68,6 @@ export const createAuthSlice = (set, get) => ({
       _unsubScreenshots: null,
       _unsubAlerts: null
     })
+    get().cleanupChats()
   }
 })

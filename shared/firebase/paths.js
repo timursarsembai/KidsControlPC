@@ -19,3 +19,8 @@ export const alertDoc = (uid, alertId) => doc(db, 'users', uid, 'alerts', alertI
 
 export const pairingCodeDoc = (code) => doc(db, 'pairingCodes', code)
 export const profileDoc = (uid) => doc(db, 'users', uid, 'profile', 'data')
+
+export const chatsCol = (ownerUid) => collection(db, 'users', ownerUid, 'chats')
+export const chatDoc = (ownerUid, chatId) => doc(db, 'users', ownerUid, 'chats', chatId)
+export const messagesCol = (ownerUid, chatId) => collection(db, 'users', ownerUid, 'chats', chatId, 'messages')
+export const messageDoc = (ownerUid, chatId, msgId) => doc(db, 'users', ownerUid, 'chats', chatId, 'messages', msgId)

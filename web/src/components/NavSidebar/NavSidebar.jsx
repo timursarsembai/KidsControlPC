@@ -65,6 +65,24 @@ export default function Sidebar({ isMobileOpen = false, onMobileNavigate }) {
 
   return (
     <aside className={`nav-sidebar ${isMobileOpen ? 'mobile-open' : ''}`}>
+      {!showSettings && (
+        <button
+          className={`nav-sidebar-item nav-sidebar-chat-btn ${activeTab === 'chat' ? 'active' : ''}`}
+          onClick={() => handleMode('chat')}
+        >
+          <span className="nav-sidebar-icon">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+              <path d="M2 2.5h11a.5.5 0 01.5.5v7a.5.5 0 01-.5.5H5l-3 2.5V3a.5.5 0 01.5-.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+            </svg>
+          </span>
+          <span className="nav-sidebar-labels">
+            <span className="nav-sidebar-label">Чат</span>
+            <span className="nav-sidebar-sub">Сообщения с детьми</span>
+          </span>
+          {activeTab === 'chat' && <span className="nav-sidebar-active-bar" />}
+        </button>
+      )}
+
       {selectedDeviceId && !showSettings && (
         <>
           <ProfileSection

@@ -10,6 +10,7 @@ import PowerPanel from '../PowerPanel/PowerPanel'
 import RemindersPanel from '../RemindersPanel/RemindersPanel'
 import LogsPanel from '../LogsPanel/LogsPanel'
 import ScreenshotsPanel from '../ScreenshotsPanel/ScreenshotsPanel'
+import ChatPanel from '../ChatPanel/ChatPanel'
 import './ContentArea.css'
 
 // ── Empty state: no devices ───────────────────────────────────────────────────
@@ -77,6 +78,14 @@ export default function ContentArea() {
     ? { label: profileRule?.profileName || 'Новый режим', icon: profileRule?.profileIcon || '🧩', desc: 'Свои списки программ, сайтов и расписание' }
     : baseMeta
   const selectedDevice = devices.find(d => d.id === selectedDeviceId)
+
+  if (activeTab === 'chat') {
+    return (
+      <div className="content-area content-area--chat">
+        <ChatPanel />
+      </div>
+    )
+  }
 
   if (!selectedDeviceId || !selectedDevice) {
     if (activeTab === 'notifications') {

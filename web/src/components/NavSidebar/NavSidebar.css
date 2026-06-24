@@ -306,3 +306,5 @@
     display: none;
   }
 }
+
+.nav-sidebar-chat-btn { margin: 6px 8px 2px; border-radius: var(--radius-md); }
