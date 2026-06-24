@@ -1,6 +1,11 @@
 import { useState } from 'react'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 
+function isDeviceOnline(device) {
+  const lastSeen = device?.lastSeen?.toDate?.()
+  return device?.status !== 'offline' && lastSeen && (Date.now() - lastSeen.getTime()) < 2 * 60 * 1000
+}
+
 export default function GroupManager({ onClose, onCreated }) {
   const { devices, createGroupChat, createDirectChat } = useRulesStore()
   const [mode, setMode] = useState('group') // 'group' | 'direct'
@@ -93,8 +98,8 @@ export default function GroupManager({ onClose, onCreated }) {
                 />
                 <span className="group-device-icon">🖥️</span>
                 <span className="group-device-name">{device.alias || device.hostname || device.id}</span>
-                <span className={`group-device-status ${device.status === 'online' ? 'online' : 'offline'}`}>
-                  {device.status === 'online' ? 'онлайн' : 'офлайн'}
+                <span className={`group-device-status ${isDeviceOnline(device) ? 'online' : 'offline'}`}>
+                  {isDeviceOnline(device) ? 'онлайн' : 'офлайн'}
                 </span>
               </label>
             ))}

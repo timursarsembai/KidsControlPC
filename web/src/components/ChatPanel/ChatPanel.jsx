@@ -4,6 +4,11 @@ import MessageThread from './MessageThread'
 import GroupManager from './GroupManager'
 import './ChatPanel.css'
 
+function isDeviceOnline(device) {
+  const lastSeen = device?.lastSeen?.toDate?.()
+  return device?.status !== 'offline' && lastSeen && (Date.now() - lastSeen.getTime()) < 2 * 60 * 1000
+}
+
 function formatLastMessage(chat) {
   const lm = chat.lastMessage
   if (!lm) return 'Нет сообщений'
@@ -81,7 +86,7 @@ export default function ChatPanel() {
                   <div className="chat-list-name">
                     {chat.name}
                     {device && (
-                      <span className={`chat-device-dot ${device.status === 'online' ? 'online' : ''}`} />
+                      <span className={`chat-device-dot ${isDeviceOnline(device) ? 'online' : ''}`} />
                     )}
                   </div>
                   <div className="chat-list-preview">{formatLastMessage(chat)}</div>
