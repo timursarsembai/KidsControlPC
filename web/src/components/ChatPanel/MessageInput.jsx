@@ -106,7 +106,7 @@ export default function MessageInput({ onSend, disabled }) {
           type="button"
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <path d="M2 9l14-7-5 7 5 7-14-7z" fill="currentColor"/>
+            <path d="M16 9L2 2l5 7-5 7 14-7z" fill="currentColor"/>
           </svg>
         </button>
       </div>
