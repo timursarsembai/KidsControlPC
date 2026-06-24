@@ -20,6 +20,7 @@ import {
   PROGRAM_SCAN_INTERVAL_MS
 } from './services/programInventory.js'
 import { loadPairing, runPairingFlow } from './pairing.js'
+import { initChatSync, stopChatSync } from './services/chatSync.js'
 import { checkAndUpdateSilently } from './updater.js'
 import { delay } from './core/utils.js'
 import { clearHostsBlock } from './hostsBlocker.js'
@@ -54,6 +55,7 @@ async function shutdown(reason) {
 
   clearHostsBlock()
   stopScreenshotService()
+  stopChatSync()
   stopFirebaseSync()
   process.exit(0)
 }
@@ -116,6 +118,11 @@ async function main() {
     log('🔒 Cached deviceConfig shows lock is active! Locking instantly...')
     ensureWidgetLocked()
   }
+
+  // Chat sync: subscribe to chats for this device, handle child replies
+  const { hostname } = await import('os')
+  const chatDeviceName = dc?.alias || dc?.hostname || hostname()
+  initChatSync(parentUid, deviceId, chatDeviceName)
 
   await sendHeartbeat()
   log('💓 Heartbeat sent')

@@ -24,6 +24,7 @@ const processCleanupCommands = isStaging
 `
   : `  nsExec::ExecToLog 'taskkill /F /IM TimerWidget.exe'
   nsExec::ExecToLog 'taskkill /F /IM ReminderWidget.exe'
+  nsExec::ExecToLog 'taskkill /F /IM ChatTrayApp.exe'
   nsExec::ExecToLog 'taskkill /F /IM node.exe'
 `
 
@@ -78,6 +79,9 @@ async function build() {
 
     console.log('📦 2.9/5 Compiling ScreenshotHelper.cs...')
     execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /target:winexe /out:dist\\ScreenshotHelper.exe src\\widget\\ScreenshotHelper.cs', { stdio: 'inherit' })
+
+    console.log('📦 2.95/5 Compiling ChatTrayApp.cs...')
+    execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /target:winexe /out:dist\\ChatTrayApp.exe src\\widget\\ChatTrayApp.cs', { stdio: 'inherit' })
 
     console.log('📦 3/5 Downloading WinSW...')
     const winswPath = path.join(distDir, 'WinSW.exe')
@@ -230,6 +234,7 @@ ${processCleanupCommands}
   File "ScreenBlockerWidget.exe"
   File "CustomDialogWidget.exe"
   File "ScreenshotHelper.exe"
+  File "ChatTrayApp.exe"
   File "WinSW.exe"
   File "WinSW.xml"
   File "register_widget_task.ps1"
@@ -241,6 +246,9 @@ ${processCleanupCommands}
   nsExec::ExecToLog 'sc failure ${serviceId} reset= 60 actions= restart/10000/restart/30000/restart/60000'
   nsExec::ExecToLog 'sc failureflag ${serviceId} 1'
   
+  ; Add ChatTrayApp to Run registry for all users (HKLM)
+  WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "KidsControlChatTray" '"$INSTDIR\\ChatTrayApp.exe"'
+
   ; Add TimerWidget to Run registry for all users (HKLM)
   WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "${registryRunValue}" '"$INSTDIR\\TimerWidget.exe"'
   ; Also add an interactive logon scheduled task for the visible widget.
@@ -277,6 +285,7 @@ Section "Uninstall"
   Delete "$INSTDIR\\ScreenBlockerWidget.exe"
   Delete "$INSTDIR\\CustomDialogWidget.exe"
   Delete "$INSTDIR\\ScreenshotHelper.exe"
+  Delete "$INSTDIR\\ChatTrayApp.exe"
   Delete "$INSTDIR\\WinSW.exe"
   Delete "$INSTDIR\\WinSW.xml"
   Delete "$INSTDIR\\register_widget_task.ps1"
@@ -290,6 +299,7 @@ Section "Uninstall"
   ; Remove registry keys
   DeleteRegKey HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${uninstallKey}"
   DeleteRegValue HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "${registryRunValue}"
+  DeleteRegValue HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "KidsControlChatTray"
   nsExec::ExecToLog 'schtasks /Delete /TN "${widgetTaskName}" /F'
 SectionEnd
 `
