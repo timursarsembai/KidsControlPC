@@ -55,7 +55,7 @@ export function isScheduleGroupActive(group, now = new Date()) {
     if (from === null || rawTo === null) return false
 
     if (from === rawTo) {
-      return group.weekdays.includes(today)
+      return group.weekdays.includes(today) && currentMinute === from
     }
 
     const to = rawTo === 0 && from > 0 ? 1440 : rawTo
