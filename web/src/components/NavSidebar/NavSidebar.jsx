@@ -109,7 +109,7 @@ export default function Sidebar({ isMobileOpen = false, onMobileNavigate }) {
                   </span>
                   <span className="nav-sidebar-labels">
                     <span className="nav-sidebar-label">Питание</span>
-                    <span className="nav-sidebar-sub">Выключение, перезагрузка</span>
+                    <span className="nav-sidebar-sub">Выключение, перезагрузка, расписание</span>
                   </span>
                   {activeTab === 'power' && <span className="nav-sidebar-active-bar" />}
                 </button>
