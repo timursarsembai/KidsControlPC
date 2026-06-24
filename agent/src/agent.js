@@ -1,4 +1,5 @@
 import { createInterface } from 'readline'
+import { hostname } from 'os'
 import { initLogCapture } from './core/logBuffer.js'
 initLogCapture()
 
@@ -120,7 +121,6 @@ async function main() {
   }
 
   // Chat sync: subscribe to chats for this device, handle child replies
-  const { hostname } = await import('os')
   const chatDeviceName = dc?.alias || dc?.hostname || hostname()
   initChatSync(parentUid, deviceId, chatDeviceName)
 
