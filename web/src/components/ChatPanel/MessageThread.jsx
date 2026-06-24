@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import MessageInput from './MessageInput'
 
@@ -19,8 +19,14 @@ function formatDate(ts) {
 }
 
 export default function MessageThread({ chat }) {
-  const { user, chatMessages, sendChatMessage } = useRulesStore()
+  const { user, chatMessages, sendChatMessage, deleteGroupChat } = useRulesStore()
   const bottomRef = useRef(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const handleDelete = async () => {
+    await deleteGroupChat(chat.id)
+    setConfirmDelete(false)
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -37,9 +43,22 @@ export default function MessageThread({ chat }) {
       <div className="msg-thread-header">
         <div className="msg-thread-title">
           {chat.type === 'group' ? '👥' : '💬'} {chat.name}
+          {chat.type === 'group' && (
+            <span className="msg-thread-meta">{chat.deviceIds?.length || 0} устройств</span>
+          )}
         </div>
-        {chat.type === 'group' && (
-          <div className="msg-thread-meta">{chat.deviceIds?.length || 0} устройств</div>
+        {confirmDelete ? (
+          <div className="msg-delete-confirm">
+            <span>Удалить чат?</span>
+            <button className="btn btn-danger btn-sm" onClick={handleDelete}>Да</button>
+            <button className="btn btn-sm" onClick={() => setConfirmDelete(false)}>Нет</button>
+          </div>
+        ) : (
+          <button className="msg-delete-btn" onClick={() => setConfirmDelete(true)} title="Удалить чат">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 9h8l1-9H3z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
         )}
       </div>
 
