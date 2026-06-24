@@ -22,6 +22,7 @@ import {
 } from './services/programInventory.js'
 import { loadPairing, runPairingFlow } from './pairing.js'
 import { initChatSync, stopChatSync } from './services/chatSync.js'
+import { startChatWidgetIfNeeded } from './services/chatWidgetManager.js'
 import { checkAndUpdateSilently } from './updater.js'
 import { delay } from './core/utils.js'
 import { clearHostsBlock } from './hostsBlocker.js'
@@ -122,7 +123,8 @@ async function main() {
 
   // Chat sync: subscribe to chats for this device, handle child replies
   const chatDeviceName = dc?.alias || dc?.hostname || hostname()
-  initChatSync(parentUid, deviceId, chatDeviceName)
+  await initChatSync(parentUid, deviceId, chatDeviceName)
+  startChatWidgetIfNeeded().catch(e => log(`⚠️ Chat widget launch failed: ${e.message}`))
 
   await sendHeartbeat()
   log('💓 Heartbeat sent')
@@ -150,6 +152,11 @@ async function main() {
   }, PROGRAM_SCAN_INTERVAL_MS)
   setInterval(() => checkAndUpdateSilently(log), 2 * 60 * 60 * 1000)
   setTimeout(() => checkAndUpdateSilently(log), 10000)
+  setInterval(() => {
+    if (!isShuttingDown) {
+      startChatWidgetIfNeeded().catch(e => log(`⚠️ Chat widget watchdog failed: ${e.message}`))
+    }
+  }, 2 * 60 * 1000)
 
   log(`✅ Agent started and monitoring processes (DeviceID: ${deviceId})`)
 }

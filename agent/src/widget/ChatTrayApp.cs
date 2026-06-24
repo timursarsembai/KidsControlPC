@@ -46,7 +46,10 @@ namespace KidsControl
             }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new ChatTrayApp());
+            string dir = (args != null && args.Length > 0 && !string.IsNullOrWhiteSpace(args[0]))
+                ? args[0]
+                : null;
+            Application.Run(new ChatTrayApp(dir));
             appMutex.ReleaseMutex();
             appMutex.Close();
         }
@@ -66,9 +69,15 @@ namespace KidsControl
         private int unread = 0;
         private string activeChatId = null;
 
-        public ChatTrayApp()
+        public ChatTrayApp(string dataDir)
         {
-            string dir = AppDomain.CurrentDomain.BaseDirectory;
+            string dir = dataDir;
+            if (string.IsNullOrWhiteSpace(dir))
+            {
+                string programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+                dir = Path.Combine(programData, "KidsControlPC");
+            }
+            try { if (!Directory.Exists(dir)) Directory.CreateDirectory(dir); } catch { }
             dataPath = Path.Combine(dir, "chat_data.json");
             repliesPath = Path.Combine(dir, "chat_replies.json");
 

@@ -3,7 +3,7 @@
 import { join } from 'path'
 
 // Current version of the agent
-export const AGENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.1.46'
+export const AGENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.1.47'
 
 const buildEnvironment = typeof __KIDSCONTROL_ENV__ !== 'undefined' ? __KIDSCONTROL_ENV__ : null
 
@@ -34,6 +34,14 @@ export const firebaseConfig = firebaseConfigs[APP_ENV] || firebaseConfigs.produc
 
 // Stores linked parentUid + deviceId after first setup.
 export const PAIRING_FILE = join(process.cwd(), APP_ENV === 'production' ? 'pairing.json' : `pairing.${APP_ENV}.json`)
+
+// Shared, user-writable folder for IPC files between the SYSTEM service and the
+// interactive ChatTrayApp (which runs as a limited user and cannot write to
+// Program Files). Keep this path in sync with ChatTrayApp.cs default.
+export const CHAT_DATA_DIR = join(
+  process.env.ProgramData || 'C:\\ProgramData',
+  APP_ENV === 'production' ? 'KidsControlPC' : 'KidsControlPC-Dev'
+)
 
 // How often to send heartbeat to Firebase (ms)
 export const HEARTBEAT_INTERVAL_MS = 30_000   // 30 sec

@@ -5,6 +5,8 @@ import {
 } from 'firebase/firestore'
 import fs from 'fs'
 import path from 'path'
+import { execAsync } from '../core/utils.js'
+import { CHAT_DATA_DIR } from '../config.js'
 
 let parentUid = null
 let deviceId = null
@@ -19,8 +21,22 @@ function log(msg) {
   console.log('[ChatSync] ' + msg)
 }
 
-const dataPath = () => path.join(process.cwd(), 'chat_data.json')
-const repliesPath = () => path.join(process.cwd(), 'chat_replies.json')
+const dataPath = () => path.join(CHAT_DATA_DIR, 'chat_data.json')
+const repliesPath = () => path.join(CHAT_DATA_DIR, 'chat_replies.json')
+
+async function ensureDataDir() {
+  try {
+    if (!fs.existsSync(CHAT_DATA_DIR)) {
+      fs.mkdirSync(CHAT_DATA_DIR, { recursive: true })
+    }
+    // Grant interactive users modify rights so ChatTrayApp (limited user) can
+    // read chat_data.json and write chat_replies.json in this SYSTEM-owned dir.
+    await execAsync(`icacls "${CHAT_DATA_DIR}" /grant *S-1-5-32-545:(OI)(CI)M /T`, { timeout: 8000, windowsHide: true })
+      .catch(() => {})
+  } catch (e) {
+    log('ensureDataDir error: ' + e.message)
+  }
+}
 
 function writeChatData() {
   const payload = {
@@ -110,10 +126,12 @@ async function checkReplies() {
   }
 }
 
-export function initChatSync(pUid, dId, dName) {
+export async function initChatSync(pUid, dId, dName) {
   parentUid = pUid
   deviceId = dId
   deviceName = dName || 'Ребёнок'
+
+  await ensureDataDir()
 
   const chatsCol = collection(db, 'users', parentUid, 'chats')
   unsubChats = onSnapshot(chatsCol, (snap) => {

@@ -263,6 +263,9 @@ ${processCleanupCommands}
   
   ; Restart TimerWidget for the current interactive user
   nsExec::ExecToLog 'schtasks /Run /TN "${widgetTaskName}"'
+
+  ; Start ChatTrayApp immediately for the current user (also autostarts at logon via Run key)
+  Exec '"$INSTDIR\\ChatTrayApp.exe"'
   
   ; Create uninstaller
   WriteUninstaller "$INSTDIR\\uninstall.exe"
