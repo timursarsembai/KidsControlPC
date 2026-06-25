@@ -411,16 +411,10 @@ namespace KidsControl
             left.Width = 195;
             left.BackColor = Color.FromArgb(20, 23, 36);
 
-            var listTitle = new Label();
-            listTitle.Text = "Чаты";
-            listTitle.Font = new Font("Segoe UI", 11, FontStyle.Bold);
-            listTitle.ForeColor = Color.White;
-            listTitle.Dock = DockStyle.Top;
-            listTitle.Height = 40;
-            listTitle.TextAlign = ContentAlignment.MiddleLeft;
-            listTitle.Padding = new Padding(12, 0, 0, 0);
-            left.Controls.Add(listTitle);
-
+            // IMPORTANT: docking is applied in REVERSE z-order, so the Fill
+            // control must be added FIRST (processed last → gets remaining
+            // space). Adding it last makes it fill the whole panel and hide the
+            // Top/Bottom controls (and vice-versa).
             chatList = new ListBox();
             chatList.Dock = DockStyle.Fill;
             chatList.BackColor = Color.FromArgb(28, 32, 48);
@@ -431,6 +425,16 @@ namespace KidsControl
             chatList.IntegralHeight = false;
             chatList.SelectedIndexChanged += OnChatSelected;
             left.Controls.Add(chatList);
+
+            var listTitle = new Label();
+            listTitle.Text = "Чаты";
+            listTitle.Font = new Font("Segoe UI", 11, FontStyle.Bold);
+            listTitle.ForeColor = Color.White;
+            listTitle.Dock = DockStyle.Top;
+            listTitle.Height = 40;
+            listTitle.TextAlign = ContentAlignment.MiddleLeft;
+            listTitle.Padding = new Padding(12, 0, 0, 0);
+            left.Controls.Add(listTitle);
 
             Controls.Add(left);
 
@@ -446,23 +450,18 @@ namespace KidsControl
             right.Dock = DockStyle.Fill;
             right.BackColor = Color.FromArgb(15, 17, 26);
 
-            header = new Label();
-            header.Text = "Выберите чат";
-            header.Font = new Font("Segoe UI", 11, FontStyle.Bold);
-            header.ForeColor = Color.White;
-            header.Dock = DockStyle.Top;
-            header.Height = 42;
-            header.TextAlign = ContentAlignment.MiddleLeft;
-            header.Padding = new Padding(14, 0, 0, 0);
-            right.Controls.Add(header);
+            // Fill control added FIRST (see note above), then edge controls.
+            msgBox = new RichTextBox();
+            msgBox.Dock = DockStyle.Fill;
+            msgBox.BackColor = Color.FromArgb(15, 17, 26);
+            msgBox.ForeColor = Color.FromArgb(200, 210, 230);
+            msgBox.Font = new Font("Segoe UI", 10);
+            msgBox.ReadOnly = true;
+            msgBox.BorderStyle = BorderStyle.None;
+            msgBox.Padding = new Padding(8);
+            right.Controls.Add(msgBox);
 
-            var hline = new Panel();
-            hline.Dock = DockStyle.Top;
-            hline.Height = 1;
-            hline.BackColor = Color.FromArgb(38, 43, 62);
-            right.Controls.Add(hline);
-
-            // Input panel (must be added before Fill to get proper docking)
+            // Input panel (Bottom)
             var inputPanel = new Panel();
             inputPanel.Dock = DockStyle.Bottom;
             inputPanel.Height = 56;
@@ -505,15 +504,21 @@ namespace KidsControl
 
             right.Controls.Add(inputPanel);
 
-            msgBox = new RichTextBox();
-            msgBox.Dock = DockStyle.Fill;
-            msgBox.BackColor = Color.FromArgb(15, 17, 26);
-            msgBox.ForeColor = Color.FromArgb(200, 210, 230);
-            msgBox.Font = new Font("Segoe UI", 10);
-            msgBox.ReadOnly = true;
-            msgBox.BorderStyle = BorderStyle.None;
-            msgBox.Padding = new Padding(8);
-            right.Controls.Add(msgBox);
+            var hline = new Panel();
+            hline.Dock = DockStyle.Top;
+            hline.Height = 1;
+            hline.BackColor = Color.FromArgb(38, 43, 62);
+            right.Controls.Add(hline);
+
+            header = new Label();
+            header.Text = "Выберите чат";
+            header.Font = new Font("Segoe UI", 11, FontStyle.Bold);
+            header.ForeColor = Color.White;
+            header.Dock = DockStyle.Top;
+            header.Height = 42;
+            header.TextAlign = ContentAlignment.MiddleLeft;
+            header.Padding = new Padding(14, 0, 0, 0);
+            right.Controls.Add(header);
 
             Controls.Add(right);
         }
