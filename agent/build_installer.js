@@ -80,8 +80,30 @@ async function build() {
     console.log('📦 2.9/5 Compiling ScreenshotHelper.cs...')
     execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /target:winexe /out:dist\\ScreenshotHelper.exe src\\widget\\ScreenshotHelper.cs', { stdio: 'inherit' })
 
+    console.log('📦 2.93/5 Getting WebView2 SDK...')
+    const wv2Version = '1.0.3351.48'
+    const wv2NupkgPath = path.join(distDir, 'webview2.nupkg')
+    const wv2ExtractPath = path.join(distDir, 'webview2_sdk')
+    const wv2CoreDll = path.join(distDir, 'Microsoft.Web.WebView2.Core.dll')
+    const wv2WinFormsDll = path.join(distDir, 'Microsoft.Web.WebView2.WinForms.dll')
+    const wv2LoaderDll = path.join(distDir, 'WebView2Loader.dll')
+    if (!fs.existsSync(wv2CoreDll) || !fs.existsSync(wv2WinFormsDll)) {
+      if (!fs.existsSync(wv2NupkgPath)) {
+        console.log('  Downloading WebView2 NuGet package...')
+        await download(`https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/${wv2Version}`, wv2NupkgPath)
+      }
+      console.log('  Extracting WebView2 DLLs...')
+      if (fs.existsSync(wv2ExtractPath)) execSync(`rmdir /s /q "${wv2ExtractPath}"`, { stdio: 'pipe', shell: true })
+      const wv2ZipPath = wv2NupkgPath.replace('.nupkg', '.zip')
+      fs.copyFileSync(wv2NupkgPath, wv2ZipPath)
+      execSync(`powershell -Command "Expand-Archive -Path '${wv2ZipPath}' -DestinationPath '${wv2ExtractPath}' -Force"`, { stdio: 'inherit' })
+      fs.copyFileSync(path.join(wv2ExtractPath, 'lib', 'net462', 'Microsoft.Web.WebView2.Core.dll'), wv2CoreDll)
+      fs.copyFileSync(path.join(wv2ExtractPath, 'lib', 'net462', 'Microsoft.Web.WebView2.WinForms.dll'), wv2WinFormsDll)
+      fs.copyFileSync(path.join(wv2ExtractPath, 'runtimes', 'win-x64', 'native', 'WebView2Loader.dll'), wv2LoaderDll)
+    }
+
     console.log('📦 2.95/5 Compiling ChatTrayApp.cs...')
-    execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /win32icon:assets\\chat.ico /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /target:winexe /out:dist\\ChatTrayApp.exe src\\widget\\ChatTrayApp.cs', { stdio: 'inherit' })
+    execSync(`C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /win32icon:assets\\chat.ico /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:dist\\Microsoft.Web.WebView2.Core.dll /reference:dist\\Microsoft.Web.WebView2.WinForms.dll /target:winexe /out:dist\\ChatTrayApp.exe src\\widget\\ChatTrayApp.cs`, { stdio: 'inherit' })
 
     console.log('📦 3/5 Downloading WinSW...')
     const winswPath = path.join(distDir, 'WinSW.exe')
@@ -235,6 +257,9 @@ ${processCleanupCommands}
   File "CustomDialogWidget.exe"
   File "ScreenshotHelper.exe"
   File "ChatTrayApp.exe"
+  File "Microsoft.Web.WebView2.Core.dll"
+  File "Microsoft.Web.WebView2.WinForms.dll"
+  File "WebView2Loader.dll"
   File "WinSW.exe"
   File "WinSW.xml"
   File "register_widget_task.ps1"
@@ -301,6 +326,9 @@ Section "Uninstall"
   Delete "$INSTDIR\\CustomDialogWidget.exe"
   Delete "$INSTDIR\\ScreenshotHelper.exe"
   Delete "$INSTDIR\\ChatTrayApp.exe"
+  Delete "$INSTDIR\\Microsoft.Web.WebView2.Core.dll"
+  Delete "$INSTDIR\\Microsoft.Web.WebView2.WinForms.dll"
+  Delete "$INSTDIR\\WebView2Loader.dll"
   Delete "$INSTDIR\\WinSW.exe"
   Delete "$INSTDIR\\WinSW.xml"
   Delete "$INSTDIR\\register_widget_task.ps1"

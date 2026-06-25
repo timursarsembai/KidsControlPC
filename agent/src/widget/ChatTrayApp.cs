@@ -4,11 +4,12 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Media;
-using System.Net;
 using System.Text;
 using System.Threading;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
+using Microsoft.Web.WebView2.WinForms;
+using Microsoft.Web.WebView2.Core;
 
 namespace KidsControl
 {
@@ -41,11 +42,7 @@ namespace KidsControl
         {
             bool createdNew;
             appMutex = new Mutex(true, "KidsControlChatTrayApp_v1", out createdNew);
-            if (!createdNew)
-            {
-                appMutex.Close();
-                return;
-            }
+            if (!createdNew) { appMutex.Close(); return; }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
@@ -56,10 +53,8 @@ namespace KidsControl
                 foreach (string a in args)
                 {
                     if (string.IsNullOrWhiteSpace(a)) continue;
-                    if (a.Equals("--tray", StringComparison.OrdinalIgnoreCase))
-                        startMinimized = true;
-                    else if (dir == null)
-                        dir = a;
+                    if (a.Equals("--tray", StringComparison.OrdinalIgnoreCase)) startMinimized = true;
+                    else if (dir == null) dir = a;
                 }
             }
 
@@ -123,25 +118,16 @@ namespace KidsControl
             }
 
             LoadData();
-
             if (!startMinimized) ShowWindow();
         }
 
         public static Icon LoadAppIcon()
         {
-            try
-            {
-                Icon ex = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
-                if (ex != null) return ex;
-            }
-            catch { }
+            try { Icon ex = Icon.ExtractAssociatedIcon(Application.ExecutablePath); if (ex != null) return ex; } catch { }
             return DrawFallbackIcon();
         }
 
-        private Icon CreateIcon()
-        {
-            return LoadAppIcon();
-        }
+        private Icon CreateIcon() { return LoadAppIcon(); }
 
         private static Icon DrawFallbackIcon()
         {
@@ -166,24 +152,19 @@ namespace KidsControl
 
         private void WriteLog(string msg)
         {
-            try
-            {
-                string logPath = Path.Combine(Path.GetDirectoryName(dataPath), "chat_debug.log");
-                File.AppendAllText(logPath, DateTime.Now.ToString("HH:mm:ss.fff") + " " + msg + "\r\n", Encoding.UTF8);
-            }
-            catch { }
+            try { File.AppendAllText(LogPath, DateTime.Now.ToString("HH:mm:ss.fff") + " " + msg + "\r\n", Encoding.UTF8); } catch { }
         }
 
         private void LoadData()
         {
-            if (!File.Exists(dataPath)) { WriteLog("LoadData: file not found: " + dataPath); return; }
+            if (!File.Exists(dataPath)) return;
             string json = null;
             for (int i = 0; i < 3; i++)
             {
                 try { json = File.ReadAllText(dataPath, Encoding.UTF8); break; }
                 catch (IOException) { Thread.Sleep(100); }
             }
-            if (string.IsNullOrWhiteSpace(json)) { WriteLog("LoadData: empty json"); return; }
+            if (string.IsNullOrWhiteSpace(json)) return;
 
             try
             {
@@ -195,8 +176,7 @@ namespace KidsControl
                 var newChats = new List<ChatData>();
                 if (root.ContainsKey("chats") && root["chats"] is ArrayList)
                 {
-                    var ca = (ArrayList)root["chats"];
-                    foreach (object raw in ca)
+                    foreach (object raw in (ArrayList)root["chats"])
                     {
                         var c = raw as Dictionary<string, object>;
                         if (c == null) continue;
@@ -205,10 +185,7 @@ namespace KidsControl
                         cd.Name = Str(c, "name") ?? "Чат";
                         cd.Type = Str(c, "type") ?? "group";
                         if (c.ContainsKey("lastMessage") && c["lastMessage"] is Dictionary<string, object>)
-                        {
-                            var lm = (Dictionary<string, object>)c["lastMessage"];
-                            cd.LastText = Str(lm, "text");
-                        }
+                            cd.LastText = Str((Dictionary<string, object>)c["lastMessage"], "text");
                         if (cd.Id != null) newChats.Add(cd);
                     }
                 }
@@ -219,14 +196,12 @@ namespace KidsControl
 
                 if (root.ContainsKey("messages") && root["messages"] is Dictionary<string, object>)
                 {
-                    var md = (Dictionary<string, object>)root["messages"];
-                    foreach (var kv in md)
+                    foreach (var kv in (Dictionary<string, object>)root["messages"])
                     {
                         var list = new List<ChatMsg>();
                         if (kv.Value is ArrayList)
                         {
-                            var ma = (ArrayList)kv.Value;
-                            foreach (object rawM in ma)
+                            foreach (object rawM in (ArrayList)kv.Value)
                             {
                                 var m = rawM as Dictionary<string, object>;
                                 if (m == null) continue;
@@ -255,10 +230,7 @@ namespace KidsControl
                                         }
                                     }
                                 }
-                                else if (msg.Id != null)
-                                {
-                                    seenIds.Add(msg.Id);
-                                }
+                                else if (msg.Id != null) seenIds.Add(msg.Id);
 
                                 if (msg.Id != null) list.Add(msg);
                             }
@@ -269,7 +241,6 @@ namespace KidsControl
 
                 chats = newChats;
                 messages = newMsgs;
-                WriteLog("LoadData: ok, chats=" + chats.Count + " msgKeys=" + messages.Count);
 
                 if (hasNew)
                 {
@@ -299,10 +270,7 @@ namespace KidsControl
         {
             unread = 0;
             tray.Text = "KidsControlPC — Чат";
-
-            WriteLog("ShowWindow called, chats before load=" + chats.Count);
             LoadData();
-            WriteLog("ShowWindow after load, chats=" + chats.Count);
 
             if (window == null || window.IsDisposed)
                 window = new ChatForm(this);
@@ -312,10 +280,6 @@ namespace KidsControl
             window.WindowState = FormWindowState.Normal;
             window.BringToFront();
             window.Activate();
-            // Force repaint — Windows may skip WM_PAINT for windows that open
-            // behind another window (focus-steal prevention), leaving the
-            // owner-draw ListBox blank until the user interacts with it.
-            window.Refresh();
         }
 
         public void SetActiveChat(string chatId) { activeChatId = chatId; }
@@ -363,11 +327,7 @@ namespace KidsControl
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing)
-            {
-                tray.Dispose();
-                if (watcher != null) watcher.Dispose();
-            }
+            if (disposing) { tray.Dispose(); if (watcher != null) watcher.Dispose(); }
             base.Dispose(disposing);
         }
     }
@@ -375,26 +335,14 @@ namespace KidsControl
     public class ChatForm : Form
     {
         private ChatTrayApp app;
-        private string logPath;
-        private ListBox chatList;
-        private Panel msgPanel;
-        private TextBox inputBox;
-        private Label header;
-        private static readonly Dictionary<string, Image> imgCache = new Dictionary<string, Image>();
-
-        private List<ChatData> chats;
-        private Dictionary<string, List<ChatMsg>> messages;
-        private string selChat;
-
-        private void Log(string msg)
-        {
-            try { if (logPath != null) File.AppendAllText(logPath, DateTime.Now.ToString("HH:mm:ss.fff") + " [Form] " + msg + "\r\n", Encoding.UTF8); } catch { }
-        }
+        private WebView2 webView;
+        private bool webViewReady = false;
+        private List<ChatData> pendingChats;
+        private Dictionary<string, List<ChatMsg>> pendingMessages;
 
         public ChatForm(ChatTrayApp app)
         {
             this.app = app;
-            logPath = app.LogPath;
             Text = "KidsControlPC — Чат";
             try { Icon = ChatTrayApp.LoadAppIcon(); } catch { }
             Size = new Size(700, 540);
@@ -404,357 +352,390 @@ namespace KidsControl
             ShowInTaskbar = true;
             FormClosing += delegate(object s, FormClosingEventArgs e) { e.Cancel = true; Hide(); };
 
-            BuildUI();
+            webView = new WebView2();
+            webView.Dock = DockStyle.Fill;
+            Controls.Add(webView);
+
+            webView.CoreWebView2InitializationCompleted += OnWebViewReady;
+            var unused = webView.EnsureCoreWebView2Async(null);
         }
 
-        private void BuildUI()
+        private void OnWebViewReady(object sender, CoreWebView2InitializationCompletedEventArgs e)
         {
-            // Left panel: chat list
-            var left = new Panel();
-            left.Dock = DockStyle.Left;
-            left.Width = 195;
-            left.BackColor = Color.FromArgb(20, 23, 36);
+            if (!e.IsSuccess) return;
+            webView.CoreWebView2.Settings.IsWebMessageEnabled = true;
+            webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
+            webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
+            webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
+            webView.CoreWebView2.WebMessageReceived += OnWebMessage;
+            webView.CoreWebView2.NavigateToString(GetHtml());
+            webViewReady = true;
+            if (pendingChats != null)
+                PushData(pendingChats, pendingMessages);
+        }
 
-            // IMPORTANT: docking is applied in REVERSE z-order, so the Fill
-            // control must be added FIRST (processed last → gets remaining
-            // space). Adding it last makes it fill the whole panel and hide the
-            // Top/Bottom controls (and vice-versa).
-            chatList = new ListBox();
-            chatList.Dock = DockStyle.Fill;
-            chatList.BackColor = Color.FromArgb(28, 32, 48);
-            chatList.ForeColor = Color.FromArgb(210, 220, 240);
-            chatList.BorderStyle = BorderStyle.None;
-            chatList.Font = new Font("Segoe UI", 10);
-            chatList.ItemHeight = 32;
-            chatList.IntegralHeight = false;
-            chatList.SelectedIndexChanged += OnChatSelected;
-            left.Controls.Add(chatList);
-
-            var listTitle = new Label();
-            listTitle.Text = "Чаты";
-            listTitle.Font = new Font("Segoe UI", 11, FontStyle.Bold);
-            listTitle.ForeColor = Color.White;
-            listTitle.Dock = DockStyle.Top;
-            listTitle.Height = 40;
-            listTitle.TextAlign = ContentAlignment.MiddleLeft;
-            listTitle.Padding = new Padding(12, 0, 0, 0);
-            left.Controls.Add(listTitle);
-
-            // Separator
-            var sep = new Panel();
-            sep.Dock = DockStyle.Left;
-            sep.Width = 1;
-            sep.BackColor = Color.FromArgb(38, 43, 62);
-
-            // Right panel
-            var right = new Panel();
-            right.Dock = DockStyle.Fill;
-            right.BackColor = Color.FromArgb(15, 17, 26);
-
-            // Fill control added FIRST (see note above), then edge controls.
-            msgPanel = new Panel();
-            msgPanel.Dock = DockStyle.Fill;
-            msgPanel.BackColor = Color.FromArgb(15, 17, 26);
-            msgPanel.AutoScroll = true;
-            msgPanel.Resize += delegate { RenderMessages(); };
-            right.Controls.Add(msgPanel);
-
-            // Input panel (Bottom)
-            var inputPanel = new Panel();
-            inputPanel.Dock = DockStyle.Bottom;
-            inputPanel.Height = 56;
-            inputPanel.BackColor = Color.FromArgb(20, 23, 36);
-            inputPanel.Padding = new Padding(10, 10, 10, 10);
-
-            inputBox = new TextBox();
-            inputBox.BackColor = Color.FromArgb(30, 34, 52);
-            inputBox.ForeColor = Color.FromArgb(215, 225, 240);
-            inputBox.Font = new Font("Segoe UI", 10);
-            inputBox.BorderStyle = BorderStyle.None;
-            inputBox.Location = new Point(10, 12);
-            inputBox.Size = new Size(570, 32);
-            inputBox.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
-            inputBox.KeyDown += delegate(object s, KeyEventArgs e)
+        private void OnWebMessage(object sender, CoreWebView2WebMessageReceivedEventArgs e)
+        {
+            try
             {
-                if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; TrySend(); }
-            };
-            inputPanel.Controls.Add(inputBox);
-
-            var sendBtn = new Button();
-            sendBtn.Text = ">";
-            sendBtn.Font = new Font("Segoe UI", 13, FontStyle.Bold);
-            sendBtn.Size = new Size(44, 32);
-            sendBtn.Anchor = AnchorStyles.Right | AnchorStyles.Top;
-            sendBtn.Location = new Point(inputPanel.Width - 54, 12);
-            sendBtn.BackColor = Color.FromArgb(99, 102, 241);
-            sendBtn.ForeColor = Color.White;
-            sendBtn.FlatStyle = FlatStyle.Flat;
-            sendBtn.FlatAppearance.BorderSize = 0;
-            sendBtn.Cursor = Cursors.Hand;
-            sendBtn.Click += delegate { TrySend(); };
-            inputPanel.Controls.Add(sendBtn);
-
-            inputPanel.Resize += delegate
-            {
-                inputBox.Width = inputPanel.Width - 74;
-                sendBtn.Location = new Point(inputPanel.Width - 54, 12);
-            };
-
-            right.Controls.Add(inputPanel);
-
-            var hline = new Panel();
-            hline.Dock = DockStyle.Top;
-            hline.Height = 1;
-            hline.BackColor = Color.FromArgb(38, 43, 62);
-            right.Controls.Add(hline);
-
-            header = new Label();
-            header.Text = "Выберите чат";
-            header.Font = new Font("Segoe UI", 11, FontStyle.Bold);
-            header.ForeColor = Color.White;
-            header.Dock = DockStyle.Top;
-            header.Height = 42;
-            header.TextAlign = ContentAlignment.MiddleLeft;
-            header.Padding = new Padding(14, 0, 0, 0);
-            right.Controls.Add(header);
-
-            // Add top-level panels with the Fill control (right) FIRST so it is
-            // laid out last and takes the remaining space instead of covering the
-            // left list panel. Reverse z-order docking: right → sep → left.
-            Controls.Add(right);
-            Controls.Add(sep);
-            Controls.Add(left);
-        }
-
-        private void OnChatSelected(object sender, EventArgs e)
-        {
-            if (chats == null || chatList.SelectedIndex < 0 || chatList.SelectedIndex >= chats.Count) return;
-            var c = chats[chatList.SelectedIndex];
-            selChat = c.Id;
-            app.SetActiveChat(selChat);
-            header.Text = c.Name;
-            RenderMessages();
-        }
-
-        private bool rendering;
-
-        private void RenderMessages()
-        {
-            if (rendering || msgPanel == null) return;
-            rendering = true;
-            try { RenderMessagesCore(); }
-            catch (Exception ex) { Log("RenderMessages EX: " + ex.Message); }
-            finally { rendering = false; }
-        }
-
-        private void RenderMessagesCore()
-        {
-            msgPanel.SuspendLayout();
-            // Dispose old message controls
-            var old = new List<Control>();
-            foreach (Control c in msgPanel.Controls) old.Add(c);
-            msgPanel.Controls.Clear();
-            foreach (var c in old) c.Dispose();
-
-            List<ChatMsg> list = null;
-            if (selChat != null && messages != null)
-                messages.TryGetValue(selChat, out list);
-
-            int contentW = msgPanel.ClientSize.Width;
-            int margin = 12;
-
-            if (list == null || list.Count == 0)
-            {
-                var empty = new Label();
-                empty.AutoSize = false;
-                empty.Width = contentW;
-                empty.Height = 30;
-                empty.TextAlign = ContentAlignment.MiddleCenter;
-                empty.ForeColor = Color.FromArgb(100, 115, 140);
-                empty.Font = new Font("Segoe UI Emoji", 9.5f);
-                empty.Location = new Point(0, 20);
-                empty.Text = "Нет сообщений. Напишите первым!";
-                msgPanel.Controls.Add(empty);
-                msgPanel.ResumeLayout();
-                return;
+                var json = e.TryGetWebMessageAsString();
+                var ser = new JavaScriptSerializer();
+                var msg = ser.Deserialize<Dictionary<string, object>>(json);
+                if (msg == null) return;
+                string type = msg.ContainsKey("type") ? msg["type"].ToString() : "";
+                if (type == "selectChat")
+                {
+                    string chatId = msg.ContainsKey("chatId") ? msg["chatId"].ToString() : null;
+                    if (chatId != null) app.SetActiveChat(chatId);
+                }
+                else if (type == "send")
+                {
+                    string chatId = msg.ContainsKey("chatId") ? msg["chatId"].ToString() : null;
+                    string text = msg.ContainsKey("text") ? msg["text"].ToString() : null;
+                    if (chatId != null && !string.IsNullOrEmpty(text)) app.SendReply(chatId, text);
+                }
             }
-
-            int maxBubble = (int)(contentW * 0.66);
-            if (maxBubble < 140) maxBubble = 140;
-            int y = 8;
-            string lastDate = null;
-            var ru = new System.Globalization.CultureInfo("ru-RU");
-            Control last = null;
-
-            foreach (var m in list)
-            {
-                // Date divider
-                if (m.Timestamp != DateTime.MinValue)
-                {
-                    string d = m.Timestamp.ToLocalTime().ToString("d MMMM", ru);
-                    if (d != lastDate)
-                    {
-                        lastDate = d;
-                        var dl = new Label();
-                        dl.AutoSize = false;
-                        dl.Width = contentW;
-                        dl.Height = 24;
-                        dl.TextAlign = ContentAlignment.MiddleCenter;
-                        dl.ForeColor = Color.FromArgb(95, 110, 135);
-                        dl.Font = new Font("Segoe UI Emoji", 8f);
-                        dl.Location = new Point(0, y);
-                        dl.Text = d;
-                        msgPanel.Controls.Add(dl);
-                        last = dl;
-                        y += 28;
-                    }
-                }
-
-                bool mine = m.IsChild;
-                Color bubbleBg = mine ? Color.FromArgb(99, 102, 241) : Color.FromArgb(38, 42, 60);
-                Color textColor = mine ? Color.White : Color.FromArgb(222, 230, 245);
-
-                // Sender label (for incoming only)
-                if (!mine)
-                {
-                    var sn = new Label();
-                    sn.AutoSize = true;
-                    sn.MaximumSize = new Size(maxBubble, 0);
-                    sn.ForeColor = Color.FromArgb(150, 165, 235);
-                    sn.Font = new Font("Segoe UI Emoji", 8f, FontStyle.Bold);
-                    sn.Text = string.IsNullOrEmpty(m.SenderName) ? "Родитель" : m.SenderName;
-                    sn.Location = new Point(margin, y);
-                    msgPanel.Controls.Add(sn);
-                    last = sn;
-                    y += sn.Height + 2;
-                }
-
-                // Bubble
-                var bubble = new Panel();
-                bubble.BackColor = bubbleBg;
-
-                bool isGif = string.IsNullOrEmpty(m.Text) && !string.IsNullOrEmpty(m.GifUrl);
-                if (isGif)
-                {
-                    var pb = new PictureBox();
-                    pb.Size = new Size(200, 150);
-                    pb.Location = new Point(6, 6);
-                    pb.SizeMode = PictureBoxSizeMode.Zoom;
-                    pb.BackColor = bubbleBg;
-                    bubble.Controls.Add(pb);
-                    bubble.Width = pb.Width + 12;
-                    bubble.Height = pb.Height + 12;
-                    string url = !string.IsNullOrEmpty(m.GifPreviewUrl) ? m.GifPreviewUrl : m.GifUrl;
-                    LoadImageAsync(pb, url);
-                }
-                else
-                {
-                    var tl = new Label();
-                    tl.AutoSize = true;
-                    tl.MaximumSize = new Size(maxBubble - 20, 0);
-                    tl.Font = new Font("Segoe UI Emoji", 11f);
-                    tl.ForeColor = textColor;
-                    tl.Text = string.IsNullOrEmpty(m.Text) ? "[вложение]" : m.Text;
-                    tl.Location = new Point(10, 7);
-                    bubble.Controls.Add(tl);
-                    bubble.Width = tl.Width + 20;
-                    bubble.Height = tl.Height + 16;
-                }
-
-                int bx = mine ? (contentW - margin - bubble.Width) : margin;
-                if (bx < margin) bx = margin;
-                bubble.Location = new Point(bx, y);
-                msgPanel.Controls.Add(bubble);
-                last = bubble;
-                y += bubble.Height + 2;
-
-                // Time
-                string time = m.Timestamp != DateTime.MinValue ? m.Timestamp.ToLocalTime().ToString("HH:mm") : "";
-                if (time.Length > 0)
-                {
-                    var tm = new Label();
-                    tm.AutoSize = true;
-                    tm.ForeColor = Color.FromArgb(95, 110, 135);
-                    tm.Font = new Font("Segoe UI Emoji", 7.5f);
-                    tm.Text = time;
-                    int tx = mine ? (contentW - margin - 36) : margin + 2;
-                    tm.Location = new Point(tx, y);
-                    msgPanel.Controls.Add(tm);
-                    last = tm;
-                    y += 18;
-                }
-
-                y += 6;
-            }
-
-            msgPanel.ResumeLayout();
-            if (last != null) msgPanel.ScrollControlIntoView(last);
-        }
-
-        private void LoadImageAsync(PictureBox pb, string url)
-        {
-            if (string.IsNullOrEmpty(url)) return;
-            lock (imgCache)
-            {
-                if (imgCache.ContainsKey(url)) { try { pb.Image = imgCache[url]; } catch { } return; }
-            }
-            ThreadPool.QueueUserWorkItem(delegate
-            {
-                try
-                {
-                    var wc = new WebClient();
-                    byte[] data = wc.DownloadData(url);
-                    var img = Image.FromStream(new MemoryStream(data));
-                    lock (imgCache) { imgCache[url] = img; }
-                    if (pb.IsHandleCreated && !pb.IsDisposed)
-                        pb.BeginInvoke(new Action(delegate { try { pb.Image = img; } catch { } }));
-                }
-                catch { }
-            });
-        }
-
-        private void TrySend()
-        {
-            if (selChat == null)
-            {
-                MessageBox.Show("Выберите чат.", "KidsControlPC", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-            string t = inputBox.Text.Trim();
-            if (string.IsNullOrEmpty(t)) return;
-            inputBox.Clear();
-            app.SendReply(selChat, t);
+            catch { }
         }
 
         public void RefreshData(List<ChatData> newChats, Dictionary<string, List<ChatMsg>> newMsgs)
         {
-            if (InvokeRequired)
+            if (InvokeRequired) { BeginInvoke(new Action(delegate { RefreshData(newChats, newMsgs); })); return; }
+            if (webViewReady)
+                PushData(newChats, newMsgs);
+            else
             {
-                BeginInvoke(new Action(delegate { RefreshData(newChats, newMsgs); }));
-                return;
+                pendingChats = newChats;
+                pendingMessages = newMsgs;
             }
-            chats = newChats;
-            messages = newMsgs;
-            Log("RefreshData: chats=" + (chats != null ? chats.Count.ToString() : "null") + " InvokeRequired=" + InvokeRequired);
+        }
 
-            int prev = chatList.SelectedIndex;
-            chatList.Items.Clear();
-            if (chats != null)
-                foreach (var c in chats)
-                    chatList.Items.Add(c.Name);
-            Log("RefreshData: chatList.Items.Count=" + chatList.Items.Count);
+        private void PushData(List<ChatData> chatList, Dictionary<string, List<ChatMsg>> msgs)
+        {
+            if (chatList == null) return;
+            var ser = new JavaScriptSerializer();
+            ser.MaxJsonLength = int.MaxValue;
 
-            if (selChat != null && chats != null)
+            var chatsArr = new List<Dictionary<string, object>>();
+            foreach (var c in chatList)
             {
-                int idx = chats.FindIndex(delegate(ChatData c) { return c.Id == selChat; });
-                if (idx >= 0) chatList.SelectedIndex = idx;
-            }
-            else if (prev >= 0 && chatList.Items.Count > prev)
-            {
-                chatList.SelectedIndex = prev;
+                var d = new Dictionary<string, object>();
+                d["id"] = c.Id ?? "";
+                d["name"] = c.Name ?? "";
+                d["lastText"] = c.LastText ?? "";
+                chatsArr.Add(d);
             }
 
-            RenderMessages();
+            var msgsObj = new Dictionary<string, object>();
+            if (msgs != null)
+            {
+                foreach (var kv in msgs)
+                {
+                    var list = new List<Dictionary<string, object>>();
+                    foreach (var m in kv.Value)
+                    {
+                        var d = new Dictionary<string, object>();
+                        d["id"] = m.Id ?? "";
+                        d["text"] = m.Text ?? "";
+                        d["gifUrl"] = m.GifUrl ?? "";
+                        d["gifPreviewUrl"] = m.GifPreviewUrl ?? "";
+                        d["senderName"] = m.SenderName ?? "";
+                        d["senderType"] = m.SenderType ?? "parent";
+                        d["timestamp"] = m.Timestamp != DateTime.MinValue ? (object)m.Timestamp.ToString("o") : null;
+                        list.Add(d);
+                    }
+                    msgsObj[kv.Key] = list;
+                }
+            }
+
+            var payload = new Dictionary<string, object>();
+            payload["chats"] = chatsArr;
+            payload["messages"] = msgsObj;
+
+            string json = ser.Serialize(payload);
+            var unused = webView.CoreWebView2.ExecuteScriptAsync("updateData(" + json + ")");
+        }
+
+        private static string GetHtml()
+        {
+            return @"<!DOCTYPE html>
+<html>
+<head>
+<meta charset='UTF-8'>
+<meta name='color-scheme' content='dark'>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  background: #0f111a;
+  color: #dde6f5;
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  font-size: 14px;
+  user-select: none;
+}
+#sidebar {
+  width: 200px;
+  min-width: 200px;
+  background: #141724;
+  border-right: 1px solid #1e2336;
+  display: flex;
+  flex-direction: column;
+}
+#sidebar-title {
+  padding: 14px 14px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #5a6880;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  flex-shrink: 0;
+}
+#chat-list { flex: 1; overflow-y: auto; padding: 0 6px 6px; }
+#chat-list::-webkit-scrollbar { width: 4px; }
+#chat-list::-webkit-scrollbar-thumb { background: #252a40; border-radius: 2px; }
+.chat-item {
+  padding: 8px 10px;
+  cursor: pointer;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  transition: background 0.1s;
+}
+.chat-item:hover { background: #1c2035; }
+.chat-item.active { background: #222d52; }
+.chat-avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #818cf8);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+  color: white;
+  font-weight: 700;
+}
+.chat-info { overflow: hidden; flex: 1; min-width: 0; }
+.chat-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #e2eaf8; }
+.chat-preview { font-size: 11px; color: #4e5d78; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+#main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+#header {
+  padding: 0 16px;
+  height: 50px;
+  border-bottom: 1px solid #1a1e2e;
+  display: flex;
+  align-items: center;
+  background: #0d0f1c;
+  flex-shrink: 0;
+}
+#header-name { font-weight: 700; font-size: 15px; }
+#messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+#messages::-webkit-scrollbar { width: 5px; }
+#messages::-webkit-scrollbar-track { background: transparent; }
+#messages::-webkit-scrollbar-thumb { background: #20263a; border-radius: 3px; }
+.date-div {
+  text-align: center;
+  font-size: 11px;
+  color: #3e4a60;
+  margin: 10px 0 6px;
+}
+.msg-row { display: flex; flex-direction: column; margin-bottom: 2px; }
+.msg-row.out { align-items: flex-end; }
+.msg-row.in { align-items: flex-start; }
+.sender { font-size: 11px; color: #6878b0; font-weight: 600; margin-bottom: 3px; margin-left: 2px; }
+.bubble {
+  max-width: 66%;
+  padding: 8px 12px;
+  border-radius: 18px;
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.in .bubble { background: #1b1f35; border-bottom-left-radius: 5px; color: #d8e2f5; }
+.out .bubble { background: #5254cc; border-bottom-right-radius: 5px; color: #fff; }
+.bubble img { max-width: 220px; max-height: 200px; border-radius: 10px; display: block; }
+.msg-time { font-size: 10px; color: #363f58; margin-top: 3px; padding: 0 2px; }
+.empty-msg {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  color: #363f58; font-size: 14px; text-align: center;
+}
+#input-area {
+  padding: 10px 14px 12px;
+  background: #111320;
+  border-top: 1px solid #1a1e2e;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+#input-box {
+  flex: 1;
+  background: #181c2e;
+  border: 1px solid #242840;
+  border-radius: 20px;
+  padding: 9px 16px;
+  color: #dde6f5;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  resize: none;
+  min-height: 38px;
+  max-height: 120px;
+  overflow-y: auto;
+  line-height: 1.4;
+  user-select: text;
+  transition: border-color 0.15s;
+}
+#input-box:focus { border-color: #4648a8; }
+#input-box::placeholder { color: #333d58; }
+#send-btn {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: #6366f1;
+  border: none;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s, transform 0.1s;
+}
+#send-btn:hover { background: #5254cc; }
+#send-btn:active { transform: scale(0.93); }
+#send-btn svg { width: 18px; height: 18px; fill: white; margin-left: 2px; }
+</style>
+</head>
+<body>
+<div id='sidebar'>
+  <div id='sidebar-title'>Чаты</div>
+  <div id='chat-list'></div>
+</div>
+<div id='main'>
+  <div id='header'><span id='header-name'>Выберите чат</span></div>
+  <div id='messages'><div class='empty-msg'>Выберите чат слева</div></div>
+  <div id='input-area'>
+    <textarea id='input-box' placeholder='Написать сообщение...' rows='1'></textarea>
+    <button id='send-btn'>
+      <svg viewBox='0 0 24 24'><path d='M2.01 21L23 12 2.01 3 2 10l15 2-15 2z'/></svg>
+    </button>
+  </div>
+</div>
+<script>
+var currentChatId = null;
+var allData = {chats:[], messages:{}};
+
+function updateData(data) {
+  allData = data;
+  renderChatList();
+  if (currentChatId) renderMessages(currentChatId);
+}
+
+function renderChatList() {
+  var list = document.getElementById('chat-list');
+  list.innerHTML = '';
+  (allData.chats || []).forEach(function(chat) {
+    var div = document.createElement('div');
+    div.className = 'chat-item' + (chat.id === currentChatId ? ' active' : '');
+    var first = (chat.name || '?').charAt(0).toUpperCase();
+    div.innerHTML =
+      '<div class=\'chat-avatar\'>' + first + '</div>' +
+      '<div class=\'chat-info\'>' +
+        '<div class=\'chat-name\'>' + esc(chat.name) + '</div>' +
+        '<div class=\'chat-preview\'>' + esc(chat.lastText || '') + '</div>' +
+      '</div>';
+    (function(cid, cname) {
+      div.onclick = function() { selectChat(cid, cname); };
+    })(chat.id, chat.name);
+    list.appendChild(div);
+  });
+}
+
+function selectChat(chatId, chatName) {
+  currentChatId = chatId;
+  document.getElementById('header-name').textContent = chatName || '';
+  renderChatList();
+  renderMessages(chatId);
+  window.chrome.webview.postMessage(JSON.stringify({type:'selectChat',chatId:chatId}));
+}
+
+function renderMessages(chatId) {
+  var msgs = (allData.messages || {})[chatId] || [];
+  var container = document.getElementById('messages');
+  container.innerHTML = '';
+  if (msgs.length === 0) {
+    container.innerHTML = '<div class=\'empty-msg\'>Нет сообщений. Напишите первым! 💬</div>';
+    return;
+  }
+  var lastDate = null;
+  msgs.forEach(function(m) {
+    var ts = m.timestamp ? new Date(m.timestamp) : null;
+    if (ts) {
+      var dateStr = ts.toLocaleDateString('ru-RU', {day:'numeric',month:'long'});
+      if (dateStr !== lastDate) {
+        lastDate = dateStr;
+        var dd = document.createElement('div');
+        dd.className = 'date-div';
+        dd.textContent = dateStr;
+        container.appendChild(dd);
+      }
+    }
+    var isChild = m.senderType === 'child';
+    var row = document.createElement('div');
+    row.className = 'msg-row ' + (isChild ? 'out' : 'in');
+    var html = '';
+    if (!isChild) {
+      html += '<div class=\'sender\'>' + esc(m.senderName || 'Родитель') + '</div>';
+    }
+    var isGif = !m.text && (m.gifUrl || m.gifPreviewUrl);
+    var bubbleInner = isGif
+      ? '<img src=\'' + escA(m.gifPreviewUrl || m.gifUrl) + '\' alt=\'GIF\'>'
+      : esc(m.text || '');
+    html += '<div class=\'bubble\'>' + bubbleInner + '</div>';
+    if (ts) {
+      var t2 = ts.toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'});
+      html += '<div class=\'msg-time\'>' + t2 + '</div>';
+    }
+    row.innerHTML = html;
+    container.appendChild(row);
+  });
+  container.scrollTop = container.scrollHeight;
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function escA(s) {
+  return String(s).replace(/'/g,'%27').replace(/""/g,'%22');
+}
+
+document.getElementById('send-btn').onclick = sendMsg;
+document.getElementById('input-box').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+});
+document.getElementById('input-box').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+function sendMsg() {
+  if (!currentChatId) return;
+  var box = document.getElementById('input-box');
+  var text = box.value.trim();
+  if (!text) return;
+  box.value = '';
+  box.style.height = 'auto';
+  window.chrome.webview.postMessage(JSON.stringify({type:'send',chatId:currentChatId,text:text}));
+}
+</script>
+</body>
+</html>";
         }
     }
 }
