@@ -69,6 +69,7 @@ function subscribeToMessages(chatId) {
           id: d.id,
           text: m.text || '',
           gifUrl: m.gifUrl || null,
+          gifPreviewUrl: m.gifPreviewUrl || null,
           senderName: m.senderName || '',
           senderType: m.senderType || 'parent',
           timestamp: m.timestamp?.toDate?.()?.toISOString() || null

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Media;
+using System.Net;
 using System.Text;
 using System.Threading;
 using System.Web.Script.Serialization;
@@ -24,6 +25,7 @@ namespace KidsControl
         public string Id;
         public string Text;
         public string GifUrl;
+        public string GifPreviewUrl;
         public string SenderName;
         public string SenderType;
         public DateTime Timestamp;
@@ -232,6 +234,7 @@ namespace KidsControl
                                 msg.Id = Str(m, "id");
                                 msg.Text = Str(m, "text") ?? "";
                                 msg.GifUrl = Str(m, "gifUrl");
+                                msg.GifPreviewUrl = Str(m, "gifPreviewUrl");
                                 msg.SenderName = Str(m, "senderName") ?? "";
                                 msg.SenderType = Str(m, "senderType") ?? "parent";
                                 string ts = Str(m, "timestamp");
@@ -374,9 +377,10 @@ namespace KidsControl
         private ChatTrayApp app;
         private string logPath;
         private ListBox chatList;
-        private RichTextBox msgBox;
+        private Panel msgPanel;
         private TextBox inputBox;
         private Label header;
+        private static readonly Dictionary<string, Image> imgCache = new Dictionary<string, Image>();
 
         private List<ChatData> chats;
         private Dictionary<string, List<ChatMsg>> messages;
@@ -448,15 +452,12 @@ namespace KidsControl
             right.BackColor = Color.FromArgb(15, 17, 26);
 
             // Fill control added FIRST (see note above), then edge controls.
-            msgBox = new RichTextBox();
-            msgBox.Dock = DockStyle.Fill;
-            msgBox.BackColor = Color.FromArgb(15, 17, 26);
-            msgBox.ForeColor = Color.FromArgb(200, 210, 230);
-            msgBox.Font = new Font("Segoe UI", 10);
-            msgBox.ReadOnly = true;
-            msgBox.BorderStyle = BorderStyle.None;
-            msgBox.Padding = new Padding(8);
-            right.Controls.Add(msgBox);
+            msgPanel = new Panel();
+            msgPanel.Dock = DockStyle.Fill;
+            msgPanel.BackColor = Color.FromArgb(15, 17, 26);
+            msgPanel.AutoScroll = true;
+            msgPanel.Resize += delegate { RenderMessages(); };
+            right.Controls.Add(msgPanel);
 
             // Input panel (Bottom)
             var inputPanel = new Panel();
@@ -535,72 +536,181 @@ namespace KidsControl
             RenderMessages();
         }
 
+        private bool rendering;
+
         private void RenderMessages()
         {
-            msgBox.Clear();
+            if (rendering || msgPanel == null) return;
+            rendering = true;
+            try { RenderMessagesCore(); }
+            catch (Exception ex) { Log("RenderMessages EX: " + ex.Message); }
+            finally { rendering = false; }
+        }
+
+        private void RenderMessagesCore()
+        {
+            msgPanel.SuspendLayout();
+            // Dispose old message controls
+            var old = new List<Control>();
+            foreach (Control c in msgPanel.Controls) old.Add(c);
+            msgPanel.Controls.Clear();
+            foreach (var c in old) c.Dispose();
+
             List<ChatMsg> list = null;
             if (selChat != null && messages != null)
                 messages.TryGetValue(selChat, out list);
 
+            int contentW = msgPanel.ClientSize.Width;
+            int margin = 12;
+
             if (list == null || list.Count == 0)
             {
-                msgBox.SelectionColor = Color.FromArgb(100, 115, 140);
-                msgBox.AppendText("Нет сообщений. Напишите первым!\n");
+                var empty = new Label();
+                empty.AutoSize = false;
+                empty.Width = contentW;
+                empty.Height = 30;
+                empty.TextAlign = ContentAlignment.MiddleCenter;
+                empty.ForeColor = Color.FromArgb(100, 115, 140);
+                empty.Font = new Font("Segoe UI Emoji", 9.5f);
+                empty.Location = new Point(0, 20);
+                empty.Text = "Нет сообщений. Напишите первым!";
+                msgPanel.Controls.Add(empty);
+                msgPanel.ResumeLayout();
                 return;
             }
 
+            int maxBubble = (int)(contentW * 0.66);
+            if (maxBubble < 140) maxBubble = 140;
+            int y = 8;
             string lastDate = null;
-            var ruCulture = new System.Globalization.CultureInfo("ru-RU");
+            var ru = new System.Globalization.CultureInfo("ru-RU");
+            Control last = null;
 
             foreach (var m in list)
             {
+                // Date divider
                 if (m.Timestamp != DateTime.MinValue)
                 {
-                    string d = m.Timestamp.ToLocalTime().ToString("d MMMM", ruCulture);
+                    string d = m.Timestamp.ToLocalTime().ToString("d MMMM", ru);
                     if (d != lastDate)
                     {
                         lastDate = d;
-                        msgBox.SelectionAlignment = HorizontalAlignment.Center;
-                        msgBox.SelectionColor = Color.FromArgb(85, 100, 125);
-                        msgBox.SelectionFont = new Font("Segoe UI Emoji", 8f);
-                        msgBox.AppendText("\n" + d + "\n\n");
+                        var dl = new Label();
+                        dl.AutoSize = false;
+                        dl.Width = contentW;
+                        dl.Height = 24;
+                        dl.TextAlign = ContentAlignment.MiddleCenter;
+                        dl.ForeColor = Color.FromArgb(95, 110, 135);
+                        dl.Font = new Font("Segoe UI Emoji", 8f);
+                        dl.Location = new Point(0, y);
+                        dl.Text = d;
+                        msgPanel.Controls.Add(dl);
+                        last = dl;
+                        y += 28;
                     }
                 }
 
                 bool mine = m.IsChild;
-                string time = m.Timestamp != DateTime.MinValue ? m.Timestamp.ToLocalTime().ToString("HH:mm") : "";
-                string body = !string.IsNullOrEmpty(m.Text) ? m.Text : (!string.IsNullOrEmpty(m.GifUrl) ? "[GIF]" : "");
+                Color bubbleBg = mine ? Color.FromArgb(99, 102, 241) : Color.FromArgb(38, 42, 60);
+                Color textColor = mine ? Color.White : Color.FromArgb(222, 230, 245);
 
-                if (mine)
+                // Sender label (for incoming only)
+                if (!mine)
                 {
-                    msgBox.SelectionAlignment = HorizontalAlignment.Right;
-                    msgBox.SelectionColor = Color.FromArgb(115, 130, 155);
-                    msgBox.SelectionFont = new Font("Segoe UI Emoji", 8.5f);
-                    msgBox.AppendText("Вы\n");
-                    msgBox.SelectionAlignment = HorizontalAlignment.Right;
-                    msgBox.SelectionColor = Color.FromArgb(165, 172, 255);
-                    msgBox.SelectionFont = new Font("Segoe UI Emoji", 10);
-                    msgBox.AppendText(body);
+                    var sn = new Label();
+                    sn.AutoSize = true;
+                    sn.MaximumSize = new Size(maxBubble, 0);
+                    sn.ForeColor = Color.FromArgb(150, 165, 235);
+                    sn.Font = new Font("Segoe UI Emoji", 8f, FontStyle.Bold);
+                    sn.Text = string.IsNullOrEmpty(m.SenderName) ? "Родитель" : m.SenderName;
+                    sn.Location = new Point(margin, y);
+                    msgPanel.Controls.Add(sn);
+                    last = sn;
+                    y += sn.Height + 2;
+                }
+
+                // Bubble
+                var bubble = new Panel();
+                bubble.BackColor = bubbleBg;
+
+                bool isGif = string.IsNullOrEmpty(m.Text) && !string.IsNullOrEmpty(m.GifUrl);
+                if (isGif)
+                {
+                    var pb = new PictureBox();
+                    pb.Size = new Size(200, 150);
+                    pb.Location = new Point(6, 6);
+                    pb.SizeMode = PictureBoxSizeMode.Zoom;
+                    pb.BackColor = bubbleBg;
+                    bubble.Controls.Add(pb);
+                    bubble.Width = pb.Width + 12;
+                    bubble.Height = pb.Height + 12;
+                    string url = !string.IsNullOrEmpty(m.GifPreviewUrl) ? m.GifPreviewUrl : m.GifUrl;
+                    LoadImageAsync(pb, url);
                 }
                 else
                 {
-                    msgBox.SelectionAlignment = HorizontalAlignment.Left;
-                    msgBox.SelectionColor = Color.FromArgb(115, 130, 155);
-                    msgBox.SelectionFont = new Font("Segoe UI Emoji", 8.5f);
-                    msgBox.AppendText((string.IsNullOrEmpty(m.SenderName) ? "Родитель" : m.SenderName) + "\n");
-                    msgBox.SelectionAlignment = HorizontalAlignment.Left;
-                    msgBox.SelectionColor = Color.FromArgb(215, 225, 240);
-                    msgBox.SelectionFont = new Font("Segoe UI Emoji", 10);
-                    msgBox.AppendText(body);
+                    var tl = new Label();
+                    tl.AutoSize = true;
+                    tl.MaximumSize = new Size(maxBubble - 20, 0);
+                    tl.Font = new Font("Segoe UI Emoji", 11f);
+                    tl.ForeColor = textColor;
+                    tl.Text = string.IsNullOrEmpty(m.Text) ? "[вложение]" : m.Text;
+                    tl.Location = new Point(10, 7);
+                    bubble.Controls.Add(tl);
+                    bubble.Width = tl.Width + 20;
+                    bubble.Height = tl.Height + 16;
                 }
 
-                msgBox.SelectionColor = Color.FromArgb(85, 100, 125);
-                msgBox.SelectionFont = new Font("Segoe UI Emoji", 7.5f);
-                msgBox.AppendText("  " + time + "\n\n");
+                int bx = mine ? (contentW - margin - bubble.Width) : margin;
+                if (bx < margin) bx = margin;
+                bubble.Location = new Point(bx, y);
+                msgPanel.Controls.Add(bubble);
+                last = bubble;
+                y += bubble.Height + 2;
+
+                // Time
+                string time = m.Timestamp != DateTime.MinValue ? m.Timestamp.ToLocalTime().ToString("HH:mm") : "";
+                if (time.Length > 0)
+                {
+                    var tm = new Label();
+                    tm.AutoSize = true;
+                    tm.ForeColor = Color.FromArgb(95, 110, 135);
+                    tm.Font = new Font("Segoe UI Emoji", 7.5f);
+                    tm.Text = time;
+                    int tx = mine ? (contentW - margin - 36) : margin + 2;
+                    tm.Location = new Point(tx, y);
+                    msgPanel.Controls.Add(tm);
+                    last = tm;
+                    y += 18;
+                }
+
+                y += 6;
             }
 
-            msgBox.SelectionStart = msgBox.Text.Length;
-            msgBox.ScrollToCaret();
+            msgPanel.ResumeLayout();
+            if (last != null) msgPanel.ScrollControlIntoView(last);
+        }
+
+        private void LoadImageAsync(PictureBox pb, string url)
+        {
+            if (string.IsNullOrEmpty(url)) return;
+            lock (imgCache)
+            {
+                if (imgCache.ContainsKey(url)) { try { pb.Image = imgCache[url]; } catch { } return; }
+            }
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                try
+                {
+                    var wc = new WebClient();
+                    byte[] data = wc.DownloadData(url);
+                    var img = Image.FromStream(new MemoryStream(data));
+                    lock (imgCache) { imgCache[url] = img; }
+                    if (pb.IsHandleCreated && !pb.IsDisposed)
+                        pb.BeginInvoke(new Action(delegate { try { pb.Image = img; } catch { } }));
+                }
+                catch { }
+            });
         }
 
         private void TrySend()
