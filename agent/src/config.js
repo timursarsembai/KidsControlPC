@@ -3,7 +3,7 @@
 import { join } from 'path'
 
 // Current version of the agent
-export const AGENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.1.54'
+export const AGENT_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.1.55'
 
 const buildEnvironment = typeof __KIDSCONTROL_ENV__ !== 'undefined' ? __KIDSCONTROL_ENV__ : null
 

@@ -560,8 +560,8 @@ namespace KidsControl
                         lastDate = d;
                         msgBox.SelectionAlignment = HorizontalAlignment.Center;
                         msgBox.SelectionColor = Color.FromArgb(85, 100, 125);
-                        msgBox.SelectionFont = new Font("Segoe UI", 8f);
-                        msgBox.AppendText("\n── " + d + " ──\n\n");
+                        msgBox.SelectionFont = new Font("Segoe UI Emoji", 8f);
+                        msgBox.AppendText("\n" + d + "\n\n");
                     }
                 }
 
@@ -573,27 +573,27 @@ namespace KidsControl
                 {
                     msgBox.SelectionAlignment = HorizontalAlignment.Right;
                     msgBox.SelectionColor = Color.FromArgb(115, 130, 155);
-                    msgBox.SelectionFont = new Font("Segoe UI", 8.5f);
+                    msgBox.SelectionFont = new Font("Segoe UI Emoji", 8.5f);
                     msgBox.AppendText("Вы\n");
                     msgBox.SelectionAlignment = HorizontalAlignment.Right;
                     msgBox.SelectionColor = Color.FromArgb(165, 172, 255);
-                    msgBox.SelectionFont = new Font("Segoe UI", 10);
+                    msgBox.SelectionFont = new Font("Segoe UI Emoji", 10);
                     msgBox.AppendText(body);
                 }
                 else
                 {
                     msgBox.SelectionAlignment = HorizontalAlignment.Left;
                     msgBox.SelectionColor = Color.FromArgb(115, 130, 155);
-                    msgBox.SelectionFont = new Font("Segoe UI", 8.5f);
+                    msgBox.SelectionFont = new Font("Segoe UI Emoji", 8.5f);
                     msgBox.AppendText((string.IsNullOrEmpty(m.SenderName) ? "Родитель" : m.SenderName) + "\n");
                     msgBox.SelectionAlignment = HorizontalAlignment.Left;
                     msgBox.SelectionColor = Color.FromArgb(215, 225, 240);
-                    msgBox.SelectionFont = new Font("Segoe UI", 10);
+                    msgBox.SelectionFont = new Font("Segoe UI Emoji", 10);
                     msgBox.AppendText(body);
                 }
 
                 msgBox.SelectionColor = Color.FromArgb(85, 100, 125);
-                msgBox.SelectionFont = new Font("Segoe UI", 7.5f);
+                msgBox.SelectionFont = new Font("Segoe UI Emoji", 7.5f);
                 msgBox.AppendText("  " + time + "\n\n");
             }
 

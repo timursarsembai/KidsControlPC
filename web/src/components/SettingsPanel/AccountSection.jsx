@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { signOut } from 'firebase/auth'
 import { auth } from '@kidscontrol/shared/firebase/config'
@@ -5,7 +6,15 @@ import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 
 export default function AccountSection({ user }) {
   const { t } = useTranslation()
-  const { accountRole } = useRulesStore()
+  const { accountRole, userProfile, setChatDisplayName } = useRulesStore()
+  const [chatName, setChatName] = useState(userProfile?.chatName || '')
+  const [saved, setSaved] = useState(false)
+
+  const handleSaveChatName = async () => {
+    await setChatDisplayName(chatName.trim())
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
 
   return (
     <section className="settings-section">
@@ -27,6 +36,29 @@ export default function AccountSection({ user }) {
             <span className="plan-badge">{accountRole === 'parent' ? 'Родитель' : 'Владелец'}</span>
             <span className="account-since">ID: {user?.uid.slice(0, 8)}...</span>
           </div>
+        </div>
+      </div>
+
+      <div className="chat-name-setting" style={{ margin: '20px 0' }}>
+        <label className="settings-field-label" style={{ display: 'block', marginBottom: 8, fontWeight: 600 }}>
+          Имя в чате с детьми
+        </label>
+        <p className="settings-section-desc" style={{ marginTop: 0, marginBottom: 10 }}>
+          Как дети будут видеть вас в мессенджере (например: Папа, Мама, Бабушка)
+        </p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            type="text"
+            className="settings-input"
+            value={chatName}
+            onChange={e => setChatName(e.target.value)}
+            placeholder="Папа"
+            maxLength={40}
+            style={{ flex: 1, padding: '10px 12px', borderRadius: 8 }}
+          />
+          <button className="btn btn-primary" onClick={handleSaveChatName} type="button">
+            {saved ? '✓ Сохранено' : 'Сохранить'}
+          </button>
         </div>
       </div>
 

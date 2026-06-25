@@ -6,6 +6,7 @@ import {
   sendMessage,
   subscribeToMessages
 } from '../../firebase/chats.repo.js'
+import { updateChatName } from '../../firebase/profile.repo.js'
 
 export const createChatSlice = (set, get) => ({
   chats: [],
@@ -90,18 +91,29 @@ export const createChatSlice = (set, get) => ({
   },
 
   sendChatMessage: async (chatId, { text, gifUrl, gifPreviewUrl }) => {
-    const { user, activeOwnerUid } = get()
+    const { user, activeOwnerUid, userProfile } = get()
     if (!user) return
     const ownerUid = activeOwnerUid || user.uid
-    const senderName = user.displayName || user.email?.split('@')[0] || 'Родитель'
+    const senderName = userProfile?.chatName || user.displayName || user.email?.split('@')[0] || 'Родитель'
     await sendMessage(ownerUid, chatId, {
       text,
       gifUrl,
       gifPreviewUrl,
       senderType: 'parent',
       senderUid: user.uid,
-      senderName
+      senderName,
+      // Denormalized onto the chat doc so the child's widget can show who they
+      // are talking to (the parent's role) instead of the device-oriented name.
+      parentName: senderName
     })
+  },
+
+  // Save the parent's chat display name (role) shown to children, e.g. "Папа".
+  setChatDisplayName: async (chatName) => {
+    const { user, userProfile } = get()
+    if (!user) return
+    await updateChatName(user.uid, chatName)
+    set({ userProfile: { ...(userProfile || {}), chatName } })
   },
 
   getChatUnreadCount: (chatId) => {

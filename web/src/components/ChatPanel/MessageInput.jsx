@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import Picker from '@emoji-mart/react'
 import data from '@emoji-mart/data'
 import GifPicker from './GifPicker'
@@ -9,6 +9,22 @@ export default function MessageInput({ onSend, disabled }) {
   const [showGif, setShowGif] = useState(false)
   const [pendingGif, setPendingGif] = useState(null)
   const textareaRef = useRef(null)
+  const emojiWrapRef = useRef(null)
+  const emojiBtnRef = useRef(null)
+
+  useEffect(() => {
+    if (!showEmoji) return
+    const handler = (e) => {
+      if (
+        emojiWrapRef.current && !emojiWrapRef.current.contains(e.target) &&
+        emojiBtnRef.current && !emojiBtnRef.current.contains(e.target)
+      ) {
+        setShowEmoji(false)
+      }
+    }
+    const t = setTimeout(() => document.addEventListener('mousedown', handler), 10)
+    return () => { clearTimeout(t); document.removeEventListener('mousedown', handler) }
+  }, [showEmoji])
 
   const handleSend = useCallback(() => {
     if ((!text.trim() && !pendingGif) || disabled) return
@@ -53,12 +69,11 @@ export default function MessageInput({ onSend, disabled }) {
       )}
 
       {showEmoji && (
-        <div className="emoji-picker-wrap">
+        <div className="emoji-picker-wrap" ref={emojiWrapRef}>
           <Picker
             data={data}
             locale="ru"
             onEmojiSelect={onEmojiSelect}
-            onClickOutside={() => setShowEmoji(false)}
             theme="dark"
             previewPosition="none"
           />
@@ -74,6 +89,7 @@ export default function MessageInput({ onSend, disabled }) {
 
       <div className="msg-input-row">
         <button
+          ref={emojiBtnRef}
           className={`msg-icon-btn ${showEmoji ? 'active' : ''}`}
           title="Эмодзи"
           onClick={() => { setShowEmoji(v => !v); setShowGif(false) }}

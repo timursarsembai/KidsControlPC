@@ -29,6 +29,10 @@ export default function MessageThread({ chat }) {
   }
 
   useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'instant' })
+  }, [chat?.id])
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages.length])
 

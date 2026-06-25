@@ -53,7 +53,8 @@ export async function sendMessage(ownerUid, chatId, {
   senderType,   // 'parent' | 'child'
   senderUid = null,
   senderDeviceId = null,
-  senderName = ''
+  senderName = '',
+  parentName = null
 }) {
   const msgRef = await addDoc(messagesCol(ownerUid, chatId), {
     text,
@@ -67,10 +68,12 @@ export async function sendMessage(ownerUid, chatId, {
     timestamp: ts()
   })
 
-  await updateDoc(chatDoc(ownerUid, chatId), {
+  const chatUpdate = {
     lastMessage: { text: gifUrl ? '🖼️ GIF' : text, senderName, timestamp: ts() },
     updatedAt: ts()
-  })
+  }
+  if (parentName) chatUpdate.parentName = parentName
+  await updateDoc(chatDoc(ownerUid, chatId), chatUpdate)
 
   return msgRef.id
 }
