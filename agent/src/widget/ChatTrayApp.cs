@@ -247,8 +247,10 @@ namespace KidsControl
                     tray.Text = "KidsControlPC (" + unread + " новых)";
                     tray.BalloonTipIcon = ToolTipIcon.Info;
                     tray.BalloonTipTitle = "KidsControlPC — новое сообщение";
-                    string preview = (newText != null && newText.Length > 60) ? newText.Substring(0, 60) + "..." : newText;
-                    tray.BalloonTipText = (string.IsNullOrEmpty(newSender) ? "" : newSender + ": ") + preview;
+                    string preview = StripEmoji(newText ?? "");
+                    if (preview.Length > 60) preview = preview.Substring(0, 60) + "...";
+                    string sender = StripEmoji(newSender ?? "");
+                    tray.BalloonTipText = (string.IsNullOrEmpty(sender) ? "" : sender + ": ") + preview;
                     tray.ShowBalloonTip(6000);
                     SystemSounds.Asterisk.Play();
                 }
@@ -259,6 +261,28 @@ namespace KidsControl
                 firstLoad = false;
             }
             catch (Exception ex) { WriteLog("LoadData EXCEPTION: " + ex.GetType().Name + ": " + ex.Message); }
+        }
+
+        // Remove surrogate pairs (emoji above U+FFFF) and common emoji ranges
+        // so Windows balloon tips don't show □ placeholders.
+        private static string StripEmoji(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return s;
+            var sb = new StringBuilder(s.Length);
+            for (int i = 0; i < s.Length; i++)
+            {
+                char c = s[i];
+                if (char.IsHighSurrogate(c)) { i++; continue; } // skip surrogate pair
+                int cp = (int)c;
+                // Skip common emoji/symbol blocks in BMP
+                if ((cp >= 0x2190 && cp <= 0x27FF) ||  // arrows, misc symbols, dingbats
+                    (cp >= 0x2B00 && cp <= 0x2BFF) ||  // misc symbols and arrows
+                    (cp >= 0xFE00 && cp <= 0xFE0F) ||  // variation selectors
+                    cp == 0x200D)                         // zero-width joiner
+                    continue;
+                sb.Append(c);
+            }
+            return sb.ToString().Trim();
         }
 
         private static string Str(Dictionary<string, object> d, string key)
@@ -356,24 +380,16 @@ namespace KidsControl
             webView.Dock = DockStyle.Fill;
             Controls.Add(webView);
 
-            webView.CoreWebView2InitializationCompleted += OnWebViewReady;
-
-            // WebView2 needs a writable user-data folder. Program Files is read-only
-            // for standard users, so we point it to LocalAppData instead.
+            // WebView2 needs a writable user-data folder; Program Files is read-only
+            // for standard users. CreationProperties sets the folder before init.
             string wv2DataDir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "KidsControlPC", "WebView2Cache");
             try { if (!Directory.Exists(wv2DataDir)) Directory.CreateDirectory(wv2DataDir); } catch { }
+            webView.CreationProperties = new CoreWebView2CreationProperties { UserDataFolder = wv2DataDir };
 
-            var envTask = CoreWebView2Environment.CreateAsync(null, wv2DataDir, null);
-            envTask.ContinueWith(delegate(System.Threading.Tasks.Task<CoreWebView2Environment> t)
-            {
-                if (t.IsFaulted) return;
-                BeginInvoke(new Action(delegate
-                {
-                    var unused = webView.EnsureCoreWebView2Async(t.Result);
-                }));
-            });
+            webView.CoreWebView2InitializationCompleted += OnWebViewReady;
+            var unused = webView.EnsureCoreWebView2Async(null);
         }
 
         private void OnWebViewReady(object sender, CoreWebView2InitializationCompletedEventArgs e)
