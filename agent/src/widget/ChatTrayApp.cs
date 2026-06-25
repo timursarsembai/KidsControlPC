@@ -309,6 +309,10 @@ namespace KidsControl
             window.WindowState = FormWindowState.Normal;
             window.BringToFront();
             window.Activate();
+            // Force repaint — Windows may skip WM_PAINT for windows that open
+            // behind another window (focus-steal prevention), leaving the
+            // owner-draw ListBox blank until the user interacts with it.
+            window.Refresh();
         }
 
         public void SetActiveChat(string chatId) { activeChatId = chatId; }
@@ -517,7 +521,6 @@ namespace KidsControl
 
         private void DrawChatItem(object sender, DrawItemEventArgs e)
         {
-            Log("DrawChatItem: index=" + e.Index + " chats=" + (chats != null ? chats.Count.ToString() : "null"));
             if (chats == null || e.Index < 0 || e.Index >= chats.Count) return;
             var c = chats[e.Index];
             bool sel = (e.State & DrawItemState.Selected) != 0;
