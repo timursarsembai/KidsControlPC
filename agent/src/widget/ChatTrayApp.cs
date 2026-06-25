@@ -423,13 +423,12 @@ namespace KidsControl
 
             chatList = new ListBox();
             chatList.Dock = DockStyle.Fill;
-            chatList.BackColor = Color.FromArgb(20, 23, 36);
-            chatList.ForeColor = Color.FromArgb(200, 210, 230);
+            chatList.BackColor = Color.FromArgb(28, 32, 48);
+            chatList.ForeColor = Color.FromArgb(210, 220, 240);
             chatList.BorderStyle = BorderStyle.None;
             chatList.Font = new Font("Segoe UI", 10);
-            chatList.ItemHeight = 50;
-            chatList.DrawMode = DrawMode.OwnerDrawFixed;
-            chatList.DrawItem += DrawChatItem;
+            chatList.ItemHeight = 32;
+            chatList.IntegralHeight = false;
             chatList.SelectedIndexChanged += OnChatSelected;
             left.Controls.Add(chatList);
 
@@ -517,31 +516,6 @@ namespace KidsControl
             right.Controls.Add(msgBox);
 
             Controls.Add(right);
-        }
-
-        private void DrawChatItem(object sender, DrawItemEventArgs e)
-        {
-            if (chats == null || e.Index < 0 || e.Index >= chats.Count) return;
-            var c = chats[e.Index];
-            bool sel = (e.State & DrawItemState.Selected) != 0;
-
-            using (var bg = new SolidBrush(sel ? Color.FromArgb(45, 50, 75) : Color.FromArgb(20, 23, 36)))
-                e.Graphics.FillRectangle(bg, e.Bounds);
-
-            using (var nf = new Font("Segoe UI", 10, FontStyle.Bold))
-            using (var nb = new SolidBrush(Color.FromArgb(220, 230, 245)))
-                e.Graphics.DrawString(c.Name, nf, nb, e.Bounds.Left + 12, e.Bounds.Top + 7);
-
-            if (!string.IsNullOrEmpty(c.LastText))
-            {
-                string prev = c.LastText.Length > 27 ? c.LastText.Substring(0, 27) + "..." : c.LastText;
-                using (var pf = new Font("Segoe UI", 8.5f))
-                using (var pb = new SolidBrush(Color.FromArgb(115, 130, 155)))
-                    e.Graphics.DrawString(prev, pf, pb, e.Bounds.Left + 12, e.Bounds.Top + 28);
-            }
-
-            using (var pen = new Pen(Color.FromArgb(30, 34, 52)))
-                e.Graphics.DrawLine(pen, e.Bounds.Left, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
         }
 
         private void OnChatSelected(object sender, EventArgs e)
