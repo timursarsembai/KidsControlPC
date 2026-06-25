@@ -160,16 +160,26 @@ namespace KidsControl
             return Icon.FromHandle(bmp.GetHicon());
         }
 
+        private void WriteLog(string msg)
+        {
+            try
+            {
+                string logPath = Path.Combine(Path.GetDirectoryName(dataPath), "chat_debug.log");
+                File.AppendAllText(logPath, DateTime.Now.ToString("HH:mm:ss.fff") + " " + msg + "\r\n", Encoding.UTF8);
+            }
+            catch { }
+        }
+
         private void LoadData()
         {
-            if (!File.Exists(dataPath)) return;
+            if (!File.Exists(dataPath)) { WriteLog("LoadData: file not found: " + dataPath); return; }
             string json = null;
             for (int i = 0; i < 3; i++)
             {
                 try { json = File.ReadAllText(dataPath, Encoding.UTF8); break; }
                 catch (IOException) { Thread.Sleep(100); }
             }
-            if (string.IsNullOrWhiteSpace(json)) return;
+            if (string.IsNullOrWhiteSpace(json)) { WriteLog("LoadData: empty json"); return; }
 
             try
             {
@@ -254,6 +264,7 @@ namespace KidsControl
 
                 chats = newChats;
                 messages = newMsgs;
+                WriteLog("LoadData: ok, chats=" + chats.Count + " msgKeys=" + messages.Count);
 
                 if (hasNew)
                 {
@@ -271,7 +282,7 @@ namespace KidsControl
 
                 firstLoad = false;
             }
-            catch { }
+            catch (Exception ex) { WriteLog("LoadData EXCEPTION: " + ex.GetType().Name + ": " + ex.Message); }
         }
 
         private static string Str(Dictionary<string, object> d, string key)
@@ -284,9 +295,9 @@ namespace KidsControl
             unread = 0;
             tray.Text = "KidsControlPC — Чат";
 
-            // Re-read the latest data from disk so the window is never stale
-            // (e.g. opened before the agent first wrote chat_data.json).
+            WriteLog("ShowWindow called, chats before load=" + chats.Count);
             LoadData();
+            WriteLog("ShowWindow after load, chats=" + chats.Count);
 
             if (window == null || window.IsDisposed)
                 window = new ChatForm(this);
