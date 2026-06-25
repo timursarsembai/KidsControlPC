@@ -436,14 +436,11 @@ namespace KidsControl
             listTitle.Padding = new Padding(12, 0, 0, 0);
             left.Controls.Add(listTitle);
 
-            Controls.Add(left);
-
             // Separator
             var sep = new Panel();
             sep.Dock = DockStyle.Left;
             sep.Width = 1;
             sep.BackColor = Color.FromArgb(38, 43, 62);
-            Controls.Add(sep);
 
             // Right panel
             var right = new Panel();
@@ -520,7 +517,12 @@ namespace KidsControl
             header.Padding = new Padding(14, 0, 0, 0);
             right.Controls.Add(header);
 
+            // Add top-level panels with the Fill control (right) FIRST so it is
+            // laid out last and takes the remaining space instead of covering the
+            // left list panel. Reverse z-order docking: right → sep → left.
             Controls.Add(right);
+            Controls.Add(sep);
+            Controls.Add(left);
         }
 
         private void OnChatSelected(object sender, EventArgs e)
