@@ -382,8 +382,12 @@ namespace KidsControl
 
             // WebView2 needs a writable user-data folder; Program Files is read-only
             // for standard users. CreationProperties sets the folder before init.
+            // Use ProgramData (not LocalAppData) — ChatTrayApp may launch as SYSTEM
+            // during auto-update (service context), and SYSTEM's LocalAppData resolves
+            // to C:\Windows\system32\config\systemprofile which is not writable.
+            // ProgramData is always writable by SYSTEM and standard users alike.
             string wv2DataDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
                 "KidsControlPC", "WebView2Cache");
             try { if (!Directory.Exists(wv2DataDir)) Directory.CreateDirectory(wv2DataDir); } catch { }
             webView.CreationProperties = new CoreWebView2CreationProperties { UserDataFolder = wv2DataDir };
