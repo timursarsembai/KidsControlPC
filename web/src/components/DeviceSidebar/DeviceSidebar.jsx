@@ -3,12 +3,43 @@ import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import './DeviceSidebar.css'
 
-function DeviceItem({ device, isSelected, onClick }) {
+const ORDER_KEY = 'kc_device_order'
+
+function loadOrder() {
+  try { return JSON.parse(localStorage.getItem(ORDER_KEY)) || [] } catch { return [] }
+}
+function saveOrder(ids) {
+  try { localStorage.setItem(ORDER_KEY, JSON.stringify(ids)) } catch {}
+}
+
+function sortDevices(devices) {
+  const saved = loadOrder()
+  if (saved.length === 0) {
+    // No manual order yet — sort alphabetically
+    return [...devices].sort((a, b) => {
+      const na = (a.alias || a.hostname || '').toLowerCase()
+      const nb = (b.alias || b.hostname || '').toLowerCase()
+      return na.localeCompare(nb, 'ru')
+    })
+  }
+  // Apply saved order; append any new devices (alphabetically) at the end
+  const ordered = []
+  for (const id of saved) {
+    const d = devices.find(x => x.id === id)
+    if (d) ordered.push(d)
+  }
+  const rest = [...devices]
+    .filter(d => !saved.includes(d.id))
+    .sort((a, b) => (a.alias || a.hostname || '').toLowerCase().localeCompare((b.alias || b.hostname || '').toLowerCase(), 'ru'))
+  return [...ordered, ...rest]
+}
+
+function DeviceItem({ device, isSelected, onClick, onDragStart, onDragEnter, onDragEnd, isDragging, isOver }) {
   const { t } = useTranslation()
   const [now, setNow] = React.useState(Date.now())
-  
+
   React.useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 15000) // Update every 15 seconds
+    const timer = setInterval(() => setNow(Date.now()), 15000)
     return () => clearInterval(timer)
   }, [])
 
@@ -17,10 +48,21 @@ function DeviceItem({ device, isSelected, onClick }) {
 
   return (
     <button
-      className={`device-item ${isSelected ? 'active' : ''}`}
+      className={`device-item ${isSelected ? 'active' : ''} ${isDragging ? 'dnd-dragging' : ''} ${isOver ? 'dnd-over' : ''}`}
       onClick={onClick}
       title={device.hostname || device.id}
+      draggable
+      onDragStart={onDragStart}
+      onDragEnter={onDragEnter}
+      onDragOver={e => e.preventDefault()}
+      onDragEnd={onDragEnd}
     >
+      <span
+        className="device-drag-handle"
+        title="Перетащите для изменения порядка"
+      >
+        ⠿
+      </span>
       <span className={`status-dot ${isOnline ? 'active' : 'inactive'}`} />
       <div className="device-item-labels">
         <span className="device-item-name">
@@ -38,6 +80,36 @@ function DeviceItem({ device, isSelected, onClick }) {
 export default function DeviceSidebar({ isMobileOpen = false, onMobileNavigate }) {
   const { devices, selectedDeviceId, selectDevice, showSettings, setShowSettings, activeTab, setActiveTab, alerts } = useRulesStore()
 
+  const [orderedDevices, setOrderedDevices] = React.useState([])
+  const [dragIdx, setDragIdx] = React.useState(null)
+  const [overIdx, setOverIdx] = React.useState(null)
+
+  React.useEffect(() => {
+    setOrderedDevices(sortDevices(devices))
+  }, [devices])
+
+  const handleDragStart = (idx) => {
+    setDragIdx(idx)
+  }
+
+  const handleDragEnter = (idx) => {
+    if (idx === dragIdx) return
+    setOverIdx(idx)
+    setOrderedDevices(prev => {
+      const next = [...prev]
+      const [item] = next.splice(dragIdx, 1)
+      next.splice(idx, 0, item)
+      setDragIdx(idx)
+      return next
+    })
+  }
+
+  const handleDragEnd = () => {
+    saveOrder(orderedDevices.map(d => d.id))
+    setDragIdx(null)
+    setOverIdx(null)
+  }
+
   const handleAddDevice = () => {
     setShowSettings(true)
     onMobileNavigate?.()
@@ -47,10 +119,9 @@ export default function DeviceSidebar({ isMobileOpen = false, onMobileNavigate }
 
   return (
     <aside className={`device-sidebar ${isMobileOpen ? 'mobile-open' : ''}`}>
-      {/* ── Back button (when settings are open) ── */}
       {showSettings && (
-        <button 
-          className="device-sidebar-back-btn" 
+        <button
+          className="device-sidebar-back-btn"
           onClick={() => { setShowSettings(false); onMobileNavigate?.() }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -61,23 +132,27 @@ export default function DeviceSidebar({ isMobileOpen = false, onMobileNavigate }
         </button>
       )}
 
-      {/* ── Devices section ── */}
       <div className="device-sidebar-group">
         <div className="device-sidebar-group-label">Устройства</div>
 
-        {devices.length === 0 ? (
+        {orderedDevices.length === 0 ? (
           <div className="device-sidebar-no-devices">
             <span className="device-sidebar-no-devices-icon">📡</span>
             <span>Нет устройств</span>
           </div>
         ) : (
           <div className="device-sidebar-devices">
-            {devices.map(device => (
+            {orderedDevices.map((device, idx) => (
               <DeviceItem
                 key={device.id}
                 device={device}
                 isSelected={selectedDeviceId === device.id && !showSettings && activeTab !== 'notifications'}
-                onClick={() => { selectDevice(device.id); setShowSettings(false); if(activeTab === 'notifications') setActiveTab('permanent'); onMobileNavigate?.() }}
+                onClick={() => { selectDevice(device.id); setShowSettings(false); if (activeTab === 'notifications') setActiveTab('permanent'); onMobileNavigate?.() }}
+                onDragStart={() => handleDragStart(idx)}
+                onDragEnter={() => handleDragEnter(idx)}
+                onDragEnd={handleDragEnd}
+                isDragging={dragIdx === idx}
+                isOver={overIdx === idx}
               />
             ))}
           </div>
@@ -91,10 +166,8 @@ export default function DeviceSidebar({ isMobileOpen = false, onMobileNavigate }
         </button>
       </div>
 
-      {/* ── Spacer ── */}
       <div style={{ flex: 1 }} />
 
-      {/* ── Notifications button ── */}
       <button
         className={`device-sidebar-settings-btn ${activeTab === 'notifications' && !showSettings ? 'active' : ''}`}
         onClick={() => { setActiveTab('notifications'); setShowSettings(false); onMobileNavigate?.() }}
@@ -113,7 +186,6 @@ export default function DeviceSidebar({ isMobileOpen = false, onMobileNavigate }
         )}
       </button>
 
-      {/* ── Settings button ── */}
       <button
         className={`device-sidebar-settings-btn ${showSettings ? 'active' : ''}`}
         onClick={() => { setShowSettings(!showSettings); onMobileNavigate?.() }}

@@ -61,7 +61,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: 8px 12px;
+  padding: 8px 10px 8px 4px;
   border-radius: var(--radius-md);
   border: none;
   background: transparent;
@@ -70,11 +70,35 @@
   text-align: left;
   width: 100%;
   color: var(--text-secondary);
-  transition: all var(--dur-base) var(--ease);
+  transition: background var(--dur-base) var(--ease), opacity 0.15s, box-shadow 0.15s;
   position: relative;
 }
 .device-item:hover  { background: var(--bg-hover); color: var(--text-primary); }
 .device-item.active { background: var(--accent-dim); color: var(--accent); }
+
+/* drag-and-drop states */
+.device-item.dnd-dragging {
+  opacity: 0.4;
+  box-shadow: none;
+}
+.device-item.dnd-over {
+  box-shadow: 0 -2px 0 var(--accent);
+}
+
+/* drag handle */
+.device-drag-handle {
+  font-size: 14px;
+  color: var(--text-disabled);
+  cursor: grab;
+  padding: 0 2px;
+  flex-shrink: 0;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.15s;
+  user-select: none;
+}
+.device-item:hover .device-drag-handle { opacity: 1; }
+.device-item.dnd-dragging .device-drag-handle { opacity: 1; cursor: grabbing; }
 
 .device-item-labels {
   display: flex;
