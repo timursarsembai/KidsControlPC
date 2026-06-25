@@ -357,7 +357,23 @@ namespace KidsControl
             Controls.Add(webView);
 
             webView.CoreWebView2InitializationCompleted += OnWebViewReady;
-            var unused = webView.EnsureCoreWebView2Async(null);
+
+            // WebView2 needs a writable user-data folder. Program Files is read-only
+            // for standard users, so we point it to LocalAppData instead.
+            string wv2DataDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "KidsControlPC", "WebView2Cache");
+            try { if (!Directory.Exists(wv2DataDir)) Directory.CreateDirectory(wv2DataDir); } catch { }
+
+            var envTask = CoreWebView2Environment.CreateAsync(null, wv2DataDir, null);
+            envTask.ContinueWith(delegate(System.Threading.Tasks.Task<CoreWebView2Environment> t)
+            {
+                if (t.IsFaulted) return;
+                BeginInvoke(new Action(delegate
+                {
+                    var unused = webView.EnsureCoreWebView2Async(t.Result);
+                }));
+            });
         }
 
         private void OnWebViewReady(object sender, CoreWebView2InitializationCompletedEventArgs e)
