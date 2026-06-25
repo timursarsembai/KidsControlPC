@@ -74,6 +74,7 @@ namespace KidsControl
         private FileSystemWatcher watcher;
         private string dataPath;
         private string repliesPath;
+        public string LogPath { get; private set; }
 
         private List<ChatData> chats = new List<ChatData>();
         private Dictionary<string, List<ChatMsg>> messages = new Dictionary<string, List<ChatMsg>>();
@@ -93,6 +94,7 @@ namespace KidsControl
             try { if (!Directory.Exists(dir)) Directory.CreateDirectory(dir); } catch { }
             dataPath = Path.Combine(dir, "chat_data.json");
             repliesPath = Path.Combine(dir, "chat_replies.json");
+            LogPath = Path.Combine(dir, "chat_debug.log");
 
             tray = new NotifyIcon();
             tray.Icon = CreateIcon();
@@ -366,6 +368,7 @@ namespace KidsControl
     public class ChatForm : Form
     {
         private ChatTrayApp app;
+        private string logPath;
         private ListBox chatList;
         private RichTextBox msgBox;
         private TextBox inputBox;
@@ -375,9 +378,15 @@ namespace KidsControl
         private Dictionary<string, List<ChatMsg>> messages;
         private string selChat;
 
+        private void Log(string msg)
+        {
+            try { if (logPath != null) File.AppendAllText(logPath, DateTime.Now.ToString("HH:mm:ss.fff") + " [Form] " + msg + "\r\n", Encoding.UTF8); } catch { }
+        }
+
         public ChatForm(ChatTrayApp app)
         {
             this.app = app;
+            logPath = app.LogPath;
             Text = "KidsControlPC — Чат";
             try { Icon = ChatTrayApp.LoadAppIcon(); } catch { }
             Size = new Size(700, 540);
@@ -508,6 +517,7 @@ namespace KidsControl
 
         private void DrawChatItem(object sender, DrawItemEventArgs e)
         {
+            Log("DrawChatItem: index=" + e.Index + " chats=" + (chats != null ? chats.Count.ToString() : "null"));
             if (chats == null || e.Index < 0 || e.Index >= chats.Count) return;
             var c = chats[e.Index];
             bool sel = (e.State & DrawItemState.Selected) != 0;
@@ -631,12 +641,14 @@ namespace KidsControl
             }
             chats = newChats;
             messages = newMsgs;
+            Log("RefreshData: chats=" + (chats != null ? chats.Count.ToString() : "null") + " InvokeRequired=" + InvokeRequired);
 
             int prev = chatList.SelectedIndex;
             chatList.Items.Clear();
             if (chats != null)
                 foreach (var c in chats)
                     chatList.Items.Add(c.Name);
+            Log("RefreshData: chatList.Items.Count=" + chatList.Items.Count);
 
             if (selChat != null && chats != null)
             {
