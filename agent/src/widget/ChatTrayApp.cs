@@ -76,6 +76,8 @@ namespace KidsControl
         private List<ChatData> chats = new List<ChatData>();
         private Dictionary<string, List<ChatMsg>> messages = new Dictionary<string, List<ChatMsg>>();
         private HashSet<string> seenIds = new HashSet<string>();
+        private HashSet<string> persistedSeenIds = new HashSet<string>();
+        private string seenPath;
         private int unread = 0;
         private string activeChatId = null;
         private bool firstLoad = true;
@@ -92,6 +94,8 @@ namespace KidsControl
             dataPath = Path.Combine(dir, "chat_data.json");
             repliesPath = Path.Combine(dir, "chat_replies.json");
             LogPath = Path.Combine(dir, "chat_debug.log");
+            seenPath = Path.Combine(dir, "chat_seen.json");
+            LoadSeenIds();
 
             tray = new NotifyIcon();
             tray.Icon = CreateIcon();
@@ -218,15 +222,34 @@ namespace KidsControl
                                 if (msg.Id != null && !seenIds.Contains(msg.Id))
                                 {
                                     seenIds.Add(msg.Id);
-                                    if (!firstLoad && msg.SenderType == "parent")
+                                    if (msg.SenderType == "parent")
                                     {
                                         bool winOpen = window != null && window.Visible && activeChatId == kv.Key;
                                         if (!winOpen)
                                         {
-                                            hasNew = true;
-                                            unread++;
-                                            newSender = msg.SenderName;
-                                            newText = string.IsNullOrEmpty(msg.Text) ? "[GIF]" : msg.Text;
+                                            bool shouldNotify;
+                                            if (!firstLoad)
+                                            {
+                                                // Live update — always notify
+                                                shouldNotify = true;
+                                            }
+                                            else
+                                            {
+                                                // Startup: notify only for messages not seen last
+                                                // session AND received within the past 24 hours
+                                                // (avoids flood of old history on first install).
+                                                bool isNew = !persistedSeenIds.Contains(msg.Id);
+                                                bool isRecent = msg.Timestamp != DateTime.MinValue &&
+                                                    (DateTime.UtcNow - msg.Timestamp.ToUniversalTime()).TotalHours < 24;
+                                                shouldNotify = isNew && isRecent;
+                                            }
+                                            if (shouldNotify)
+                                            {
+                                                hasNew = true;
+                                                unread++;
+                                                newSender = msg.SenderName;
+                                                newText = string.IsNullOrEmpty(msg.Text) ? "[GIF]" : msg.Text;
+                                            }
                                         }
                                     }
                                 }
@@ -259,6 +282,7 @@ namespace KidsControl
                     window.BeginInvoke(new Action(delegate { window.RefreshData(chats, messages); }));
 
                 firstLoad = false;
+                SaveSeenIds();
             }
             catch (Exception ex) { WriteLog("LoadData EXCEPTION: " + ex.GetType().Name + ": " + ex.Message); }
         }
@@ -283,6 +307,30 @@ namespace KidsControl
                 sb.Append(c);
             }
             return sb.ToString().Trim();
+        }
+
+        private void LoadSeenIds()
+        {
+            if (!File.Exists(seenPath)) return;
+            try
+            {
+                var ser = new JavaScriptSerializer();
+                var list = ser.Deserialize<List<string>>(File.ReadAllText(seenPath, Encoding.UTF8));
+                if (list != null)
+                    foreach (var id in list) { seenIds.Add(id); persistedSeenIds.Add(id); }
+            }
+            catch { }
+        }
+
+        private void SaveSeenIds()
+        {
+            try
+            {
+                var list = new List<string>(seenIds);
+                if (list.Count > 2000) list = list.GetRange(list.Count - 2000, 2000);
+                File.WriteAllText(seenPath, new JavaScriptSerializer().Serialize(list), Encoding.UTF8);
+            }
+            catch { }
         }
 
         private static string Str(Dictionary<string, object> d, string key)
@@ -311,6 +359,7 @@ namespace KidsControl
         public void SendReply(string chatId, string text)
         {
             if (string.IsNullOrWhiteSpace(chatId) || string.IsNullOrWhiteSpace(text)) return;
+            WriteLog("SendReply chatId=" + chatId + " text=" + text);
             var ser = new JavaScriptSerializer();
             var reply = new Dictionary<string, object>();
             reply["id"] = Guid.NewGuid().ToString("N");
@@ -364,6 +413,11 @@ namespace KidsControl
         private List<ChatData> pendingChats;
         private Dictionary<string, List<ChatMsg>> pendingMessages;
 
+        private void Log(string msg)
+        {
+            try { File.AppendAllText(app.LogPath, DateTime.Now.ToString("HH:mm:ss.fff") + " [Form] " + msg + "\r\n", Encoding.UTF8); } catch { }
+        }
+
         public ChatForm(ChatTrayApp app)
         {
             this.app = app;
@@ -412,6 +466,7 @@ namespace KidsControl
 
         private void OnNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
         {
+            Log("NavigationCompleted pending=" + (pendingChats != null ? pendingChats.Count.ToString() : "null"));
             webViewReady = true;
             if (pendingChats != null)
                 PushData(pendingChats, pendingMessages);
@@ -422,11 +477,17 @@ namespace KidsControl
             try
             {
                 var json = e.TryGetWebMessageAsString();
+                Log("OnWebMessage: " + (json ?? "null"));
                 var ser = new JavaScriptSerializer();
                 var msg = ser.Deserialize<Dictionary<string, object>>(json);
                 if (msg == null) return;
                 string type = msg.ContainsKey("type") ? msg["type"].ToString() : "";
-                if (type == "selectChat")
+                if (type == "log")
+                {
+                    string logMsg = msg.ContainsKey("msg") ? msg["msg"].ToString() : "";
+                    Log("JS: " + logMsg);
+                }
+                else if (type == "selectChat")
                 {
                     string chatId = msg.ContainsKey("chatId") ? msg["chatId"].ToString() : null;
                     if (chatId != null) app.SetActiveChat(chatId);
@@ -773,13 +834,29 @@ document.getElementById('input-box').addEventListener('input', function() {
 });
 
 function sendMsg() {
-  if (!currentChatId) return;
+  if (!currentChatId) {
+    window.chrome.webview.postMessage(JSON.stringify({type:'log',msg:'sendMsg: no chat selected'}));
+    return;
+  }
   var box = document.getElementById('input-box');
   var text = box.value.trim();
   if (!text) return;
   box.value = '';
   box.style.height = 'auto';
+  appendOptimistic(text);
   window.chrome.webview.postMessage(JSON.stringify({type:'send',chatId:currentChatId,text:text}));
+}
+
+function appendOptimistic(text) {
+  var container = document.getElementById('messages');
+  var empty = container.querySelector('.empty-msg');
+  if (empty) empty.remove();
+  var row = document.createElement('div');
+  row.className = 'msg-row out';
+  row.setAttribute('data-optimistic', '1');
+  row.innerHTML = '<div class=\'bubble\' style=\'opacity:0.7\'>' + esc(text) + '</div>';
+  container.appendChild(row);
+  container.scrollTop = container.scrollHeight;
 }
 </script>
 </body>
