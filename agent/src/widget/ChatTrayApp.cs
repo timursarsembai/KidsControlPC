@@ -284,6 +284,10 @@ namespace KidsControl
             unread = 0;
             tray.Text = "KidsControlPC — Чат";
 
+            // Re-read the latest data from disk so the window is never stale
+            // (e.g. opened before the agent first wrote chat_data.json).
+            LoadData();
+
             if (window == null || window.IsDisposed)
                 window = new ChatForm(this);
 
