@@ -239,7 +239,7 @@
   margin: 3px 0;
   max-width: 70%;
 }
-.msg-bubble-wrap.me { align-self: flex-end; align-items: flex-end; }
+.msg-bubble-wrap.me { align-self: flex-end; align-items: flex-end; margin-left: auto; }
 .msg-bubble-wrap.child { align-self: flex-start; align-items: flex-start; }
 .msg-bubble-wrap.other-parent { align-self: flex-start; align-items: flex-start; }
 
