@@ -404,7 +404,14 @@ namespace KidsControl
             webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
             webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
             webView.CoreWebView2.WebMessageReceived += OnWebMessage;
+            // Wait for page to finish loading before calling ExecuteScriptAsync,
+            // otherwise updateData() is not yet defined and the call silently fails.
+            webView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
             webView.CoreWebView2.NavigateToString(GetHtml());
+        }
+
+        private void OnNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
+        {
             webViewReady = true;
             if (pendingChats != null)
                 PushData(pendingChats, pendingMessages);
@@ -670,6 +677,11 @@ var allData = {chats:[], messages:{}};
 function updateData(data) {
   allData = data;
   renderChatList();
+  // Auto-select if only one chat and none selected yet
+  if (!currentChatId && allData.chats && allData.chats.length === 1) {
+    selectChat(allData.chats[0].id, allData.chats[0].name);
+    return;
+  }
   if (currentChatId) renderMessages(currentChatId);
 }
 
