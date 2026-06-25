@@ -103,6 +103,7 @@ async function checkReplies() {
     return
   }
 
+  if (content.charCodeAt(0) === 0xFEFF) content = content.slice(1) // strip UTF-8 BOM written by C#
   if (!content || content.trim() === '' || content.trim() === '[]') return
   let replies = []
   try { replies = JSON.parse(content) } catch (e) {
