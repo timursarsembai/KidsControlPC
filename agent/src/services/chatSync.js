@@ -17,8 +17,14 @@ let chats = []
 let messages = {}
 let repliesInterval = null
 
+const syncLogPath = path.join(CHAT_DATA_DIR, 'chat_sync.log')
+
 function log(msg) {
-  console.log('[ChatSync] ' + msg)
+  const line = new Date().toISOString() + ' [ChatSync] ' + msg
+  console.log(line)
+  try {
+    fs.appendFileSync(syncLogPath, line + '\n', 'utf8')
+  } catch {}
 }
 
 const dataPath = () => path.join(CHAT_DATA_DIR, 'chat_data.json')
@@ -92,16 +98,32 @@ async function checkReplies() {
   let content
   try {
     content = fs.readFileSync(p, 'utf8')
-    fs.writeFileSync(p, '[]', 'utf8')
-  } catch { return }
+  } catch (e) {
+    log('checkReplies read error: ' + e.message)
+    return
+  }
 
   if (!content || content.trim() === '' || content.trim() === '[]') return
   let replies = []
-  try { replies = JSON.parse(content) } catch { return }
+  try { replies = JSON.parse(content) } catch (e) {
+    log('checkReplies parse error: ' + e.message + ' content=' + content.slice(0, 200))
+    return
+  }
   if (!Array.isArray(replies) || replies.length === 0) return
 
+  log('checkReplies found ' + replies.length + ' replies, parentUid=' + parentUid + ' deviceId=' + deviceId)
+
+  // Clear file first so ChatTrayApp can write new replies immediately.
+  // Failed replies are written back at the end to avoid permanent data loss.
+  try { fs.writeFileSync(p, '[]', 'utf8') } catch {}
+
+  const failed = []
   for (const r of replies) {
-    if (!r.chatId || !r.text) continue
+    if (!r.chatId || !r.text) {
+      log('checkReplies skip invalid reply: ' + JSON.stringify(r))
+      continue
+    }
+    log('checkReplies sending chatId=' + r.chatId + ' text=' + r.text)
     try {
       await addDoc(collection(db, 'users', parentUid, 'chats', r.chatId, 'messages'), {
         text: r.text,
@@ -122,10 +144,19 @@ async function checkReplies() {
         },
         updatedAt: serverTimestamp()
       })
-      log('reply sent to chat ' + r.chatId)
+      log('reply sent OK chatId=' + r.chatId)
     } catch (e) {
-      log('reply error: ' + e.message)
+      log('reply error chatId=' + r.chatId + ': ' + e.message)
+      failed.push(r)
     }
+  }
+
+  // Write back any failed replies so they'll be retried next tick
+  if (failed.length > 0) {
+    try {
+      const existing = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8') || '[]') : []
+      fs.writeFileSync(p, JSON.stringify([...failed, ...existing]), 'utf8')
+    } catch {}
   }
 }
 
@@ -135,6 +166,14 @@ export async function initChatSync(pUid, dId, dName) {
   deviceName = dName || 'Ребёнок'
 
   await ensureDataDir()
+
+  // Rotate log file if it exceeds 512 KB
+  try {
+    if (fs.existsSync(syncLogPath) && fs.statSync(syncLogPath).size > 512 * 1024) {
+      fs.writeFileSync(syncLogPath, '', 'utf8')
+    }
+  } catch {}
+  log('initChatSync pUid=' + pUid + ' dId=' + dId + ' dName=' + dName)
 
   const chatsCol = collection(db, 'users', parentUid, 'chats')
   unsubChats = onSnapshot(chatsCol, (snap) => {
