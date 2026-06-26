@@ -39,10 +39,16 @@ service firebase.storage {
     // (same pattern as Firestore chat messages which also use || true).
     match /users/{userId}/chats/{chatId}/attachments/{fileName} {
       allow read: if true;
+      allow list: if canManageUser(userId);
       allow create: if request.resource.size < 10 * 1024 * 1024
         && !request.resource.contentType.matches('video/.*');
       allow delete: if canManageUser(userId);
       allow update: if false;
+    }
+
+    // Allow listing chat subdirectories for storage cleanup (listAll traversal).
+    match /users/{userId}/{allPaths=**} {
+      allow list: if canManageUser(userId);
     }
   }
 }
