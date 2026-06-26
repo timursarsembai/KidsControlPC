@@ -33,6 +33,7 @@ namespace KidsControl
         public string FileName;
         public long FileSize;
         public string MimeType;
+        public bool FileDeleted;
         public string SenderName;
         public string SenderType;
         public string Status;       // 'sent' | 'delivered' | 'read' (for child's own messages)
@@ -224,6 +225,7 @@ namespace KidsControl
                                 msg.FileUrl = Str(m, "fileUrl");
                                 msg.FileName = Str(m, "fileName");
                                 msg.MimeType = Str(m, "mimeType");
+                                msg.FileDeleted = m.ContainsKey("fileDeleted") && m["fileDeleted"] is bool && (bool)m["fileDeleted"];
                                 if (m.ContainsKey("fileSize") && m["fileSize"] != null)
                                     long.TryParse(m["fileSize"].ToString(), out msg.FileSize);
                                 msg.SenderName = Str(m, "senderName") ?? "";
@@ -643,7 +645,14 @@ namespace KidsControl
                     wc.DownloadFile(url, dest);
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dest) { UseShellExecute = true });
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Windows.Forms.MessageBox.Show(
+                    "Не удалось открыть файл:\n" + ex.Message,
+                    "KidsControl",
+                    System.Windows.Forms.MessageBoxButtons.OK,
+                    System.Windows.Forms.MessageBoxIcon.Warning);
+            }
         }
 
         private void OnNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
@@ -773,6 +782,7 @@ namespace KidsControl
                         d["fileName"] = m.FileName ?? "";
                         d["fileSize"] = m.FileSize;
                         d["mimeType"] = m.MimeType ?? "";
+                        d["fileDeleted"] = m.FileDeleted;
                         d["senderName"] = m.SenderName ?? "";
                         d["senderType"] = m.SenderType ?? "parent";
                         d["status"] = m.Status ?? "sent";
@@ -994,6 +1004,7 @@ body {
 .file-doc-name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .file-doc-size { font-size: 10px; opacity: 0.55; }
 .file-doc-dl { font-size: 14px; opacity: 0.5; margin-left: auto; flex-shrink: 0; }
+.file-deleted { opacity: 0.5; font-size: 12px; font-style: italic; padding: 4px 0; }
 #file-input { display: none; }
 .icon-btn {
   width: 38px; height: 38px;
@@ -1193,7 +1204,9 @@ function renderMessages(chatId) {
     var bubbleContent = '';
     if (m.text) bubbleContent += esc(m.text);
     if (isGif) bubbleContent += '<img src=\'' + escA(m.gifPreviewUrl || m.gifUrl) + '\' alt=\'GIF\'>';
-    if (m.fileUrl && m.mimeType && m.mimeType.indexOf('image/') === 0) {
+    if (m.fileUrl && m.fileDeleted) {
+      bubbleContent += '<div class=\'file-deleted\'>🗑 ' + esc(m.fileName || 'Файл') + ' <em>— файл удалён</em></div>';
+    } else if (m.fileUrl && m.mimeType && m.mimeType.indexOf('image/') === 0) {
       bubbleContent += '<img src=\'' + escA(m.fileUrl) + '\' alt=\'' + esc(m.fileName || 'изображение') + '\' class=\'file-img\' style=\'cursor:pointer\' onclick=\'downloadFile(' + JSON.stringify(m.fileUrl) + ',' + JSON.stringify(m.fileName || 'image') + ')\'>';
     } else if (m.fileUrl) {
       var sizeStr = m.fileSize ? (m.fileSize < 1024*1024 ? (m.fileSize/1024).toFixed(1)+' КБ' : (m.fileSize/1024/1024).toFixed(1)+' МБ') : '';
