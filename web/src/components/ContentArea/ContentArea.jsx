@@ -200,7 +200,7 @@ export default function ContentArea() {
             ) : noUpdateFound ? (
               <i className="ti ti-check" aria-hidden="true" />
             ) : (
-              <i className="ti ti-package" aria-hidden="true" />
+              <i className="ti ti-refresh" aria-hidden="true" />
             )}
             {updatingAgent ? 'Обновляется...' : noUpdateFound ? 'Уже актуальная версия' : 'Обновить агента'}
           </button>
