@@ -56,18 +56,29 @@ export default function ContentArea() {
   } = useRulesStore()
 
   const [updatingAgent, setUpdatingAgent] = React.useState(false)
-  const [updateAgentDone, setUpdateAgentDone] = React.useState(false)
+  const versionBeforeUpdate = React.useRef(null)
+  const selectedDevice = devices.find(d => d.id === selectedDeviceId)
+
+  // When version changes after update request — reset to default state
+  React.useEffect(() => {
+    if (!updatingAgent) return
+    if (!versionBeforeUpdate.current) return
+    const currentVersion = selectedDevice?.agentVersion
+    if (currentVersion && currentVersion !== versionBeforeUpdate.current) {
+      setUpdatingAgent(false)
+      versionBeforeUpdate.current = null
+    }
+  }, [selectedDevice?.agentVersion, updatingAgent])
 
   const handleUpdateAgent = async () => {
+    versionBeforeUpdate.current = selectedDevice?.agentVersion || null
     setUpdatingAgent(true)
     try {
       await updateDeviceSettings({ forceUpdateRequestedAtMs: Date.now() })
-      setUpdateAgentDone(true)
-      setTimeout(() => setUpdateAgentDone(false), 3000)
     } catch (e) {
       alert('Ошибка: ' + e.message)
-    } finally {
       setUpdatingAgent(false)
+      versionBeforeUpdate.current = null
     }
   }
 
@@ -95,7 +106,6 @@ export default function ContentArea() {
   const meta = isProfileTab
     ? { label: profileRule?.profileName || 'Новый режим', icon: profileRule?.profileIcon || '🧩', desc: 'Свои списки программ, сайтов и расписание' }
     : baseMeta
-  const selectedDevice = devices.find(d => d.id === selectedDeviceId)
 
   if (activeTab === 'chat') {
     return (
@@ -165,18 +175,16 @@ export default function ContentArea() {
         {/* Update agent button — only on agent_logs tab */}
         {activeTab === 'agent_logs' && (
           <button
-            className={`content-update-agent-btn ${updateAgentDone ? 'done' : ''}`}
+            className={`content-update-agent-btn ${updatingAgent ? 'updating' : ''}`}
             onClick={handleUpdateAgent}
             disabled={updatingAgent}
             type="button"
           >
             {updatingAgent
-              ? <span className="content-update-agent-spinner" />
-              : updateAgentDone
-                ? <i className="ti ti-check" aria-hidden="true" />
-                : <i className="ti ti-package" aria-hidden="true" />
+              ? <i className="ti ti-hourglass content-update-agent-spin" aria-hidden="true" />
+              : <i className="ti ti-package" aria-hidden="true" />
             }
-            {updateAgentDone ? 'Команда отправлена' : 'Обновить агента'}
+            {updatingAgent ? 'Обновляется...' : 'Обновить агента'}
           </button>
         )}
 

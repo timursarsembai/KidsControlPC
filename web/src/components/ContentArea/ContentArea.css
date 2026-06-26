@@ -42,18 +42,18 @@
 }
 .content-update-agent-btn i { font-size: 15px; }
 .content-update-agent-btn:hover { opacity: 1; }
-.content-update-agent-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.content-update-agent-btn.done { color: var(--success); border-color: var(--border-success); background: var(--bg-success); opacity: 1; }
-.content-update-agent-spinner {
+.content-update-agent-btn:disabled { cursor: not-allowed; }
+.content-update-agent-btn.updating { background: color-mix(in srgb, var(--accent) 75%, transparent); opacity: 1; }
+.content-update-agent-spin {
+  animation: ca-hourglass 1.4s ease-in-out infinite;
   display: inline-block;
-  width: 14px;
-  height: 14px;
-  border: 1.5px solid var(--border-strong);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: ca-spin 0.9s linear infinite;
 }
-@keyframes ca-spin { to { transform: rotate(360deg); } }
+@keyframes ca-hourglass {
+  0%   { transform: rotate(0deg); }
+  45%  { transform: rotate(0deg); }
+  55%  { transform: rotate(180deg); }
+  100% { transform: rotate(180deg); }
+}
 
 .content-title-row {
   display: flex;
