@@ -5,7 +5,9 @@ using System.Drawing;
 using System.IO;
 using System.Media;
 using System.Text;
+using System.Net;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.WinForms;
@@ -612,6 +614,38 @@ namespace KidsControl
             }
         }
 
+        private static void DownloadAndOpen(string url, string name)
+        {
+            try
+            {
+                var dir = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    "Downloads", "KidsControl");
+                System.IO.Directory.CreateDirectory(dir);
+
+                // Sanitize filename
+                foreach (var c in System.IO.Path.GetInvalidFileNameChars())
+                    name = name.Replace(c, '_');
+                if (string.IsNullOrWhiteSpace(name)) name = "file";
+
+                var dest = System.IO.Path.Combine(dir, name);
+                // Avoid overwrite — append counter if needed
+                if (System.IO.File.Exists(dest))
+                {
+                    var baseName = System.IO.Path.GetFileNameWithoutExtension(name);
+                    var ext = System.IO.Path.GetExtension(name);
+                    int i = 1;
+                    while (System.IO.File.Exists(dest))
+                        dest = System.IO.Path.Combine(dir, baseName + " (" + i++ + ")" + ext);
+                }
+
+                using (var wc = new WebClient())
+                    wc.DownloadFile(url, dest);
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dest) { UseShellExecute = true });
+            }
+            catch { }
+        }
+
         private void OnNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
         {
             Log("NavigationCompleted pending=" + (pendingChats != null ? pendingChats.Count.ToString() : "null"));
@@ -657,6 +691,12 @@ namespace KidsControl
                     string gifUrl = msg.ContainsKey("gifUrl") ? msg["gifUrl"].ToString() : null;
                     string gifPreviewUrl = msg.ContainsKey("gifPreviewUrl") ? msg["gifPreviewUrl"].ToString() : null;
                     if (chatId != null && !string.IsNullOrEmpty(gifUrl)) app.SendGifReply(chatId, gifUrl, gifPreviewUrl);
+                }
+                else if (type == "downloadFile")
+                {
+                    string url  = msg.ContainsKey("url")  ? msg["url"].ToString()  : null;
+                    string name = msg.ContainsKey("name") ? msg["name"].ToString() : "file";
+                    if (!string.IsNullOrEmpty(url)) Task.Run(() => DownloadAndOpen(url, name));
                 }
                 else if (type == "sendFile")
                 {
@@ -943,7 +983,7 @@ body {
 .file-img { max-width: 220px; max-height: 200px; border-radius: 10px; display: block; cursor: pointer; }
 .file-doc {
   display: flex; align-items: center; gap: 8px;
-  padding: 7px 10px;
+  padding: 7px 10px; cursor: pointer;
   background: rgba(255,255,255,0.07);
   border-radius: 10px;
   text-decoration: none; color: #dde6f5;
@@ -953,6 +993,7 @@ body {
 .file-doc-info { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .file-doc-name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .file-doc-size { font-size: 10px; opacity: 0.55; }
+.file-doc-dl { font-size: 14px; opacity: 0.5; margin-left: auto; flex-shrink: 0; }
 #file-input { display: none; }
 .icon-btn {
   width: 38px; height: 38px;
@@ -1153,13 +1194,14 @@ function renderMessages(chatId) {
     if (m.text) bubbleContent += esc(m.text);
     if (isGif) bubbleContent += '<img src=\'' + escA(m.gifPreviewUrl || m.gifUrl) + '\' alt=\'GIF\'>';
     if (m.fileUrl && m.mimeType && m.mimeType.indexOf('image/') === 0) {
-      bubbleContent += '<img src=\'' + escA(m.fileUrl) + '\' alt=\'' + esc(m.fileName || 'изображение') + '\' class=\'file-img\' onclick=\'window.open(' + JSON.stringify(m.fileUrl) + ')\'>';
+      bubbleContent += '<img src=\'' + escA(m.fileUrl) + '\' alt=\'' + esc(m.fileName || 'изображение') + '\' class=\'file-img\' style=\'cursor:pointer\' onclick=\'downloadFile(' + JSON.stringify(m.fileUrl) + ',' + JSON.stringify(m.fileName || 'image') + ')\'>';
     } else if (m.fileUrl) {
       var sizeStr = m.fileSize ? (m.fileSize < 1024*1024 ? (m.fileSize/1024).toFixed(1)+' КБ' : (m.fileSize/1024/1024).toFixed(1)+' МБ') : '';
-      bubbleContent += '<a href=\'' + escA(m.fileUrl) + '\' target=\'_blank\' class=\'file-doc\'>' +
+      bubbleContent += '<div class=\'file-doc\' onclick=\'downloadFile(' + JSON.stringify(m.fileUrl) + ',' + JSON.stringify(m.fileName || 'Файл') + ')\'>' +
         '<span class=\'file-doc-icon\'>📎</span>' +
         '<span class=\'file-doc-info\'><span class=\'file-doc-name\'>' + esc(m.fileName || 'Файл') + '</span>' +
-        (sizeStr ? '<span class=\'file-doc-size\'>' + sizeStr + '</span>' : '') + '</span></a>';
+        (sizeStr ? '<span class=\'file-doc-size\'>' + sizeStr + '</span>' : '') + '</span>' +
+        '<span class=\'file-doc-dl\'>⬇</span></div>';
     }
     html += '<div class=\'bubble\'>' + bubbleContent + '</div>';
     var timeInner = '';
@@ -1172,6 +1214,9 @@ function renderMessages(chatId) {
   container.scrollTop = container.scrollHeight;
 }
 
+function downloadFile(url, name) {
+  window.chrome.webview.postMessage(JSON.stringify({type:'downloadFile', url:url, name:name}));
+}
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
