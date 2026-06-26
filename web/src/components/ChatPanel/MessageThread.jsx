@@ -128,14 +128,21 @@ export default function MessageThread({ chat }) {
                       <img src={msg.gifPreviewUrl || msg.gifUrl} alt="GIF" loading="lazy" />
                     </div>
                   )}
-                  {msg.fileUrl && msg.mimeType?.startsWith('image/') && (
+                  {msg.fileUrl && msg.fileDeleted && (
+                    <div className="msg-file-deleted">
+                      <span className="msg-file-deleted-icon">📎</span>
+                      <span className="msg-file-deleted-name">{msg.fileName || 'Файл'}</span>
+                      <span className="msg-file-deleted-label">· Файл удалён</span>
+                    </div>
+                  )}
+                  {msg.fileUrl && !msg.fileDeleted && msg.mimeType?.startsWith('image/') && (
                     <div className="msg-file-img-wrap">
                       <a href={msg.fileUrl} target="_blank" rel="noreferrer">
                         <img src={msg.fileUrl} alt={msg.fileName || 'изображение'} className="msg-file-img" loading="lazy" />
                       </a>
                     </div>
                   )}
-                  {msg.fileUrl && !msg.mimeType?.startsWith('image/') && (
+                  {msg.fileUrl && !msg.fileDeleted && !msg.mimeType?.startsWith('image/') && (
                     <a className="msg-file-doc" href={msg.fileUrl} target="_blank" rel="noreferrer" download={msg.fileName}>
                       <span className="msg-file-doc-icon">📎</span>
                       <span className="msg-file-doc-info">

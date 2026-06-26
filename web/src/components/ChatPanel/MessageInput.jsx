@@ -18,6 +18,8 @@ function formatBytes(bytes) {
 
 export default function MessageInput({ onSend, disabled, chatId }) {
   const user = useRulesStore(s => s.user)
+  const storageUsedBytes = useRulesStore(s => s.storageUsedBytes)
+  const storageQuotaBytes = useRulesStore(s => s.storageQuotaBytes)
 
   const [text, setText] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
@@ -52,13 +54,17 @@ export default function MessageInput({ onSend, disabled, chatId }) {
     if (!text.trim() && !pendingGif && !pendingFile) return
 
     if (pendingFile) {
+      if (storageUsedBytes + pendingFile.file.size > storageQuotaBytes) {
+        setFileError(`Хранилище заполнено (${formatBytes(storageUsedBytes)} из ${formatBytes(storageQuotaBytes)})`)
+        return
+      }
       setUploading(true)
       setUploadProgress(0)
       setFileError(null)
       try {
         const uid = user?.uid || 'unknown'
-        const path = `users/${uid}/chats/${chatId}/attachments/${uuidv4()}-${pendingFile.file.name}`
-        const fileRef = storageRef(storage, path)
+        const storagePath = `users/${uid}/chats/${chatId}/attachments/${uuidv4()}-${pendingFile.file.name}`
+        const fileRef = storageRef(storage, storagePath)
         const task = uploadBytesResumable(fileRef, pendingFile.file)
 
         await new Promise((resolve, reject) => {
@@ -78,6 +84,7 @@ export default function MessageInput({ onSend, disabled, chatId }) {
           fileName: pendingFile.file.name,
           fileSize: pendingFile.file.size,
           mimeType: pendingFile.file.type,
+          storagePath,
         })
         setText('')
         setPendingFile(null)
@@ -94,7 +101,7 @@ export default function MessageInput({ onSend, disabled, chatId }) {
     setText('')
     setPendingGif(null)
     setShowEmoji(false)
-  }, [text, pendingGif, pendingFile, disabled, uploading, onSend, chatId, user])
+  }, [text, pendingGif, pendingFile, disabled, uploading, onSend, chatId, user, storageUsedBytes, storageQuotaBytes])
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {

@@ -576,10 +576,40 @@ namespace KidsControl
             webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
             webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
             webView.CoreWebView2.WebMessageReceived += OnWebMessage;
+            webView.CoreWebView2.DownloadStarting += OnDownloadStarting;
             // Wait for page to finish loading before calling ExecuteScriptAsync,
             // otherwise updateData() is not yet defined and the call silently fails.
             webView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
             webView.CoreWebView2.NavigateToString(GetHtml());
+        }
+
+        private void OnDownloadStarting(object sender, CoreWebView2DownloadStartingEventArgs e)
+        {
+            try
+            {
+                var dir = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    "Downloads", "KidsControl");
+                System.IO.Directory.CreateDirectory(dir);
+                var origName = System.IO.Path.GetFileName(e.DownloadOperation.ResultFilePath);
+                var dest = System.IO.Path.Combine(dir, origName);
+                e.ResultFilePath = dest;
+                e.Handled = true;
+                e.DownloadOperation.StateChanged += (s, _) =>
+                {
+                    var op = (CoreWebView2DownloadOperation)s;
+                    if (op.State == CoreWebView2DownloadState.Completed)
+                    {
+                        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dest) { UseShellExecute = true }); }
+                        catch (Exception ex) { Log("OnDownloadStarting open error: " + ex.Message); }
+                    }
+                };
+                Log("OnDownloadStarting → " + dest);
+            }
+            catch (Exception ex)
+            {
+                Log("OnDownloadStarting error: " + ex.Message);
+            }
         }
 
         private void OnNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)

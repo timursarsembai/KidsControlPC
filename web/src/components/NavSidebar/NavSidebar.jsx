@@ -28,6 +28,12 @@ const MODES = [
 const MODE_TAB_IDS = new Set(MODES.map((m) => m.id))
 const DEVICE_TAB_IDS = new Set(['power', 'lock_screen', 'reminders', 'screenshots', 'agent_logs'])
 
+function formatStorageBytes(bytes) {
+  if (bytes >= 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' ГБ'
+  if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(0) + ' МБ'
+  return (bytes / 1024).toFixed(0) + ' КБ'
+}
+
 export default function Sidebar({ isMobileOpen = false, onMobileNavigate }) {
   const { t } = useTranslation()
   const {
@@ -35,7 +41,8 @@ export default function Sidebar({ isMobileOpen = false, onMobileNavigate }) {
     activeTab, setActiveTab,
     activeSubTab, setActiveSubTab,
     showSettings, setShowSettings,
-    rules, addProfileMode, deleteProfileMode, toggleProfileMode
+    rules, addProfileMode, deleteProfileMode, toggleProfileMode,
+    storageUsedBytes, storageQuotaBytes
   } = useRulesStore()
 
   const [expandedSections, setExpandedSections] = React.useState({
@@ -280,6 +287,21 @@ export default function Sidebar({ isMobileOpen = false, onMobileNavigate }) {
           </div>
         </>
       )}
+      {(() => {
+        const pct = storageQuotaBytes > 0 ? Math.min(100, (storageUsedBytes / storageQuotaBytes) * 100) : 0
+        const color = pct >= 90 ? 'var(--danger, #ef4444)' : pct >= 70 ? '#f59e0b' : 'var(--accent)'
+        return (
+          <div className="nav-storage-bar">
+            <div className="nav-storage-bar-row">
+              <span className="nav-storage-bar-label">Хранилище</span>
+              <span className="nav-storage-bar-nums">{formatStorageBytes(storageUsedBytes)} / {formatStorageBytes(storageQuotaBytes)}</span>
+            </div>
+            <div className="nav-storage-bar-track">
+              <div className="nav-storage-bar-fill" style={{ width: pct + '%', background: color }} />
+            </div>
+          </div>
+        )
+      })()}
     </aside>
   )
 }

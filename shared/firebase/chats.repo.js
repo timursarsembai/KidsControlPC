@@ -2,9 +2,10 @@ import {
   addDoc, updateDoc, deleteDoc,
   onSnapshot, query, orderBy, limit,
   serverTimestamp as fsServerTimestamp,
-  arrayUnion, getDocs
+  arrayUnion, getDocs, doc
 } from 'firebase/firestore'
-import { chatsCol, chatDoc, messagesCol, messageDoc } from './paths.js'
+import { db } from './config.js'
+import { chatsCol, chatDoc, messagesCol } from './paths.js'
 
 const ts = () => fsServerTimestamp()
 
@@ -57,6 +58,7 @@ export async function sendMessage(ownerUid, chatId, {
   fileName = null,
   fileSize = null,
   mimeType = null,
+  storagePath = null,
   senderType,   // 'parent' | 'child'
   senderUid = null,
   senderDeviceId = null,
@@ -71,6 +73,8 @@ export async function sendMessage(ownerUid, chatId, {
     fileName,
     fileSize,
     mimeType,
+    storagePath,
+    fileDeleted: false,
     senderType,
     senderUid,
     senderDeviceId,
@@ -111,6 +115,10 @@ export async function markMessagesRead(ownerUid, chatId, deviceId) {
       readBy: arrayUnion(deviceId)
     }))
   )
+}
+
+export async function markFileDeleted(ownerUid, chatId, msgId) {
+  await updateDoc(doc(db, 'users', ownerUid, 'chats', chatId, 'messages', msgId), { fileDeleted: true })
 }
 
 // Mark messages from others as delivered to this reader (received by their app),

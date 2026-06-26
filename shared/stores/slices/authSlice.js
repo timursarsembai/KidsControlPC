@@ -1,14 +1,17 @@
 import { subscribeToAlerts } from '../../firebase/alerts.repo.js'
 import { subscribeToDevices } from '../../firebase/devices.repo.js'
-import { initUserProfile } from '../../firebase/profile.repo.js'
+import { initUserProfile, subscribeToProfile } from '../../firebase/profile.repo.js'
 
 export const createAuthSlice = (set, get) => ({
   user: null,
   userProfile: null,
   activeOwnerUid: null,
   accountRole: 'owner',
+  storageUsedBytes: 0,
+  storageQuotaBytes: 1 * 1024 * 1024 * 1024,
   _unsubDevices: null,
   _unsubAlerts: null,
+  _unsubProfile: null,
 
   initFirebase: async (firebaseUser) => {
     const profile = await initUserProfile(firebaseUser.uid, firebaseUser.email)
@@ -39,18 +42,26 @@ export const createAuthSlice = (set, get) => ({
       set({ alerts })
     })
 
-    set({ _unsubDevices: unsubDevices, _unsubAlerts: unsubAlerts })
+    const unsubProfile = subscribeToProfile(activeOwnerUid, (profile) => {
+      set({
+        storageUsedBytes: profile.storageUsedBytes ?? 0,
+        storageQuotaBytes: profile.storageQuotaBytes ?? (1 * 1024 * 1024 * 1024)
+      })
+    })
+
+    set({ _unsubDevices: unsubDevices, _unsubAlerts: unsubAlerts, _unsubProfile: unsubProfile })
 
     get().initChats()
   },
 
   cleanup: () => {
-    const { _unsubDevices, _unsubRules, _unsubApps, _unsubScreenshots, _unsubAlerts } = get()
+    const { _unsubDevices, _unsubRules, _unsubApps, _unsubScreenshots, _unsubAlerts, _unsubProfile } = get()
     _unsubDevices?.()
     _unsubRules?.()
     _unsubApps?.()
     _unsubScreenshots?.()
     _unsubAlerts?.()
+    _unsubProfile?.()
     set({
       user: null,
       userProfile: null,
@@ -66,7 +77,8 @@ export const createAuthSlice = (set, get) => ({
       _unsubRules: null,
       _unsubApps: null,
       _unsubScreenshots: null,
-      _unsubAlerts: null
+      _unsubAlerts: null,
+      _unsubProfile: null
     })
     get().cleanupChats()
   }

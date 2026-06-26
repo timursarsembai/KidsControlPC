@@ -3,6 +3,7 @@ const admin = require('firebase-admin')
 const logger = require('firebase-functions/logger')
 const { HttpsError, onCall } = require('firebase-functions/v2/https')
 const { onSchedule } = require('firebase-functions/v2/scheduler')
+const { onObjectFinalized, onObjectDeleted } = require('firebase-functions/v2/storage')
 const nodemailer = require('nodemailer')
 
 admin.initializeApp()
@@ -12,6 +13,11 @@ const auth = admin.auth()
 
 const INVITATION_TTL_MS = 24 * 60 * 60 * 1000
 const REGION = process.env.FUNCTIONS_REGION || 'us-central1'
+const ATTACHMENT_RE = /^users\/([^/]+)\/chats\/([^/]+)\/attachments\/(.+)$/
+const FILE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000   // 7 дней
+const DEFAULT_QUOTA = 1 * 1024 * 1024 * 1024       // 1 ГБ
+const PURGE_THRESHOLD = 0.9                         // 90% — начать принудительную очистку
+const PURGE_TARGET = 0.7                            // освободить до 70% заполненности
 
 function normalizeEmail(email) {
   const normalized = String(email || '').trim().toLowerCase()
@@ -449,6 +455,117 @@ exports.revokeParentAccess = onCall({ region: REGION }, async (request) => {
 
   return { parentUid, status: 'revoked' }
 })
+
+// ── Storage quota tracking ─────────────────────────────────────────────────────
+
+function profileRef(ownerUid) {
+  return db.collection('users').doc(ownerUid).collection('profile').doc('data')
+}
+
+async function markMessageFileDeleted(ownerUid, chatId, storagePath) {
+  try {
+    const snap = await db
+      .collection('users').doc(ownerUid)
+      .collection('chats').doc(chatId)
+      .collection('messages')
+      .where('storagePath', '==', storagePath)
+      .limit(1)
+      .get()
+    if (!snap.empty) {
+      await snap.docs[0].ref.update({ fileDeleted: true })
+    }
+  } catch (e) {
+    logger.warn('markMessageFileDeleted error', { ownerUid, chatId, storagePath, error: e.message })
+  }
+}
+
+// Delete oldest attachment files for an owner until usage drops to PURGE_TARGET.
+async function purgeOldestFiles(ownerUid, usedBytes, quotaBytes) {
+  const bucket = admin.storage().bucket()
+  const [files] = await bucket.getFiles({ prefix: `users/${ownerUid}/chats/` })
+  const attachments = files
+    .filter(f => ATTACHMENT_RE.test(f.name))
+    .sort((a, b) => new Date(a.metadata.timeCreated) - new Date(b.metadata.timeCreated))
+
+  const targetBytes = quotaBytes * PURGE_TARGET
+  let freed = 0
+  for (const file of attachments) {
+    if (usedBytes - freed <= targetBytes) break
+    const size = Number(file.metadata.size || 0)
+    const match = file.name.match(ATTACHMENT_RE)
+    if (match) {
+      const [, uid, chatId] = match
+      await file.delete().catch(() => {})
+      await markMessageFileDeleted(uid, chatId, file.name)
+      freed += size
+      logger.info('purgeOldestFiles deleted', { file: file.name, size })
+    }
+  }
+}
+
+exports.onChatFileUploaded = onObjectFinalized({ region: REGION }, async (event) => {
+  const objectName = event.data.name
+  const match = objectName?.match(ATTACHMENT_RE)
+  if (!match) return  // not an attachment — skip
+
+  const ownerUid = match[1]
+  const size = Number(event.data.size || 0)
+  const ref = profileRef(ownerUid)
+
+  await ref.set(
+    { storageUsedBytes: admin.firestore.FieldValue.increment(size) },
+    { merge: true }
+  )
+
+  const snap = await ref.get()
+  const data = snap.data() || {}
+  const used = data.storageUsedBytes || 0
+  const quota = data.storageQuotaBytes || DEFAULT_QUOTA
+
+  if (used / quota >= PURGE_THRESHOLD) {
+    logger.info('onChatFileUploaded: quota threshold exceeded, purging', { ownerUid, used, quota })
+    await purgeOldestFiles(ownerUid, used, quota)
+  }
+})
+
+exports.onChatFileDeleted = onObjectDeleted({ region: REGION }, async (event) => {
+  const objectName = event.data.name
+  const match = objectName?.match(ATTACHMENT_RE)
+  if (!match) return
+
+  const ownerUid = match[1]
+  const chatId = match[2]
+  const size = Number(event.data.size || 0)
+
+  await profileRef(ownerUid).set(
+    { storageUsedBytes: admin.firestore.FieldValue.increment(-size) },
+    { merge: true }
+  )
+  await markMessageFileDeleted(ownerUid, chatId, objectName)
+})
+
+// Scheduled cleanup: delete attachments older than 7 days for all users.
+exports.cleanupOldChatFiles = onSchedule({ region: REGION, schedule: 'every 24 hours' }, async () => {
+  const bucket = admin.storage().bucket()
+  const cutoff = Date.now() - FILE_MAX_AGE_MS
+  const [files] = await bucket.getFiles({ prefix: 'users/' })
+
+  for (const file of files) {
+    if (!ATTACHMENT_RE.test(file.name)) continue
+    const created = new Date(file.metadata.timeCreated).getTime()
+    if (created > cutoff) continue
+
+    const match = file.name.match(ATTACHMENT_RE)
+    if (!match) continue
+    const [, ownerUid, chatId] = match
+
+    logger.info('cleanupOldChatFiles deleting', { file: file.name })
+    await file.delete().catch(() => {})
+    await markMessageFileDeleted(ownerUid, chatId, file.name)
+  }
+})
+
+// ── Parent invitations ─────────────────────────────────────────────────────────
 
 exports.cleanupExpiredParentInvitations = onSchedule({ region: REGION, schedule: 'every 6 hours' }, async () => {
   const now = admin.firestore.Timestamp.now()

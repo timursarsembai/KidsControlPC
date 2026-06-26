@@ -108,7 +108,7 @@ export const createChatSlice = (set, get) => ({
     if (get().activeChatId === chatId) get().selectChat(null)
   },
 
-  sendChatMessage: async (chatId, { text, gifUrl, gifPreviewUrl, fileUrl = null, fileName = null, fileSize = null, mimeType = null }) => {
+  sendChatMessage: async (chatId, { text, gifUrl, gifPreviewUrl, fileUrl = null, fileName = null, fileSize = null, mimeType = null, storagePath = null }) => {
     const { user, activeOwnerUid, userProfile } = get()
     if (!user) return
     const ownerUid = activeOwnerUid || user.uid
@@ -121,6 +121,7 @@ export const createChatSlice = (set, get) => ({
       fileName,
       fileSize,
       mimeType,
+      storagePath,
       senderType: 'parent',
       senderUid: user.uid,
       senderName,
