@@ -988,16 +988,17 @@ body {
 #gif-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: 90px;
   gap: 4px;
   max-height: 200px;
   overflow-y: auto;
+  align-content: start;
 }
 #gif-grid::-webkit-scrollbar { width: 5px; }
 #gif-grid::-webkit-scrollbar-thumb { background: #252a40; border-radius: 3px; }
 .gif-cell {
   width: 100%;
-  aspect-ratio: 1;
-  object-fit: cover;
+  height: 100%;
   border-radius: 8px;
   cursor: pointer;
   background: #181c2e;
