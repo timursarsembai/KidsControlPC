@@ -13,6 +13,8 @@ const auth = admin.auth()
 
 const INVITATION_TTL_MS = 24 * 60 * 60 * 1000
 const REGION = process.env.FUNCTIONS_REGION || 'us-central1'
+// Storage triggers must be deployed in the same region as the bucket.
+const STORAGE_REGION = process.env.FUNCTIONS_STORAGE_REGION || 'us-east1'
 const ATTACHMENT_RE = /^users\/([^/]+)\/chats\/([^/]+)\/attachments\/(.+)$/
 const FILE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000   // 7 дней
 const DEFAULT_QUOTA = 1 * 1024 * 1024 * 1024       // 1 ГБ
@@ -503,7 +505,7 @@ async function purgeOldestFiles(ownerUid, usedBytes, quotaBytes) {
   }
 }
 
-exports.onChatFileUploaded = onObjectFinalized({ region: REGION }, async (event) => {
+exports.onChatFileUploaded = onObjectFinalized({ region: STORAGE_REGION }, async (event) => {
   const objectName = event.data.name
   const match = objectName?.match(ATTACHMENT_RE)
   if (!match) return  // not an attachment — skip
@@ -528,7 +530,7 @@ exports.onChatFileUploaded = onObjectFinalized({ region: REGION }, async (event)
   }
 })
 
-exports.onChatFileDeleted = onObjectDeleted({ region: REGION }, async (event) => {
+exports.onChatFileDeleted = onObjectDeleted({ region: STORAGE_REGION }, async (event) => {
   const objectName = event.data.name
   const match = objectName?.match(ATTACHMENT_RE)
   if (!match) return
