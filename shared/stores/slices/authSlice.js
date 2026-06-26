@@ -8,7 +8,7 @@ export const createAuthSlice = (set, get) => ({
   activeOwnerUid: null,
   accountRole: 'owner',
   storageUsedBytes: 0,
-  storageQuotaBytes: 1 * 1024 * 1024 * 1024,
+  storageQuotaBytes: 100 * 1024 * 1024,
   _unsubDevices: null,
   _unsubAlerts: null,
   _unsubProfile: null,
@@ -45,7 +45,7 @@ export const createAuthSlice = (set, get) => ({
     const unsubProfile = subscribeToProfile(activeOwnerUid, (profile) => {
       set({
         storageUsedBytes: profile.storageUsedBytes ?? 0,
-        storageQuotaBytes: profile.storageQuotaBytes ?? (1 * 1024 * 1024 * 1024)
+        storageQuotaBytes: profile.storageQuotaBytes ?? (100 * 1024 * 1024)
       })
     })
 

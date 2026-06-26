@@ -2,7 +2,7 @@ import { getDoc, setDoc, onSnapshot } from 'firebase/firestore'
 import { profileDoc } from './paths.js'
 import { serverTimestamp } from './timestamps.js'
 
-const DEFAULT_QUOTA_BYTES = 1 * 1024 * 1024 * 1024  // 1 ГБ
+export const DEFAULT_QUOTA_BYTES = 100 * 1024 * 1024  // 100 МБ (Free план)
 
 export function subscribeToProfile(ownerUid, callback) {
   return onSnapshot(profileDoc(ownerUid), (snap) => {
@@ -39,6 +39,10 @@ export async function initUserProfile(uid, email) {
   if (!profile.role) updates.role = updates.ownerUid === uid ? 'owner' : 'parent'
   if (profile.storageUsedBytes === undefined) updates.storageUsedBytes = 0
   if (profile.storageQuotaBytes === undefined) updates.storageQuotaBytes = DEFAULT_QUOTA_BYTES
+  // Migrate old default (1 GB) to new free plan default (100 MB)
+  if (profile.storageQuotaBytes === 1 * 1024 * 1024 * 1024 && profile.plan === 'free') {
+    updates.storageQuotaBytes = DEFAULT_QUOTA_BYTES
+  }
 
   if (Object.keys(updates).length > 0) {
     await setDoc(ref, updates, { merge: true })

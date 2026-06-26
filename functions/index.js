@@ -17,7 +17,7 @@ const REGION = process.env.FUNCTIONS_REGION || 'us-central1'
 const STORAGE_REGION = process.env.FUNCTIONS_STORAGE_REGION || 'us-east1'
 const ATTACHMENT_RE = /^users\/([^/]+)\/chats\/([^/]+)\/attachments\/(.+)$/
 const FILE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000   // 7 дней
-const DEFAULT_QUOTA = 1 * 1024 * 1024 * 1024       // 1 ГБ
+const DEFAULT_QUOTA = 100 * 1024 * 1024             // 100 МБ (Free план)
 const PURGE_THRESHOLD = 0.9                         // 90% — начать принудительную очистку
 const PURGE_TARGET = 0.7                            // освободить до 70% заполненности
 
