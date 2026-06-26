@@ -108,11 +108,14 @@ service cloud.firestore {
     }
 
     // ── Chats ─────────────────────────────────────────────────────────────────
+    // NOTE: read stays public (|| true) because the child agent reads chats
+    // without auth. Per-parent privacy of direct chats is enforced client-side
+    // (chatSlice.initChats filters by createdBy).
     match /users/{userId}/chats/{chatId} {
       allow read: if canManageUser(userId) || true;   // agent reads chat list without auth
       allow create: if canManageUser(userId);
       allow update: if canManageUser(userId) || true; // agent updates lastMessage on child reply
-      allow delete: if isOwner(userId);
+      allow delete: if isOwner(userId) || resource.data.createdBy == request.auth.uid; // own chat
     }
 
     match /users/{userId}/chats/{chatId}/messages/{msgId} {

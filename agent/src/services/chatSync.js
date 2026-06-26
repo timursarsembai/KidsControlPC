@@ -50,9 +50,9 @@ function writeChatData() {
   const payload = {
     chats: chats.map(c => ({
       id: c.id,
-      // Child sees who they're talking to (parent's role), falling back to the
-      // chat name set by the parent if no role has been configured yet.
-      name: c.parentName || c.name,
+      // Group chats show their group name; direct chats show who the child is
+      // talking to (the parent's role, e.g. "Папа"), falling back to chat name.
+      name: c.type === 'group' ? (c.name || c.parentName) : (c.parentName || c.name),
       type: c.type || 'group',
       lastMessage: c.lastMessage || null
     })),

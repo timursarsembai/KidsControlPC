@@ -10,11 +10,14 @@ const ts = () => fsServerTimestamp()
 
 // ── Chats ──────────────────────────────────────────────────────────────────────
 
-export async function createChat(ownerUid, { type, name, deviceIds = [], parentUids = [] }) {
+export async function createChat(ownerUid, { type, name, deviceIds = [], parentUids = [], createdBy = null }) {
   const ref = await addDoc(chatsCol(ownerUid), {
     type,
     name: name || '',
     ownerUid,
+    // UID of the parent who created this chat. Direct chats are private to their
+    // creator; group chats are visible to all parents (see chatSlice.initChats).
+    createdBy: createdBy || ownerUid,
     deviceIds,
     parentUids,
     lastMessage: null,

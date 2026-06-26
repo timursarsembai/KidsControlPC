@@ -23,7 +23,12 @@ export const createChatSlice = (set, get) => ({
     _unsubChats?.()
     set({ chatsLoading: true })
     const unsub = subscribeToChats(ownerUid, (chats) => {
-      set({ chats, chatsLoading: false })
+      // Group chats are visible to all parents; direct chats only to their
+      // creator. Legacy chats without createdBy belong to the account owner.
+      const visible = chats.filter(c =>
+        c.type === 'group' || (c.createdBy || ownerUid) === user.uid
+      )
+      set({ chats: visible, chatsLoading: false })
     })
     set({ _unsubChats: unsub })
   },
@@ -58,17 +63,23 @@ export const createChatSlice = (set, get) => ({
     if (!user) return
     const ownerUid = activeOwnerUid || user.uid
     const parentUids = await get()._getAllParentUids(ownerUid)
-    return createChat(ownerUid, { type: 'group', name, deviceIds, parentUids })
+    return createChat(ownerUid, { type: 'group', name, deviceIds, parentUids, createdBy: user.uid })
   },
 
   createDirectChat: async (deviceId, deviceName) => {
     const { user, activeOwnerUid, chats } = get()
     if (!user) return
     const ownerUid = activeOwnerUid || user.uid
-    const existing = chats.find(c => c.type === 'direct' && c.deviceIds.includes(deviceId))
+    // Reuse only a direct chat created by THIS parent — each parent keeps their
+    // own private direct chat with the child.
+    const existing = chats.find(c =>
+      c.type === 'direct' &&
+      c.deviceIds.includes(deviceId) &&
+      (c.createdBy || ownerUid) === user.uid
+    )
     if (existing) return existing.id
     const parentUids = await get()._getAllParentUids(ownerUid)
-    return createChat(ownerUid, { type: 'direct', name: deviceName, deviceIds: [deviceId], parentUids })
+    return createChat(ownerUid, { type: 'direct', name: deviceName, deviceIds: [deviceId], parentUids, createdBy: user.uid })
   },
 
   _getAllParentUids: async (ownerUid) => {
