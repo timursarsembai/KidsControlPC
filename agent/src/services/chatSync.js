@@ -137,11 +137,11 @@ async function checkReplies() {
 
   const failed = []
   for (const r of replies) {
-    if (!r.chatId || (!r.text && !r.filePath)) {
+    if (!r.chatId || (!r.text && !r.filePath && !r.gifUrl)) {
       log('checkReplies skip invalid reply: ' + JSON.stringify(r))
       continue
     }
-    log('checkReplies sending chatId=' + r.chatId + ' text=' + r.text + (r.filePath ? ' file=' + r.fileName : ''))
+    log('checkReplies sending chatId=' + r.chatId + ' text=' + r.text + (r.filePath ? ' file=' + r.fileName : '') + (r.gifUrl ? ' gif' : ''))
     try {
       let fileUrl = null
       if (r.filePath) {
@@ -153,11 +153,11 @@ async function checkReplies() {
         }
       }
 
-      const lastText = r.fileName ? `📎 ${r.fileName}` : (r.text || '')
+      const lastText = r.fileName ? `📎 ${r.fileName}` : (r.gifUrl ? '🖼️ GIF' : (r.text || ''))
       await addDoc(collection(db, 'users', parentUid, 'chats', r.chatId, 'messages'), {
         text: r.text || '',
-        gifUrl: null,
-        gifPreviewUrl: null,
+        gifUrl: r.gifUrl || null,
+        gifPreviewUrl: r.gifPreviewUrl || null,
         fileUrl: fileUrl || null,
         fileName: r.fileName || null,
         fileSize: r.fileSize || null,

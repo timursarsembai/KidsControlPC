@@ -436,6 +436,41 @@ namespace KidsControl
             }
         }
 
+        public void SendGifReply(string chatId, string gifUrl, string gifPreviewUrl)
+        {
+            if (string.IsNullOrWhiteSpace(chatId) || string.IsNullOrWhiteSpace(gifUrl)) return;
+            WriteLog("SendGifReply chatId=" + chatId + " gif=" + gifUrl);
+            var ser = new JavaScriptSerializer();
+            var reply = new Dictionary<string, object>();
+            reply["id"] = Guid.NewGuid().ToString("N");
+            reply["chatId"] = chatId;
+            reply["gifUrl"] = gifUrl;
+            reply["gifPreviewUrl"] = string.IsNullOrEmpty(gifPreviewUrl) ? gifUrl : gifPreviewUrl;
+            reply["timestamp"] = DateTime.UtcNow.ToString("o");
+
+            for (int i = 0; i < 5; i++)
+            {
+                try
+                {
+                    var list = new List<Dictionary<string, object>>();
+                    if (File.Exists(repliesPath))
+                    {
+                        try
+                        {
+                            string ex = File.ReadAllText(repliesPath, Encoding.UTF8);
+                            if (!string.IsNullOrWhiteSpace(ex) && ex.Trim() != "[]")
+                                list = ser.Deserialize<List<Dictionary<string, object>>>(ex) ?? new List<Dictionary<string, object>>();
+                        }
+                        catch { }
+                    }
+                    list.Add(reply);
+                    File.WriteAllText(repliesPath, ser.Serialize(list), Encoding.UTF8);
+                    break;
+                }
+                catch (IOException) { Thread.Sleep(100); }
+            }
+        }
+
         private void Quit()
         {
             tray.Visible = false;
@@ -543,6 +578,13 @@ namespace KidsControl
                     string chatId = msg.ContainsKey("chatId") ? msg["chatId"].ToString() : null;
                     string text = msg.ContainsKey("text") ? msg["text"].ToString() : null;
                     if (chatId != null && !string.IsNullOrEmpty(text)) app.SendReply(chatId, text);
+                }
+                else if (type == "sendGif")
+                {
+                    string chatId = msg.ContainsKey("chatId") ? msg["chatId"].ToString() : null;
+                    string gifUrl = msg.ContainsKey("gifUrl") ? msg["gifUrl"].ToString() : null;
+                    string gifPreviewUrl = msg.ContainsKey("gifPreviewUrl") ? msg["gifPreviewUrl"].ToString() : null;
+                    if (chatId != null && !string.IsNullOrEmpty(gifUrl)) app.SendGifReply(chatId, gifUrl, gifPreviewUrl);
                 }
                 else if (type == "sendFile")
                 {
@@ -836,6 +878,90 @@ body {
 .file-doc-name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .file-doc-size { font-size: 10px; opacity: 0.55; }
 #file-input { display: none; }
+.icon-btn {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: #1b1f35;
+  border: 1px solid #242840;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+  transition: background 0.15s;
+  color: #8892b0;
+}
+.icon-btn:hover { background: #222d52; color: #dde6f5; }
+.icon-btn.active { background: #222d52; color: #fff; }
+#emoji-panel {
+  display: none;
+  flex-wrap: wrap;
+  gap: 2px;
+  max-height: 168px;
+  overflow-y: auto;
+  padding: 8px;
+  background: #141724;
+  border: 1px solid #242840;
+  border-radius: 12px;
+  margin-bottom: 2px;
+}
+#emoji-panel.show { display: flex; }
+#emoji-panel::-webkit-scrollbar { width: 5px; }
+#emoji-panel::-webkit-scrollbar-thumb { background: #252a40; border-radius: 3px; }
+.emoji-cell {
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  cursor: pointer;
+  border-radius: 8px;
+  background: none; border: none;
+  transition: background 0.1s;
+}
+.emoji-cell:hover { background: #222d52; }
+#gif-panel {
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  background: #141724;
+  border: 1px solid #242840;
+  border-radius: 12px;
+  padding: 8px;
+  margin-bottom: 2px;
+}
+#gif-panel.show { display: flex; }
+#gif-search {
+  background: #181c2e;
+  border: 1px solid #242840;
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: #dde6f5;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+#gif-search:focus { border-color: #4648a8; }
+#gif-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+#gif-grid::-webkit-scrollbar { width: 5px; }
+#gif-grid::-webkit-scrollbar-thumb { background: #252a40; border-radius: 3px; }
+.gif-cell {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 8px;
+  cursor: pointer;
+  background: #181c2e;
+  border: none;
+  overflow: hidden;
+  padding: 0;
+}
+.gif-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gif-cell:hover { outline: 2px solid #6366f1; }
+#gif-status { font-size: 12px; color: #4e5d78; text-align: center; padding: 8px; }
 </style>
 </head>
 <body>
@@ -852,9 +978,17 @@ body {
       <span id='file-pending-name'></span>
       <button id='file-pending-remove' onclick='removePendingFile()'>×</button>
     </div>
+    <div id='emoji-panel'></div>
+    <div id='gif-panel'>
+      <input type='text' id='gif-search' placeholder='Поиск GIF...'>
+      <div id='gif-grid'></div>
+      <div id='gif-status'></div>
+    </div>
     <div id='input-row'>
       <input type='file' id='file-input' accept='image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.txt,.csv'>
-      <button id='attach-btn' onclick='openFileDialog()' title='Прикрепить файл'>📎</button>
+      <button id='emoji-btn' class='icon-btn' onclick='toggleEmoji()' title='Эмодзи'>😊</button>
+      <button id='gif-btn' class='icon-btn' onclick='toggleGif()' title='GIF' style='font-size:12px;font-weight:700;'>GIF</button>
+      <button id='attach-btn' class='icon-btn' onclick='openFileDialog()' title='Прикрепить файл'>📎</button>
       <textarea id='input-box' placeholder='Написать сообщение...' rows='1'></textarea>
       <button id='send-btn'>
         <svg viewBox='0 0 24 24'><path d='M2.01 21L23 12 2.01 3 2 10l15 2-15 2z'/></svg>
@@ -966,6 +1100,104 @@ function escA(s) {
 
 var pendingFileData = null; // {name, size, mimeType, dataUrl}
 
+// ── Emoji ──
+var EMOJI = ['😀','😁','😂','🤣','😊','😍','😘','😎','🤩','🥳','😜','🤪','😋','🤗','🤔','😐','😴','😇','🙂','😉','😆','🥹','😭','😢','😡','😱','😳','🥰','😏','🤫','🤭','😬','🙄','😤','😈','👻','💀','🤖','🎃','😺','🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔','🦄','🐝','🦋','🌟','⭐','✨','🔥','💥','🎉','🎊','🎈','🎁','❤️','🧡','💛','💚','💙','💜','🖤','💯','👍','👎','👏','🙌','🙏','💪','✌️','🤞','👌','🤙','👋','🤝','💋','👀','🍕','🍔','🍟','🌭','🍩','🍪','🍰','🎂','🍦','🍫','🍬','🍭','🍎','🍌','🍉','🍓','⚽','🏀','🎮','🕹️','🎯','🎸','🎵','🚗','✈️','🚀','🌈','☀️','🌙','⚡','❄️','💧'];
+
+function buildEmojiPanel() {
+  var panel = document.getElementById('emoji-panel');
+  if (panel.childElementCount > 0) return;
+  EMOJI.forEach(function(em) {
+    var b = document.createElement('button');
+    b.className = 'emoji-cell';
+    b.textContent = em;
+    b.onclick = function() { insertEmoji(em); };
+    panel.appendChild(b);
+  });
+}
+
+function insertEmoji(em) {
+  var box = document.getElementById('input-box');
+  var start = box.selectionStart || box.value.length;
+  var end = box.selectionEnd || box.value.length;
+  box.value = box.value.slice(0, start) + em + box.value.slice(end);
+  box.focus();
+  box.selectionStart = box.selectionEnd = start + em.length;
+  box.style.height = 'auto';
+  box.style.height = Math.min(box.scrollHeight, 120) + 'px';
+}
+
+function toggleEmoji() {
+  var panel = document.getElementById('emoji-panel');
+  var gifPanel = document.getElementById('gif-panel');
+  gifPanel.classList.remove('show');
+  document.getElementById('gif-btn').classList.remove('active');
+  buildEmojiPanel();
+  var show = !panel.classList.contains('show');
+  panel.classList.toggle('show', show);
+  document.getElementById('emoji-btn').classList.toggle('active', show);
+}
+
+// ── GIF ──
+var GIPHY_KEY = 'sgrC3ibUohfTjbUb8Ue9IxkLC3FfQkdI';
+var gifDebounce = null;
+
+function toggleGif() {
+  var panel = document.getElementById('gif-panel');
+  var emojiPanel = document.getElementById('emoji-panel');
+  emojiPanel.classList.remove('show');
+  document.getElementById('emoji-btn').classList.remove('active');
+  var show = !panel.classList.contains('show');
+  panel.classList.toggle('show', show);
+  document.getElementById('gif-btn').classList.toggle('active', show);
+  if (show) {
+    document.getElementById('gif-search').focus();
+    fetchGifs('');
+  }
+}
+
+function fetchGifs(q) {
+  var status = document.getElementById('gif-status');
+  var grid = document.getElementById('gif-grid');
+  status.textContent = 'Загрузка...';
+  var url = q
+    ? 'https://api.giphy.com/v1/gifs/search?api_key=' + GIPHY_KEY + '&q=' + encodeURIComponent(q) + '&lang=ru&limit=18&rating=g'
+    : 'https://api.giphy.com/v1/gifs/trending?api_key=' + GIPHY_KEY + '&limit=18&rating=g';
+  fetch(url).then(function(r){ return r.json(); }).then(function(json) {
+    var data = json.data || [];
+    grid.innerHTML = '';
+    if (data.length === 0) { status.textContent = 'Ничего не найдено'; return; }
+    status.textContent = '';
+    data.forEach(function(g) {
+      var orig = g.images.original.url;
+      var prev = g.images.fixed_height_small.url;
+      var btn = document.createElement('button');
+      btn.className = 'gif-cell';
+      var img = document.createElement('img');
+      img.src = prev; img.loading = 'lazy';
+      btn.appendChild(img);
+      btn.onclick = function() { selectGif(orig, prev); };
+      grid.appendChild(btn);
+    });
+  }).catch(function() { status.textContent = 'Ошибка загрузки GIF'; });
+}
+
+function selectGif(gifUrl, gifPreviewUrl) {
+  if (!currentChatId) return;
+  document.getElementById('gif-panel').classList.remove('show');
+  document.getElementById('gif-btn').classList.remove('active');
+  appendOptimisticGif(gifPreviewUrl || gifUrl);
+  window.chrome.webview.postMessage(JSON.stringify({
+    type: 'sendGif', chatId: currentChatId, gifUrl: gifUrl, gifPreviewUrl: gifPreviewUrl
+  }));
+}
+
+document.getElementById('gif-search').addEventListener('input', function() {
+  var q = this.value.trim();
+  clearTimeout(gifDebounce);
+  var self = this;
+  gifDebounce = setTimeout(function() { fetchGifs(q); }, 400);
+});
+
 document.getElementById('send-btn').onclick = sendMsg;
 document.getElementById('input-box').addEventListener('keydown', function(e) {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
@@ -1025,6 +1257,8 @@ function sendMsg() {
   if (!text) return;
   box.value = '';
   box.style.height = 'auto';
+  document.getElementById('emoji-panel').classList.remove('show');
+  document.getElementById('emoji-btn').classList.remove('active');
   appendOptimistic(text);
   window.chrome.webview.postMessage(JSON.stringify({type:'send',chatId:currentChatId,text:text}));
 }
@@ -1037,6 +1271,18 @@ function appendOptimistic(text) {
   row.className = 'msg-row out';
   row.setAttribute('data-optimistic', '1');
   row.innerHTML = '<div class=\'bubble\' style=\'opacity:0.7\'>' + esc(text) + '</div>';
+  container.appendChild(row);
+  container.scrollTop = container.scrollHeight;
+}
+
+function appendOptimisticGif(previewUrl) {
+  var container = document.getElementById('messages');
+  var empty = container.querySelector('.empty-msg');
+  if (empty) empty.remove();
+  var row = document.createElement('div');
+  row.className = 'msg-row out';
+  row.setAttribute('data-optimistic', '1');
+  row.innerHTML = '<div class=\'bubble\' style=\'opacity:0.7\'><img src=\'' + escA(previewUrl) + '\' alt=\'GIF\'></div>';
   container.appendChild(row);
   container.scrollTop = container.scrollHeight;
 }
