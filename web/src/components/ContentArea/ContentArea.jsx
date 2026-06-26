@@ -51,7 +51,7 @@ export default function ContentArea() {
   const { t } = useTranslation()
   const {
     activeTab, activeSubTab, setActiveSubTab,
-    selectedDeviceId, devices, setShowSettings, rules
+    selectedDeviceId, devices, setShowSettings, rules, toggleProfileMode
   } = useRulesStore()
 
   const isProfileTab = activeTab?.startsWith('profile_')
@@ -59,6 +59,7 @@ export default function ContentArea() {
     ? rules.find(rule => rule.mode === 'profile' && rule.profileId === activeTab && rule.type === 'profile_config')
       || rules.find(rule => rule.mode === 'profile' && rule.profileId === activeTab)
     : null
+  const profileDisabled = !!profileRule?.disabled
 
   const baseMeta = {
     permanent: { label: t('sidebar.modes.permanent'), icon: '🔒', desc: t('sidebar.modes.permanent_sub') },
@@ -119,6 +120,19 @@ export default function ContentArea() {
       {/* ── Header ── */}
       <div className="content-header">
         <div className="content-title-row">
+          {isProfileTab && (
+            <button
+              className={`profile-mode-toggle-btn ${profileDisabled ? 'off' : 'on'}`}
+              onClick={() => toggleProfileMode(activeTab)}
+              title={profileDisabled ? 'Режим отключён — нажмите, чтобы включить' : 'Режим включён — нажмите, чтобы отключить'}
+              type="button"
+              aria-pressed={!profileDisabled}
+            >
+              <span className="profile-mode-toggle-track">
+                <span className="profile-mode-toggle-thumb" />
+              </span>
+            </button>
+          )}
           <span className="content-mode-icon">{meta.icon}</span>
           <div>
             <h1 className="content-title">{meta.label}</h1>

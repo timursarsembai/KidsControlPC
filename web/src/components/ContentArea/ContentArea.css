@@ -36,6 +36,52 @@
   flex-shrink: 0;
 }
 
+/* Profile mode on/off toggle in content header */
+.profile-mode-toggle-btn {
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.profile-mode-toggle-track {
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+  border-radius: 11px;
+  position: relative;
+  transition: background var(--dur-base) var(--ease);
+}
+
+.profile-mode-toggle-btn.on .profile-mode-toggle-track {
+  background: var(--accent);
+}
+
+.profile-mode-toggle-btn.off .profile-mode-toggle-track {
+  background: var(--text-tertiary);
+}
+
+.profile-mode-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left var(--dur-base) var(--ease);
+}
+
+.profile-mode-toggle-btn.on .profile-mode-toggle-thumb {
+  left: 21px;
+}
+
+.profile-mode-toggle-btn.off .profile-mode-toggle-thumb {
+  left: 3px;
+}
+
 .content-title {
   font-size: 18px;
   font-weight: 700;
