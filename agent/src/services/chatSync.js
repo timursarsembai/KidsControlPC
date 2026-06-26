@@ -3,8 +3,10 @@ import {
   collection, doc, onSnapshot,
   addDoc, updateDoc, serverTimestamp
 } from 'firebase/firestore'
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 import fs from 'fs'
 import path from 'path'
+import { randomBytes } from 'crypto'
 import { execAsync } from '../core/utils.js'
 import { CHAT_DATA_DIR } from '../config.js'
 
@@ -76,6 +78,10 @@ function subscribeToMessages(chatId) {
           text: m.text || '',
           gifUrl: m.gifUrl || null,
           gifPreviewUrl: m.gifPreviewUrl || null,
+          fileUrl: m.fileUrl || null,
+          fileName: m.fileName || null,
+          fileSize: m.fileSize || null,
+          mimeType: m.mimeType || null,
           senderName: m.senderName || '',
           senderType: m.senderType || 'parent',
           timestamp: m.timestamp?.toDate?.()?.toISOString() || null
@@ -90,6 +96,17 @@ function subscribeToMessages(chatId) {
   }, (err) => {
     log('messages error ' + chatId + ': ' + err.message)
   })
+}
+
+async function uploadChatAttachment(r) {
+  const bytes = fs.readFileSync(r.filePath)
+  const uuid = randomBytes(12).toString('hex')
+  const safeName = path.basename(r.fileName || 'file').replace(/[^a-zA-Z0-9._-]/g, '_')
+  const storagePath = `users/${parentUid}/chats/${r.chatId}/attachments/${uuid}-${safeName}`
+  const ref = storageRef(getStorage(), storagePath)
+  await uploadBytes(ref, bytes, { contentType: r.mimeType || 'application/octet-stream' })
+  try { fs.unlinkSync(r.filePath) } catch {}
+  return await getDownloadURL(ref)
 }
 
 async function checkReplies() {
@@ -120,16 +137,31 @@ async function checkReplies() {
 
   const failed = []
   for (const r of replies) {
-    if (!r.chatId || !r.text) {
+    if (!r.chatId || (!r.text && !r.filePath)) {
       log('checkReplies skip invalid reply: ' + JSON.stringify(r))
       continue
     }
-    log('checkReplies sending chatId=' + r.chatId + ' text=' + r.text)
+    log('checkReplies sending chatId=' + r.chatId + ' text=' + r.text + (r.filePath ? ' file=' + r.fileName : ''))
     try {
+      let fileUrl = null
+      if (r.filePath) {
+        if (r.fileSize && r.fileSize > 10 * 1024 * 1024) {
+          log('checkReplies skip oversized file: ' + r.fileSize)
+        } else {
+          fileUrl = await uploadChatAttachment(r)
+          log('attachment uploaded OK fileUrl=' + fileUrl)
+        }
+      }
+
+      const lastText = r.fileName ? `📎 ${r.fileName}` : (r.text || '')
       await addDoc(collection(db, 'users', parentUid, 'chats', r.chatId, 'messages'), {
-        text: r.text,
+        text: r.text || '',
         gifUrl: null,
         gifPreviewUrl: null,
+        fileUrl: fileUrl || null,
+        fileName: r.fileName || null,
+        fileSize: r.fileSize || null,
+        mimeType: r.mimeType || null,
         senderType: 'child',
         senderUid: null,
         senderDeviceId: deviceId,
@@ -139,7 +171,7 @@ async function checkReplies() {
       })
       await updateDoc(doc(db, 'users', parentUid, 'chats', r.chatId), {
         lastMessage: {
-          text: r.text,
+          text: lastText,
           senderName: deviceName || 'Ребёнок',
           timestamp: serverTimestamp()
         },

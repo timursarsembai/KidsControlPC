@@ -50,6 +50,10 @@ export async function sendMessage(ownerUid, chatId, {
   text = '',
   gifUrl = null,
   gifPreviewUrl = null,
+  fileUrl = null,
+  fileName = null,
+  fileSize = null,
+  mimeType = null,
   senderType,   // 'parent' | 'child'
   senderUid = null,
   senderDeviceId = null,
@@ -60,6 +64,10 @@ export async function sendMessage(ownerUid, chatId, {
     text,
     gifUrl,
     gifPreviewUrl,
+    fileUrl,
+    fileName,
+    fileSize,
+    mimeType,
     senderType,
     senderUid,
     senderDeviceId,
@@ -68,8 +76,9 @@ export async function sendMessage(ownerUid, chatId, {
     timestamp: ts()
   })
 
+  const lastText = fileName ? `📎 ${fileName}` : (gifUrl ? '🖼️ GIF' : text)
   const chatUpdate = {
-    lastMessage: { text: gifUrl ? '🖼️ GIF' : text, senderName, timestamp: ts() },
+    lastMessage: { text: lastText, senderName, timestamp: ts() },
     updatedAt: ts()
   }
   if (parentName) chatUpdate.parentName = parentName

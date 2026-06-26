@@ -33,5 +33,16 @@ service firebase.storage {
       allow delete: if canManageUser(userId)
         || (resource.metadata.uploadToken == deviceScreenshotToken(userId, deviceId));
     }
+
+    // Chat file attachments: parent uploads via browser (authenticated),
+    // child agent uploads without auth — allow write without auth for now
+    // (same pattern as Firestore chat messages which also use || true).
+    match /users/{userId}/chats/{chatId}/attachments/{fileName} {
+      allow read: if true;
+      allow create: if request.resource.size < 10 * 1024 * 1024
+        && !request.resource.contentType.matches('video/.*');
+      allow delete: if canManageUser(userId);
+      allow update: if false;
+    }
   }
 }

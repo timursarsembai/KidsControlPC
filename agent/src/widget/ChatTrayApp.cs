@@ -27,6 +27,10 @@ namespace KidsControl
         public string Text;
         public string GifUrl;
         public string GifPreviewUrl;
+        public string FileUrl;
+        public string FileName;
+        public long FileSize;
+        public string MimeType;
         public string SenderName;
         public string SenderType;
         public DateTime Timestamp;
@@ -214,6 +218,11 @@ namespace KidsControl
                                 msg.Text = Str(m, "text") ?? "";
                                 msg.GifUrl = Str(m, "gifUrl");
                                 msg.GifPreviewUrl = Str(m, "gifPreviewUrl");
+                                msg.FileUrl = Str(m, "fileUrl");
+                                msg.FileName = Str(m, "fileName");
+                                msg.MimeType = Str(m, "mimeType");
+                                if (m.ContainsKey("fileSize") && m["fileSize"] != null)
+                                    long.TryParse(m["fileSize"].ToString(), out msg.FileSize);
                                 msg.SenderName = Str(m, "senderName") ?? "";
                                 msg.SenderType = Str(m, "senderType") ?? "parent";
                                 string ts = Str(m, "timestamp");
@@ -248,7 +257,7 @@ namespace KidsControl
                                                 hasNew = true;
                                                 unread++;
                                                 newSender = msg.SenderName;
-                                                newText = string.IsNullOrEmpty(msg.Text) ? "[GIF]" : msg.Text;
+                                                newText = !string.IsNullOrEmpty(msg.Text) ? msg.Text : (!string.IsNullOrEmpty(msg.FileName) ? "[Файл: " + msg.FileName + "]" : "[GIF]");
                                             }
                                         }
                                     }
@@ -390,6 +399,43 @@ namespace KidsControl
             }
         }
 
+        public void SendFileReply(string chatId, string filePath, string fileName, long fileSize, string mimeType)
+        {
+            if (string.IsNullOrWhiteSpace(chatId) || string.IsNullOrWhiteSpace(filePath)) return;
+            WriteLog("SendFileReply chatId=" + chatId + " file=" + fileName + " size=" + fileSize);
+            var ser = new JavaScriptSerializer();
+            var reply = new Dictionary<string, object>();
+            reply["id"] = Guid.NewGuid().ToString("N");
+            reply["chatId"] = chatId;
+            reply["filePath"] = filePath;
+            reply["fileName"] = fileName ?? "";
+            reply["fileSize"] = fileSize;
+            reply["mimeType"] = mimeType ?? "application/octet-stream";
+            reply["timestamp"] = DateTime.UtcNow.ToString("o");
+
+            for (int i = 0; i < 5; i++)
+            {
+                try
+                {
+                    var list = new List<Dictionary<string, object>>();
+                    if (File.Exists(repliesPath))
+                    {
+                        try
+                        {
+                            string ex = File.ReadAllText(repliesPath, Encoding.UTF8);
+                            if (!string.IsNullOrWhiteSpace(ex) && ex.Trim() != "[]")
+                                list = ser.Deserialize<List<Dictionary<string, object>>>(ex) ?? new List<Dictionary<string, object>>();
+                        }
+                        catch { }
+                    }
+                    list.Add(reply);
+                    File.WriteAllText(repliesPath, ser.Serialize(list), Encoding.UTF8);
+                    break;
+                }
+                catch (IOException) { Thread.Sleep(100); }
+            }
+        }
+
         private void Quit()
         {
             tray.Visible = false;
@@ -498,6 +544,32 @@ namespace KidsControl
                     string text = msg.ContainsKey("text") ? msg["text"].ToString() : null;
                     if (chatId != null && !string.IsNullOrEmpty(text)) app.SendReply(chatId, text);
                 }
+                else if (type == "sendFile")
+                {
+                    string chatId = msg.ContainsKey("chatId") ? msg["chatId"].ToString() : null;
+                    string fileName = msg.ContainsKey("fileName") ? msg["fileName"].ToString() : "file";
+                    string mimeType = msg.ContainsKey("mimeType") ? msg["mimeType"].ToString() : "application/octet-stream";
+                    long fileSize = msg.ContainsKey("fileSize") ? Convert.ToInt64(msg["fileSize"]) : 0;
+                    string dataUrl = msg.ContainsKey("data") ? msg["data"].ToString() : null;
+                    if (chatId != null && dataUrl != null)
+                    {
+                        try
+                        {
+                            int comma = dataUrl.IndexOf(',');
+                            string b64 = comma >= 0 ? dataUrl.Substring(comma + 1) : dataUrl;
+                            byte[] bytes = Convert.FromBase64String(b64);
+                            string pendingDir = Path.Combine(
+                                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                                "KidsControlPC", "pending_uploads");
+                            Directory.CreateDirectory(pendingDir);
+                            string safeFile = System.Text.RegularExpressions.Regex.Replace(fileName, @"[^\w\.\-]", "_");
+                            string savePath = Path.Combine(pendingDir, Guid.NewGuid().ToString("N") + "_" + safeFile);
+                            File.WriteAllBytes(savePath, bytes);
+                            app.SendFileReply(chatId, savePath, fileName, fileSize > 0 ? fileSize : bytes.Length, mimeType);
+                        }
+                        catch (Exception ex) { Log("sendFile error: " + ex.Message); }
+                    }
+                }
             }
             catch { }
         }
@@ -543,6 +615,10 @@ namespace KidsControl
                         d["text"] = m.Text ?? "";
                         d["gifUrl"] = m.GifUrl ?? "";
                         d["gifPreviewUrl"] = m.GifPreviewUrl ?? "";
+                        d["fileUrl"] = m.FileUrl ?? "";
+                        d["fileName"] = m.FileName ?? "";
+                        d["fileSize"] = m.FileSize;
+                        d["mimeType"] = m.MimeType ?? "";
                         d["senderName"] = m.SenderName ?? "";
                         d["senderType"] = m.SenderType ?? "parent";
                         d["timestamp"] = m.Timestamp != DateTime.MinValue ? (object)m.Timestamp.ToString("o") : null;
@@ -677,10 +753,29 @@ body {
   background: #111320;
   border-top: 1px solid #1a1e2e;
   display: flex;
-  gap: 8px;
-  align-items: flex-end;
+  flex-direction: column;
+  gap: 6px;
   flex-shrink: 0;
 }
+#input-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+#file-pending {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #1b1f35;
+  border: 1px solid #6366f1;
+  border-radius: 10px;
+  font-size: 12px;
+  color: #b0bcd6;
+}
+#file-pending.show { display: flex; }
+#file-pending-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#file-pending-remove { background: none; border: none; color: #ef4444; cursor: pointer; font-size: 16px; padding: 0 2px; flex-shrink: 0; }
 #input-box {
   flex: 1;
   background: #181c2e;
@@ -701,6 +796,19 @@ body {
 }
 #input-box:focus { border-color: #4648a8; }
 #input-box::placeholder { color: #333d58; }
+#attach-btn {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: #1b1f35;
+  border: 1px solid #242840;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+  transition: background 0.15s;
+  color: #8892b0;
+}
+#attach-btn:hover { background: #222d52; color: #dde6f5; }
 #send-btn {
   width: 38px; height: 38px;
   border-radius: 50%;
@@ -714,6 +822,20 @@ body {
 #send-btn:hover { background: #5254cc; }
 #send-btn:active { transform: scale(0.93); }
 #send-btn svg { width: 18px; height: 18px; fill: white; margin-left: 2px; }
+.file-img { max-width: 220px; max-height: 200px; border-radius: 10px; display: block; cursor: pointer; }
+.file-doc {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 10px;
+  text-decoration: none; color: #dde6f5;
+}
+.file-doc:hover { background: rgba(255,255,255,0.13); }
+.file-doc-icon { font-size: 18px; }
+.file-doc-info { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.file-doc-name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file-doc-size { font-size: 10px; opacity: 0.55; }
+#file-input { display: none; }
 </style>
 </head>
 <body>
@@ -725,10 +847,19 @@ body {
   <div id='header'><span id='header-name'>Выберите чат</span></div>
   <div id='messages'><div class='empty-msg'>Выберите чат слева</div></div>
   <div id='input-area'>
-    <textarea id='input-box' placeholder='Написать сообщение...' rows='1'></textarea>
-    <button id='send-btn'>
-      <svg viewBox='0 0 24 24'><path d='M2.01 21L23 12 2.01 3 2 10l15 2-15 2z'/></svg>
-    </button>
+    <div id='file-pending'>
+      <span>📎</span>
+      <span id='file-pending-name'></span>
+      <button id='file-pending-remove' onclick='removePendingFile()'>×</button>
+    </div>
+    <div id='input-row'>
+      <input type='file' id='file-input' accept='image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.txt,.csv'>
+      <button id='attach-btn' onclick='openFileDialog()' title='Прикрепить файл'>📎</button>
+      <textarea id='input-box' placeholder='Написать сообщение...' rows='1'></textarea>
+      <button id='send-btn'>
+        <svg viewBox='0 0 24 24'><path d='M2.01 21L23 12 2.01 3 2 10l15 2-15 2z'/></svg>
+      </button>
+    </div>
   </div>
 </div>
 <script>
@@ -803,10 +934,19 @@ function renderMessages(chatId) {
       html += '<div class=\'sender\'>' + esc(m.senderName || 'Родитель') + '</div>';
     }
     var isGif = !m.text && (m.gifUrl || m.gifPreviewUrl);
-    var bubbleInner = isGif
-      ? '<img src=\'' + escA(m.gifPreviewUrl || m.gifUrl) + '\' alt=\'GIF\'>'
-      : esc(m.text || '');
-    html += '<div class=\'bubble\'>' + bubbleInner + '</div>';
+    var bubbleContent = '';
+    if (m.text) bubbleContent += esc(m.text);
+    if (isGif) bubbleContent += '<img src=\'' + escA(m.gifPreviewUrl || m.gifUrl) + '\' alt=\'GIF\'>';
+    if (m.fileUrl && m.mimeType && m.mimeType.indexOf('image/') === 0) {
+      bubbleContent += '<img src=\'' + escA(m.fileUrl) + '\' alt=\'' + esc(m.fileName || 'изображение') + '\' class=\'file-img\' onclick=\'window.open(' + JSON.stringify(m.fileUrl) + ')\'>';
+    } else if (m.fileUrl) {
+      var sizeStr = m.fileSize ? (m.fileSize < 1024*1024 ? (m.fileSize/1024).toFixed(1)+' КБ' : (m.fileSize/1024/1024).toFixed(1)+' МБ') : '';
+      bubbleContent += '<a href=\'' + escA(m.fileUrl) + '\' target=\'_blank\' class=\'file-doc\'>' +
+        '<span class=\'file-doc-icon\'>📎</span>' +
+        '<span class=\'file-doc-info\'><span class=\'file-doc-name\'>' + esc(m.fileName || 'Файл') + '</span>' +
+        (sizeStr ? '<span class=\'file-doc-size\'>' + sizeStr + '</span>' : '') + '</span></a>';
+    }
+    html += '<div class=\'bubble\'>' + bubbleContent + '</div>';
     if (ts) {
       var t2 = ts.toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'});
       html += '<div class=\'msg-time\'>' + t2 + '</div>';
@@ -824,6 +964,8 @@ function escA(s) {
   return String(s).replace(/'/g,'%27').replace(/""/g,'%22');
 }
 
+var pendingFileData = null; // {name, size, mimeType, dataUrl}
+
 document.getElementById('send-btn').onclick = sendMsg;
 document.getElementById('input-box').addEventListener('keydown', function(e) {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
@@ -832,10 +974,50 @@ document.getElementById('input-box').addEventListener('input', function() {
   this.style.height = 'auto';
   this.style.height = Math.min(this.scrollHeight, 120) + 'px';
 });
+document.getElementById('file-input').addEventListener('change', function(e) {
+  var file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  if (file.type.indexOf('video/') === 0) { alert('Видео не поддерживается'); return; }
+  if (file.size > 10 * 1024 * 1024) { alert('Файл больше 10 МБ'); return; }
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    pendingFileData = { name: file.name, size: file.size, mimeType: file.type || 'application/octet-stream', dataUrl: ev.target.result };
+    var pending = document.getElementById('file-pending');
+    pending.classList.add('show');
+    document.getElementById('file-pending-name').textContent = file.name;
+  };
+  reader.readAsDataURL(file);
+});
+
+function openFileDialog() {
+  document.getElementById('file-input').click();
+}
+
+function removePendingFile() {
+  pendingFileData = null;
+  document.getElementById('file-pending').classList.remove('show');
+  document.getElementById('file-pending-name').textContent = '';
+}
 
 function sendMsg() {
   if (!currentChatId) {
     window.chrome.webview.postMessage(JSON.stringify({type:'log',msg:'sendMsg: no chat selected'}));
+    return;
+  }
+  if (pendingFileData) {
+    var fd = pendingFileData;
+    pendingFileData = null;
+    document.getElementById('file-pending').classList.remove('show');
+    document.getElementById('file-pending-name').textContent = '';
+    window.chrome.webview.postMessage(JSON.stringify({
+      type: 'sendFile',
+      chatId: currentChatId,
+      fileName: fd.name,
+      fileSize: fd.size,
+      mimeType: fd.mimeType,
+      data: fd.dataUrl
+    }));
     return;
   }
   var box = document.getElementById('input-box');

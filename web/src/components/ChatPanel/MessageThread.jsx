@@ -2,6 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import MessageInput from './MessageInput'
 
+function formatBytes(bytes) {
+  if (!bytes) return ''
+  if (bytes < 1024) return bytes + ' Б'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' КБ'
+  return (bytes / (1024 * 1024)).toFixed(1) + ' МБ'
+}
+
 function formatTime(ts) {
   if (!ts) return ''
   const d = ts.toDate ? ts.toDate() : new Date(ts)
@@ -36,8 +43,8 @@ export default function MessageThread({ chat }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages.length])
 
-  const handleSend = async ({ text, gifUrl, gifPreviewUrl }) => {
-    await sendChatMessage(chat.id, { text, gifUrl, gifPreviewUrl })
+  const handleSend = async ({ text, gifUrl, gifPreviewUrl, fileUrl, fileName, fileSize, mimeType }) => {
+    await sendChatMessage(chat.id, { text, gifUrl, gifPreviewUrl, fileUrl, fileName, fileSize, mimeType })
   }
 
   let lastDateLabel = null
@@ -94,6 +101,23 @@ export default function MessageThread({ chat }) {
                       <img src={msg.gifPreviewUrl || msg.gifUrl} alt="GIF" loading="lazy" />
                     </div>
                   )}
+                  {msg.fileUrl && msg.mimeType?.startsWith('image/') && (
+                    <div className="msg-file-img-wrap">
+                      <a href={msg.fileUrl} target="_blank" rel="noreferrer">
+                        <img src={msg.fileUrl} alt={msg.fileName || 'изображение'} className="msg-file-img" loading="lazy" />
+                      </a>
+                    </div>
+                  )}
+                  {msg.fileUrl && !msg.mimeType?.startsWith('image/') && (
+                    <a className="msg-file-doc" href={msg.fileUrl} target="_blank" rel="noreferrer" download={msg.fileName}>
+                      <span className="msg-file-doc-icon">📎</span>
+                      <span className="msg-file-doc-info">
+                        <span className="msg-file-doc-name">{msg.fileName || 'Файл'}</span>
+                        {msg.fileSize && <span className="msg-file-doc-size">{formatBytes(msg.fileSize)}</span>}
+                      </span>
+                      <span className="msg-file-doc-dl">↓</span>
+                    </a>
+                  )}
                   <div className="msg-time">{formatTime(msg.timestamp)}</div>
                 </div>
               </div>
@@ -103,7 +127,7 @@ export default function MessageThread({ chat }) {
         <div ref={bottomRef} />
       </div>
 
-      <MessageInput onSend={handleSend} />
+      <MessageInput onSend={handleSend} chatId={chat.id} />
     </div>
   )
 }
