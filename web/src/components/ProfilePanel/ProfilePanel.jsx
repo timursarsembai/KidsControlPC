@@ -68,7 +68,8 @@ export default function ProfilePanel({ profileId }) {
     rules,
     appsLoading,
     rulesLoading,
-    saveProfileRules
+    saveProfileRules,
+    toggleProfileMode
   } = useRulesStore()
 
   const profileTitleFallback = 'Новый режим'
@@ -366,6 +367,8 @@ export default function ProfilePanel({ profileId }) {
           onIconChange={setProfileIconDraft}
           onNameChange={setProfileNameDraft}
           onSave={handleSave}
+          onToggleDisabled={() => toggleProfileMode(profileId)}
+          profileDisabled={!!profileConfig?.disabled}
           profileIcon={profileIcon}
           profileIcons={PROFILE_ICONS}
           profileTitle={profileTitle}

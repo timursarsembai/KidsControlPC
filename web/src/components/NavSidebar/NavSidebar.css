@@ -131,40 +131,6 @@
 .nav-sidebar-item:hover  { background: var(--bg-hover); color: var(--text-primary); }
 .nav-sidebar-item.active { background: var(--accent-dim); color: var(--accent); }
 
-/* Profile mode enable/disable toggle */
-.profile-mode-toggle {
-  flex-shrink: 0;
-  display: inline-block;
-  width: 28px;
-  height: 16px;
-  border-radius: 8px;
-  position: relative;
-  cursor: pointer;
-  transition: background var(--dur-base) var(--ease);
-  margin-right: 2px;
-}
-.profile-mode-toggle::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #fff;
-  transition: left var(--dur-base) var(--ease);
-}
-.profile-mode-toggle.on {
-  background: var(--accent);
-}
-.profile-mode-toggle.on::after {
-  left: 14px;
-}
-.profile-mode-toggle.off {
-  background: var(--text-tertiary);
-}
-.profile-mode-toggle.off::after {
-  left: 2px;
-}
 .nav-sidebar-item.profile-disabled .nav-sidebar-label,
 .nav-sidebar-item.profile-disabled .nav-sidebar-icon {
   opacity: 0.45;

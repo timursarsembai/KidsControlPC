@@ -45,6 +45,66 @@
   text-transform: uppercase;
 }
 
+.profile-header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.profile-mode-toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.profile-mode-toggle-label {
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.profile-mode-toggle {
+  flex-shrink: 0;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  position: relative;
+  cursor: pointer;
+  transition: background var(--dur-base) var(--ease);
+}
+
+.profile-mode-toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left var(--dur-base) var(--ease);
+}
+
+.profile-mode-toggle.on {
+  background: var(--accent);
+}
+
+.profile-mode-toggle.on::after {
+  left: 19px;
+}
+
+.profile-mode-toggle.off {
+  background: var(--text-tertiary);
+}
+
+.profile-mode-toggle.off::after {
+  left: 3px;
+}
+
 .profile-save-btn {
   flex-shrink: 0;
   height: 40px;

@@ -85,15 +85,6 @@ export default function ProfileSection({
               className={`nav-sidebar-item ${activeTab === mode.id ? 'active' : ''} ${mode.disabled ? 'profile-disabled' : ''}`}
               onClick={() => handleMode(mode.id, 'programs', 'profiles')}
             >
-              <span
-                className={`profile-mode-toggle ${mode.disabled ? 'off' : 'on'}`}
-                role="switch"
-                aria-checked={!mode.disabled}
-                title={mode.disabled ? 'Режим отключён' : 'Режим включён'}
-                onClick={(e) => { e.stopPropagation(); toggleProfileMode(mode.id) }}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); toggleProfileMode(mode.id) } }}
-                tabIndex={0}
-              />
               <span className="nav-sidebar-icon">{mode.icon}</span>
               <span className="nav-sidebar-labels">
                 <span className="nav-sidebar-label">{mode.label}</span>

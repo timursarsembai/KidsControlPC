@@ -10,6 +10,8 @@ export default function ScheduleEditor({
   onIconChange,
   onNameChange,
   onSave,
+  onToggleDisabled,
+  profileDisabled,
   profileIcon,
   profileIcons,
   profileTitle,
@@ -50,9 +52,22 @@ export default function ScheduleEditor({
             </div>
           </div>
         </div>
-        <button className="btn btn-primary profile-save-btn" onClick={onSave} disabled={saving}>
-          {saving ? <span className="btn-spinner-sm" /> : 'Сохранить режим'}
-        </button>
+        <div className="profile-header-actions">
+          <label className="profile-mode-toggle-wrap" title={profileDisabled ? 'Режим отключён — нажмите, чтобы включить' : 'Режим включён — нажмите, чтобы отключить'}>
+            <span className="profile-mode-toggle-label">{profileDisabled ? 'Выключен' : 'Включён'}</span>
+            <span
+              className={`profile-mode-toggle ${profileDisabled ? 'off' : 'on'}`}
+              role="switch"
+              aria-checked={!profileDisabled}
+              tabIndex={0}
+              onClick={onToggleDisabled}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onToggleDisabled() }}
+            />
+          </label>
+          <button className="btn btn-primary profile-save-btn" onClick={onSave} disabled={saving}>
+            {saving ? <span className="btn-spinner-sm" /> : 'Сохранить режим'}
+          </button>
+        </div>
       </div>
 
       <div className="profile-schedule-grid profile-schedule-compact">
