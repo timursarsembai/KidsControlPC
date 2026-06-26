@@ -56,30 +56,43 @@ export default function ContentArea() {
   } = useRulesStore()
 
   const [updatingAgent, setUpdatingAgent] = React.useState(false)
+  const [noUpdateFound, setNoUpdateFound] = React.useState(false)
   const versionBeforeUpdate = React.useRef(null)
+  const updateTimeoutRef = React.useRef(null)
   const selectedDevice = devices.find(d => d.id === selectedDeviceId)
 
-  // When version changes after update request — reset to default state
+  const resetUpdateState = (showNoUpdate = false) => {
+    setUpdatingAgent(false)
+    versionBeforeUpdate.current = null
+    if (updateTimeoutRef.current) { clearTimeout(updateTimeoutRef.current); updateTimeoutRef.current = null }
+    if (showNoUpdate) {
+      setNoUpdateFound(true)
+      setTimeout(() => setNoUpdateFound(false), 3000)
+    }
+  }
+
+  // Reset when version changes — update confirmed
   React.useEffect(() => {
-    if (!updatingAgent) return
-    if (!versionBeforeUpdate.current) return
+    if (!updatingAgent || !versionBeforeUpdate.current) return
     const currentVersion = selectedDevice?.agentVersion
     if (currentVersion && currentVersion !== versionBeforeUpdate.current) {
-      setUpdatingAgent(false)
-      versionBeforeUpdate.current = null
+      resetUpdateState(false)
     }
   }, [selectedDevice?.agentVersion, updatingAgent])
 
   const handleUpdateAgent = async () => {
     versionBeforeUpdate.current = selectedDevice?.agentVersion || null
     setUpdatingAgent(true)
+    setNoUpdateFound(false)
     try {
       await updateDeviceSettings({ forceUpdateRequestedAtMs: Date.now() })
     } catch (e) {
       alert('Ошибка: ' + e.message)
-      setUpdatingAgent(false)
-      versionBeforeUpdate.current = null
+      resetUpdateState(false)
+      return
     }
+    // If version hasn't changed in 5 min — no newer version available
+    updateTimeoutRef.current = setTimeout(() => resetUpdateState(true), 5 * 60 * 1000)
   }
 
   const isProfileTab = activeTab?.startsWith('profile_')
@@ -175,16 +188,21 @@ export default function ContentArea() {
         {/* Update agent button — only on agent_logs tab */}
         {activeTab === 'agent_logs' && (
           <button
-            className={`content-update-agent-btn ${updatingAgent ? 'updating' : ''}`}
+            className={`content-update-agent-btn ${updatingAgent ? 'updating' : ''} ${noUpdateFound ? 'no-update' : ''}`}
             onClick={handleUpdateAgent}
             disabled={updatingAgent}
             type="button"
           >
-            {updatingAgent
-              ? <i className="ti ti-hourglass content-update-agent-spin" aria-hidden="true" />
-              : <i className="ti ti-package" aria-hidden="true" />
-            }
-            {updatingAgent ? 'Обновляется...' : 'Обновить агента'}
+            {updatingAgent ? (
+              <svg className="content-update-agent-spin" width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+                <circle cx="7.5" cy="7.5" r="6" stroke="currentColor" strokeWidth="1.5" strokeDasharray="28" strokeDashoffset="10" strokeLinecap="round"/>
+              </svg>
+            ) : noUpdateFound ? (
+              <i className="ti ti-check" aria-hidden="true" />
+            ) : (
+              <i className="ti ti-package" aria-hidden="true" />
+            )}
+            {updatingAgent ? 'Обновляется...' : noUpdateFound ? 'Уже актуальная версия' : 'Обновить агента'}
           </button>
         )}
 

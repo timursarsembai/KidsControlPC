@@ -43,17 +43,13 @@
 .content-update-agent-btn i { font-size: 15px; }
 .content-update-agent-btn:hover { opacity: 1; }
 .content-update-agent-btn:disabled { cursor: not-allowed; }
-.content-update-agent-btn.updating { background: color-mix(in srgb, var(--accent) 75%, transparent); opacity: 1; }
+.content-update-agent-btn.updating { opacity: 0.85; }
+.content-update-agent-btn.no-update { background: var(--bg-success); border-color: var(--border-success); color: var(--text-success); opacity: 1; }
 .content-update-agent-spin {
-  animation: ca-hourglass 1.4s ease-in-out infinite;
-  display: inline-block;
+  animation: ca-spin 0.9s linear infinite;
+  flex-shrink: 0;
 }
-@keyframes ca-hourglass {
-  0%   { transform: rotate(0deg); }
-  45%  { transform: rotate(0deg); }
-  55%  { transform: rotate(180deg); }
-  100% { transform: rotate(180deg); }
-}
+@keyframes ca-spin { to { transform: rotate(360deg); } }
 
 .content-title-row {
   display: flex;
