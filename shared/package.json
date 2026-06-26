@@ -14,6 +14,8 @@
     "./firebase/alerts": "./firebase/alerts.repo.js",
     "./firebase/pairing": "./firebase/pairing.repo.js",
     "./firebase/profile": "./firebase/profile.repo.js",
+    "./firebase/storage": "./firebase/storage.repo.js",
+    "./billing/plans": "./billing/plans.js",
     "./firebase/parents": "./firebase/parents.repo.js",
     "./firebase/timestamps": "./firebase/timestamps.js",
     "./stores/useRulesStore": "./stores/useRulesStore.js",

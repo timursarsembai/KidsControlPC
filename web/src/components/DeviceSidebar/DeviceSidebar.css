@@ -248,3 +248,40 @@
   border-radius: 2px;
   transition: width 0.4s, background 0.4s;
 }
+
+.device-storage-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 7px;
+}
+.device-storage-action-btn {
+  flex: 1;
+  font-size: 10px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.device-storage-action-btn:hover { border-color: var(--accent); color: var(--accent); }
+.device-storage-action-btn.danger { border-color: transparent; }
+.device-storage-action-btn.danger:hover { border-color: var(--danger, #ef4444); color: var(--danger, #ef4444); }
+
+.device-storage-confirm {
+  margin-top: 7px;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+.device-storage-confirm-btns {
+  display: flex;
+  gap: 4px;
+  margin-top: 5px;
+}
+.device-storage-progress {
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
