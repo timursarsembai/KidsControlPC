@@ -37,7 +37,7 @@ export async function initUserProfile(uid, email) {
   if (!profile.email && email) updates.email = email
   if (!profile.ownerUid) updates.ownerUid = uid
   if (!profile.role) updates.role = updates.ownerUid === uid ? 'owner' : 'parent'
-  if (profile.storageUsedBytes === undefined) updates.storageUsedBytes = 0
+  if (profile.storageUsedBytes === undefined || profile.storageUsedBytes < 0) updates.storageUsedBytes = 0
   if (profile.storageQuotaBytes === undefined) updates.storageQuotaBytes = DEFAULT_QUOTA_BYTES
   // Migrate old default (1 GB) to new free plan default (100 MB)
   if (profile.storageQuotaBytes === 1 * 1024 * 1024 * 1024 && profile.plan === 'free') {

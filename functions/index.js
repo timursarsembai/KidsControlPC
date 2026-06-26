@@ -538,11 +538,13 @@ exports.onChatFileDeleted = onObjectDeleted({ region: STORAGE_REGION }, async (e
   const ownerUid = match[1]
   const chatId = match[2]
   const size = Number(event.data.size || 0)
+  const ref = profileRef(ownerUid)
 
-  await profileRef(ownerUid).set(
-    { storageUsedBytes: admin.firestore.FieldValue.increment(-size) },
-    { merge: true }
-  )
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref)
+    const current = snap.data()?.storageUsedBytes || 0
+    tx.set(ref, { storageUsedBytes: Math.max(0, current - size) }, { merge: true })
+  })
   await markMessageFileDeleted(ownerUid, chatId, objectName)
 })
 

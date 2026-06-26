@@ -44,7 +44,7 @@ export const createAuthSlice = (set, get) => ({
 
     const unsubProfile = subscribeToProfile(activeOwnerUid, (profile) => {
       set({
-        storageUsedBytes: profile.storageUsedBytes ?? 0,
+        storageUsedBytes: Math.max(0, profile.storageUsedBytes ?? 0),
         storageQuotaBytes: profile.storageQuotaBytes ?? (100 * 1024 * 1024)
       })
     })
