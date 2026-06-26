@@ -46,8 +46,7 @@
   color: var(--text-secondary);
 }
 
-.power-act-btn i {
-  font-size: 18px;
+.power-act-btn svg {
   flex-shrink: 0;
 }
 
@@ -55,18 +54,18 @@
 .power-act-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .power-act-btn.success { color: var(--success); }
-.power-act-btn.success i { color: var(--success); }
+.power-act-btn.success svg { color: var(--success); }
 
-.power-act-danger i  { color: var(--danger); }
+.power-act-danger svg  { color: var(--danger); }
 .power-act-danger:hover { background: rgba(239,68,68,0.06); }
 
-.power-act-warning i { color: var(--warning); }
+.power-act-warning svg { color: var(--warning); }
 .power-act-warning:hover { background: rgba(245,158,11,0.06); }
 
-.power-act-sleep i { color: #7F77DD; }
+.power-act-sleep svg { color: #7F77DD; }
 .power-act-sleep:hover { background: rgba(127,119,221,0.06); }
 
-.power-act-info i { color: var(--accent); }
+.power-act-info svg { color: var(--accent); }
 .power-act-info:hover { background: rgba(99,102,241,0.06); }
 
 /* Next event widget */
@@ -118,7 +117,7 @@
   color: var(--text-secondary);
 }
 
-.power-next-badge i { font-size: 12px; }
+.power-next-badge svg { font-size: 12px; }
 
 .power-next-badge--danger  { background: rgba(239,68,68,0.08);  border-color: rgba(239,68,68,0.25);  color: var(--danger); }
 .power-next-badge--warning { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.25); color: var(--warning); }
@@ -138,7 +137,7 @@
   text-align: center;
 }
 
-.power-next-empty i { font-size: 28px; opacity: 0.4; }
+.power-next-empty svg { font-size: 28px; opacity: 0.4; }
 
 /* Timeline section */
 .power-tl {
@@ -175,7 +174,7 @@
 
 .power-tl-add-btn:hover { background: var(--bg-elevated); }
 .power-tl-add-btn.active { color: var(--text-muted); }
-.power-tl-add-btn i { font-size: 13px; }
+.power-tl-add-btn svg { font-size: 13px; }
 
 /* Add form */
 .power-add-form {
@@ -221,7 +220,7 @@
   transition: all 0.12s;
 }
 
-.power-add-pill i { font-size: 13px; }
+.power-add-pill svg { font-size: 13px; }
 .power-add-pill:hover { border-color: var(--accent); color: var(--text-primary); }
 .power-add-pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 

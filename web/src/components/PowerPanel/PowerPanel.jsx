@@ -15,11 +15,29 @@ const COLORS = [
 
 const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
+const ICON_PATHS = {
+  power:     <path d="M7.5 2v6M4.4 4.3a5 5 0 1 0 6.2 0" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" fill="none"/>,
+  refresh:   <path d="M12.5 7.5a5 5 0 1 1-1.46-3.54M12.5 2v2.5H10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none"/>,
+  moon:      <path d="M12 9.3A5 5 0 1 1 6.2 3 4 4 0 0 0 12 9.3z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" fill="none"/>,
+  snowflake: <path d="M7.5 1.5v12M2.3 4.5l10.4 6M12.7 4.5l-10.4 6M7.5 1.5l-2 1.6m2-1.6l2 1.6M7.5 13.5l-2-1.6m2 1.6l2-1.6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" fill="none"/>,
+  clockOff:  <path d="M7.5 1.5a6 6 0 0 1 6 6M13 13L2 2m4.4 1.7A6 6 0 0 0 11.3 13" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" fill="none"/>,
+  plus:      <path d="M7.5 3v9M3 7.5h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>,
+  x:         <path d="M3.5 3.5l8 8M11.5 3.5l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>,
+}
+
+function Icon({ name, size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 15 15" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+      {ICON_PATHS[name]}
+    </svg>
+  )
+}
+
 const ACTION_META = {
-  shutdown:  { label: 'Выключить',     icon: 'ti-power',     color: 'danger' },
-  restart:   { label: 'Перезагрузить', icon: 'ti-refresh',   color: 'warning' },
-  sleep:     { label: 'Спящий режим',  icon: 'ti-moon',      color: 'sleep' },
-  hibernate: { label: 'Гибернация',    icon: 'ti-snowflake', color: 'info' },
+  shutdown:  { label: 'Выключить',     icon: 'power',     color: 'danger' },
+  restart:   { label: 'Перезагрузить', icon: 'refresh',   color: 'warning' },
+  sleep:     { label: 'Спящий режим',  icon: 'moon',      color: 'sleep' },
+  hibernate: { label: 'Гибернация',    icon: 'snowflake', color: 'info' },
 }
 
 function getNextFireTime(rule, now) {
@@ -234,7 +252,7 @@ export default function PowerPanel({ mode = 'power' }) {
                 >
                   {sendingAction === key
                     ? <span className="power-spinner" />
-                    : <i className={`ti ${meta.icon}`} aria-hidden="true" />
+                    : <Icon name={meta.icon} size={18} />
                   }
                   <span>{successAction === key ? 'Отправлено' : meta.label}</span>
                 </button>
@@ -253,7 +271,7 @@ export default function PowerPanel({ mode = 'power' }) {
                   </div>
                   <div className="power-next-badges">
                     <span className={`power-next-badge power-next-badge--${ACTION_META[nextEvent.rule.action]?.color}`}>
-                      <i className={`ti ${ACTION_META[nextEvent.rule.action]?.icon}`} aria-hidden="true" />
+                      <Icon name={ACTION_META[nextEvent.rule.action]?.icon} size={12} />
                       {ACTION_META[nextEvent.rule.action]?.label}
                     </span>
                     <span className="power-next-badge power-next-badge--neutral">
@@ -263,7 +281,7 @@ export default function PowerPanel({ mode = 'power' }) {
                 </>
               ) : (
                 <div className="power-next-empty">
-                  <i className="ti ti-clock-off" aria-hidden="true" />
+                  <Icon name="clockOff" size={28} />
                   <span>Расписание не задано</span>
                 </div>
               )}
@@ -279,7 +297,7 @@ export default function PowerPanel({ mode = 'power' }) {
                 onClick={() => setShowForm(v => !v)}
                 type="button"
               >
-                <i className={`ti ${showForm ? 'ti-x' : 'ti-plus'}`} aria-hidden="true" />
+                <Icon name={showForm ? 'x' : 'plus'} size={13} />
                 {showForm ? 'Отмена' : 'Добавить'}
               </button>
             </div>
@@ -297,7 +315,7 @@ export default function PowerPanel({ mode = 'power' }) {
                         className={`power-add-pill ${schedAction === key ? 'active' : ''}`}
                         onClick={() => setSchedAction(key)}
                       >
-                        <i className={`ti ${meta.icon}`} aria-hidden="true" />
+                        <Icon name={meta.icon} size={13} />
                         {meta.label}
                       </button>
                     ))}
@@ -354,7 +372,7 @@ export default function PowerPanel({ mode = 'power' }) {
                         <div className="power-tl-days">{formatRuleDays(r)}</div>
                       </div>
                       <button className="power-tl-del" onClick={() => setDeleteConfirmId(r.id)} type="button" title="Удалить">
-                        <i className="ti ti-x" aria-hidden="true" />
+                        <Icon name="x" size={14} />
                       </button>
                     </div>
                   ))

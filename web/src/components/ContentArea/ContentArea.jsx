@@ -200,9 +200,13 @@ export default function ContentArea() {
                 <circle cx="7.5" cy="7.5" r="6" stroke="currentColor" strokeWidth="1.5" strokeDasharray="28" strokeDashoffset="10" strokeLinecap="round"/>
               </svg>
             ) : noUpdateFound ? (
-              <i className="ti ti-check" aria-hidden="true" />
+              <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+                <path d="M3 8l3 3 6-7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
             ) : (
-              <i className="ti ti-refresh" aria-hidden="true" />
+              <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+                <path d="M12.5 7.5a5 5 0 1 1-1.46-3.54M12.5 2v2.5H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
             )}
             {updatingAgent ? 'Обновляется...' : noUpdateFound ? 'Уже актуальная версия' : 'Обновить агента'}
           </button>

@@ -40,7 +40,7 @@
   white-space: nowrap;
   opacity: 0.9;
 }
-.content-update-agent-btn i { font-size: 15px; }
+.content-update-agent-btn svg { flex-shrink: 0; }
 .content-update-agent-btn:hover { opacity: 1; }
 .content-update-agent-btn:disabled { cursor: not-allowed; }
 .content-update-agent-btn.updating { opacity: 0.85; }
