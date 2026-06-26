@@ -29,20 +29,21 @@
   gap: 7px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--accent);
-  background: var(--bg-accent);
-  border: 1px solid var(--border-accent);
+  color: #fff;
+  background: var(--accent);
+  border: 1px solid var(--accent);
   border-radius: var(--radius-md);
   padding: 8px 16px;
   cursor: pointer;
   transition: all 0.15s;
   flex-shrink: 0;
   white-space: nowrap;
+  opacity: 0.9;
 }
 .content-update-agent-btn i { font-size: 15px; }
-.content-update-agent-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
-.content-update-agent-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.content-update-agent-btn.done { color: var(--success); border-color: var(--border-success); background: var(--bg-success); }
+.content-update-agent-btn:hover { opacity: 1; }
+.content-update-agent-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.content-update-agent-btn.done { color: var(--success); border-color: var(--border-success); background: var(--bg-success); opacity: 1; }
 .content-update-agent-spinner {
   display: inline-block;
   width: 14px;
