@@ -55,14 +55,16 @@ export default function ContentArea() {
     updateDeviceSettings
   } = useRulesStore()
 
-  const [updatingAgent, setUpdatingAgent] = React.useState(false)
+  const [updatingDeviceId, setUpdatingDeviceId] = React.useState(null)
   const [noUpdateFound, setNoUpdateFound] = React.useState(false)
   const versionBeforeUpdate = React.useRef(null)
   const updateTimeoutRef = React.useRef(null)
   const selectedDevice = devices.find(d => d.id === selectedDeviceId)
 
+  const updatingAgent = updatingDeviceId === selectedDeviceId
+
   const resetUpdateState = (showNoUpdate = false) => {
-    setUpdatingAgent(false)
+    setUpdatingDeviceId(null)
     versionBeforeUpdate.current = null
     if (updateTimeoutRef.current) { clearTimeout(updateTimeoutRef.current); updateTimeoutRef.current = null }
     if (showNoUpdate) {
@@ -71,18 +73,19 @@ export default function ContentArea() {
     }
   }
 
-  // Reset when version changes — update confirmed
+  // Reset when version changes on the device being updated — confirmed
+  const updatingDevice = devices.find(d => d.id === updatingDeviceId)
   React.useEffect(() => {
-    if (!updatingAgent || !versionBeforeUpdate.current) return
-    const currentVersion = selectedDevice?.agentVersion
+    if (!updatingDeviceId || !versionBeforeUpdate.current) return
+    const currentVersion = updatingDevice?.agentVersion
     if (currentVersion && currentVersion !== versionBeforeUpdate.current) {
       resetUpdateState(false)
     }
-  }, [selectedDevice?.agentVersion, updatingAgent])
+  }, [updatingDevice?.agentVersion, updatingDeviceId])
 
   const handleUpdateAgent = async () => {
     versionBeforeUpdate.current = selectedDevice?.agentVersion || null
-    setUpdatingAgent(true)
+    setUpdatingDeviceId(selectedDeviceId)
     setNoUpdateFound(false)
     try {
       await updateDeviceSettings({ forceUpdateRequestedAtMs: Date.now() })
@@ -91,7 +94,6 @@ export default function ContentArea() {
       resetUpdateState(false)
       return
     }
-    // If version hasn't changed in 5 min — no newer version available
     updateTimeoutRef.current = setTimeout(() => resetUpdateState(true), 5 * 60 * 1000)
   }
 
