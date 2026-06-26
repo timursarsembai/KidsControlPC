@@ -3,6 +3,12 @@ import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import './DeviceSidebar.css'
 
+function formatStorageBytes(bytes) {
+  if (bytes >= 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' ГБ'
+  if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(0) + ' МБ'
+  return (bytes / 1024).toFixed(0) + ' КБ'
+}
+
 const ORDER_KEY = 'kc_device_order'
 
 function loadOrder() {
@@ -78,7 +84,7 @@ function DeviceItem({ device, isSelected, onClick, onDragStart, onDragEnter, onD
 }
 
 export default function DeviceSidebar({ isMobileOpen = false, onMobileNavigate }) {
-  const { devices, selectedDeviceId, selectDevice, showSettings, setShowSettings, activeTab, setActiveTab, alerts } = useRulesStore()
+  const { devices, selectedDeviceId, selectDevice, showSettings, setShowSettings, activeTab, setActiveTab, alerts, storageUsedBytes, storageQuotaBytes } = useRulesStore()
 
   const [orderedDevices, setOrderedDevices] = React.useState([])
   const [dragIdx, setDragIdx] = React.useState(null)
@@ -196,6 +202,22 @@ export default function DeviceSidebar({ isMobileOpen = false, onMobileNavigate }
         </svg>
         Настройки
       </button>
+
+      {(() => {
+        const pct = storageQuotaBytes > 0 ? Math.min(100, (storageUsedBytes / storageQuotaBytes) * 100) : 0
+        const color = pct >= 90 ? 'var(--danger, #ef4444)' : pct >= 70 ? '#f59e0b' : 'var(--accent)'
+        return (
+          <div className="device-storage-bar">
+            <div className="device-storage-bar-row">
+              <span className="device-storage-bar-label">Хранилище</span>
+              <span className="device-storage-bar-nums">{formatStorageBytes(storageUsedBytes)} / {formatStorageBytes(storageQuotaBytes)}</span>
+            </div>
+            <div className="device-storage-bar-track">
+              <div className="device-storage-bar-fill" style={{ width: pct + '%', background: color }} />
+            </div>
+          </div>
+        )
+      })()}
 
       <div style={{ textAlign: 'center', color: 'var(--text-disabled)', fontSize: '9px', marginTop: '4px', marginBottom: '8px' }}>
         v{__APP_VERSION__}

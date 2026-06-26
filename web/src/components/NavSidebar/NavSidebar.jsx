@@ -287,21 +287,6 @@ export default function Sidebar({ isMobileOpen = false, onMobileNavigate }) {
           </div>
         </>
       )}
-      {(() => {
-        const pct = storageQuotaBytes > 0 ? Math.min(100, (storageUsedBytes / storageQuotaBytes) * 100) : 0
-        const color = pct >= 90 ? 'var(--danger, #ef4444)' : pct >= 70 ? '#f59e0b' : 'var(--accent)'
-        return (
-          <div className="nav-storage-bar">
-            <div className="nav-storage-bar-row">
-              <span className="nav-storage-bar-label">Хранилище</span>
-              <span className="nav-storage-bar-nums">{formatStorageBytes(storageUsedBytes)} / {formatStorageBytes(storageQuotaBytes)}</span>
-            </div>
-            <div className="nav-storage-bar-track">
-              <div className="nav-storage-bar-fill" style={{ width: pct + '%', background: color }} />
-            </div>
-          </div>
-        )
-      })()}
     </aside>
   )
 }
