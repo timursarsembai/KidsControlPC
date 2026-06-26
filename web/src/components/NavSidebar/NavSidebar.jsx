@@ -35,7 +35,7 @@ export default function Sidebar({ isMobileOpen = false, onMobileNavigate }) {
     activeTab, setActiveTab,
     activeSubTab, setActiveSubTab,
     showSettings, setShowSettings,
-    rules, addProfileMode, deleteProfileMode
+    rules, addProfileMode, deleteProfileMode, toggleProfileMode
   } = useRulesStore()
 
   const [expandedSections, setExpandedSections] = React.useState({
@@ -89,6 +89,7 @@ export default function Sidebar({ isMobileOpen = false, onMobileNavigate }) {
             activeTab={activeTab}
             addProfileMode={addProfileMode}
             deleteProfileMode={deleteProfileMode}
+            toggleProfileMode={toggleProfileMode}
             expanded={expandedSections.profiles}
             handleMode={handleMode}
             isActive={isProfilesSectionActive}

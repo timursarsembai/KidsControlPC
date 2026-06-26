@@ -62,10 +62,20 @@ function getPomodoroRules(activeRules, deviceConfig) {
 }
 
 export function getEffectiveRules(activeRules, deviceConfig, now = new Date()) {
-  return [
-    ...activeRules.filter(rule => isRuleEffective(rule, now)),
-    ...getPomodoroRules(activeRules, deviceConfig)
-  ]
+  // Collect profileIds that are explicitly disabled via their profile_config rule
+  const disabledProfiles = new Set(
+    activeRules
+      .filter(r => r.type === 'profile_config' && r.disabled === true)
+      .map(r => r.profileId)
+      .filter(Boolean)
+  )
+
+  const filtered = activeRules.filter(rule => {
+    if (rule.mode === 'profile' && rule.profileId && disabledProfiles.has(rule.profileId)) return false
+    return isRuleEffective(rule, now)
+  })
+
+  return [...filtered, ...getPomodoroRules(activeRules, deviceConfig)]
 }
 
 export function logProfileRuleDebug(activeRules, now, log) {

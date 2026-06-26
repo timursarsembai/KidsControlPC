@@ -6,6 +6,7 @@ export default function ProfileSection({
   activeTab,
   addProfileMode,
   deleteProfileMode,
+  toggleProfileMode,
   expanded,
   handleMode,
   isActive,
@@ -28,7 +29,8 @@ export default function ProfileSection({
             label: rule.profileName || 'Новый режим',
             sub: 'Свои списки и расписание',
             icon: rule.profileIcon || '🧩',
-            createdAt: rule.createdAt
+            createdAt: rule.createdAt,
+            disabled: rule.type === 'profile_config' ? !!rule.disabled : (profiles.get(rule.profileId)?.disabled ?? false)
           })
         }
       })
@@ -80,9 +82,18 @@ export default function ProfileSection({
           {profileModes.map((mode) => (
             <button
               key={mode.id}
-              className={`nav-sidebar-item ${activeTab === mode.id ? 'active' : ''}`}
+              className={`nav-sidebar-item ${activeTab === mode.id ? 'active' : ''} ${mode.disabled ? 'profile-disabled' : ''}`}
               onClick={() => handleMode(mode.id, 'programs', 'profiles')}
             >
+              <span
+                className={`profile-mode-toggle ${mode.disabled ? 'off' : 'on'}`}
+                role="switch"
+                aria-checked={!mode.disabled}
+                title={mode.disabled ? 'Режим отключён' : 'Режим включён'}
+                onClick={(e) => { e.stopPropagation(); toggleProfileMode(mode.id) }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); toggleProfileMode(mode.id) } }}
+                tabIndex={0}
+              />
               <span className="nav-sidebar-icon">{mode.icon}</span>
               <span className="nav-sidebar-labels">
                 <span className="nav-sidebar-label">{mode.label}</span>

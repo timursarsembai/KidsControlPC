@@ -39,6 +39,17 @@ export const createProfilesSlice = (set, get) => ({
     }
   },
 
+  toggleProfileMode: async (profileId) => {
+    const { user, activeOwnerUid, selectedDeviceId, rules } = get()
+    if (!user || !selectedDeviceId || !profileId) return
+    const ownerUid = activeOwnerUid || user.uid
+    const profileConfig = rules.find(r => r.mode === 'profile' && r.profileId === profileId && r.type === 'profile_config')
+    if (!profileConfig) return
+    await updateRule(ownerUid, selectedDeviceId, profileConfig.id, {
+      disabled: !profileConfig.disabled
+    })
+  },
+
   saveProfileRules: async (profileId, profileName, schedule, targets = {}, profileIcon = '🧩') => {
     const { user, activeOwnerUid, selectedDeviceId, rules } = get()
     if (!user || !selectedDeviceId || !profileId) return
