@@ -1,7 +1,7 @@
 import { db } from '../network/firebaseSync.js'
 import {
   collection, doc, onSnapshot,
-  addDoc, updateDoc, serverTimestamp
+  addDoc, updateDoc, serverTimestamp, arrayUnion, getDocs
 } from 'firebase/firestore'
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 import fs from 'fs'
@@ -70,9 +70,21 @@ function subscribeToMessages(chatId) {
   if (unsubMessages[chatId]) return
   const msgsCol = collection(db, 'users', parentUid, 'chats', chatId, 'messages')
   unsubMessages[chatId] = onSnapshot(msgsCol, (snap) => {
+    // Mark parent messages as delivered to this device (drives the parent's
+    // delivery receipts). Only writes docs still missing this device — converges.
+    for (const d of snap.docs) {
+      const m = d.data()
+      if (m.senderType === 'parent' && !(m.deliveredTo || []).includes(deviceId)) {
+        updateDoc(d.ref, { deliveredTo: arrayUnion(deviceId) }).catch(() => {})
+      }
+    }
+
     messages[chatId] = snap.docs
       .map(d => {
         const m = d.data()
+        // Status of the child's OWN outgoing messages (parent uids in the arrays).
+        const otherRead = (m.readBy || []).some(id => id !== deviceId)
+        const otherDelivered = (m.deliveredTo || []).some(id => id !== deviceId)
         return {
           id: d.id,
           text: m.text || '',
@@ -84,6 +96,7 @@ function subscribeToMessages(chatId) {
           mimeType: m.mimeType || null,
           senderName: m.senderName || '',
           senderType: m.senderType || 'parent',
+          status: otherRead ? 'read' : (otherDelivered ? 'delivered' : 'sent'),
           timestamp: m.timestamp?.toDate?.()?.toISOString() || null
         }
       })
@@ -107,6 +120,23 @@ async function uploadChatAttachment(r) {
   await uploadBytes(ref, bytes, { contentType: r.mimeType || 'application/octet-stream' })
   try { fs.unlinkSync(r.filePath) } catch {}
   return await getDownloadURL(ref)
+}
+
+// Mark all parent messages in a chat as delivered + read by this device.
+async function markParentMessagesRead(chatId) {
+  const msgsCol = collection(db, 'users', parentUid, 'chats', chatId, 'messages')
+  const snap = await getDocs(msgsCol)
+  const updates = []
+  for (const d of snap.docs) {
+    const m = d.data()
+    if (m.senderType === 'parent' && !(m.readBy || []).includes(deviceId)) {
+      updates.push(updateDoc(d.ref, {
+        deliveredTo: arrayUnion(deviceId),
+        readBy: arrayUnion(deviceId)
+      }))
+    }
+  }
+  await Promise.all(updates)
 }
 
 async function checkReplies() {
@@ -137,6 +167,17 @@ async function checkReplies() {
 
   const failed = []
   for (const r of replies) {
+    // Read receipt: child opened a chat — mark all parent messages read.
+    if (r.markRead && r.chatId) {
+      try {
+        await markParentMessagesRead(r.chatId)
+        log('markRead OK chatId=' + r.chatId)
+      } catch (e) {
+        log('markRead error chatId=' + r.chatId + ': ' + e.message)
+        failed.push(r)
+      }
+      continue
+    }
     if (!r.chatId || (!r.text && !r.filePath && !r.gifUrl)) {
       log('checkReplies skip invalid reply: ' + JSON.stringify(r))
       continue
@@ -167,6 +208,7 @@ async function checkReplies() {
         senderDeviceId: deviceId,
         senderName: deviceName || 'Ребёнок',
         readBy: [],
+        deliveredTo: [],
         timestamp: serverTimestamp()
       })
       await updateDoc(doc(db, 'users', parentUid, 'chats', r.chatId), {

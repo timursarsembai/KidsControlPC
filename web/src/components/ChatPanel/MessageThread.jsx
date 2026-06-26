@@ -15,6 +15,33 @@ function formatTime(ts) {
   return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
 }
 
+// WhatsApp-style status for a parent's own message: one gray check (sent),
+// two gray checks (delivered to all child devices), two blue checks (read by all).
+function messageStatus(msg, deviceIds) {
+  const devices = deviceIds || []
+  if (devices.length === 0) return 'sent'
+  const readBy = msg.readBy || []
+  const deliveredTo = msg.deliveredTo || []
+  if (devices.every(id => readBy.includes(id))) return 'read'
+  if (devices.every(id => deliveredTo.includes(id))) return 'delivered'
+  return 'sent'
+}
+
+function StatusTicks({ status }) {
+  const blue = status === 'read'
+  const double = status === 'read' || status === 'delivered'
+  return (
+    <span className={`msg-ticks ${blue ? 'read' : ''}`} aria-label={
+      status === 'read' ? 'Прочитано' : status === 'delivered' ? 'Доставлено' : 'Отправлено'
+    }>
+      <svg width={double ? 16 : 11} height="11" viewBox={double ? '0 0 16 11' : '0 0 11 11'} fill="none">
+        <path d="M1 5.5L4 8.5L9.5 2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+        {double && <path d="M6.5 8.2L7 8.5L12.5 2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>}
+      </svg>
+    </span>
+  )
+}
+
 function formatDate(ts) {
   if (!ts) return ''
   const d = ts.toDate ? ts.toDate() : new Date(ts)
@@ -118,7 +145,10 @@ export default function MessageThread({ chat }) {
                       <span className="msg-file-doc-dl">↓</span>
                     </a>
                   )}
-                  <div className="msg-time">{formatTime(msg.timestamp)}</div>
+                  <div className="msg-time">
+                    {formatTime(msg.timestamp)}
+                    {isMe && <StatusTicks status={messageStatus(msg, chat.deviceIds)} />}
+                  </div>
                 </div>
               </div>
             </div>

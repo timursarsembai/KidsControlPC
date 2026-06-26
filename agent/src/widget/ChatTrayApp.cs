@@ -33,6 +33,7 @@ namespace KidsControl
         public string MimeType;
         public string SenderName;
         public string SenderType;
+        public string Status;       // 'sent' | 'delivered' | 'read' (for child's own messages)
         public DateTime Timestamp;
         public bool IsChild { get { return SenderType == "child"; } }
     }
@@ -225,6 +226,7 @@ namespace KidsControl
                                     long.TryParse(m["fileSize"].ToString(), out msg.FileSize);
                                 msg.SenderName = Str(m, "senderName") ?? "";
                                 msg.SenderType = Str(m, "senderType") ?? "parent";
+                                msg.Status = Str(m, "status") ?? "sent";
                                 string ts = Str(m, "timestamp");
                                 if (ts != null) DateTime.TryParse(ts, out msg.Timestamp);
 
@@ -364,6 +366,41 @@ namespace KidsControl
         }
 
         public void SetActiveChat(string chatId) { activeChatId = chatId; }
+
+        public void SendReadReceipt(string chatId)
+        {
+            if (string.IsNullOrWhiteSpace(chatId)) return;
+            var ser = new JavaScriptSerializer();
+            var reply = new Dictionary<string, object>();
+            reply["id"] = Guid.NewGuid().ToString("N");
+            reply["chatId"] = chatId;
+            reply["markRead"] = true;
+            reply["timestamp"] = DateTime.UtcNow.ToString("o");
+
+            for (int i = 0; i < 5; i++)
+            {
+                try
+                {
+                    var list = new List<Dictionary<string, object>>();
+                    if (File.Exists(repliesPath))
+                    {
+                        try
+                        {
+                            string ex = File.ReadAllText(repliesPath, Encoding.UTF8);
+                            if (!string.IsNullOrWhiteSpace(ex) && ex.Trim() != "[]")
+                                list = ser.Deserialize<List<Dictionary<string, object>>>(ex) ?? new List<Dictionary<string, object>>();
+                        }
+                        catch { }
+                    }
+                    // Collapse duplicate pending read receipts for the same chat.
+                    list.RemoveAll(x => x != null && x.ContainsKey("markRead") && x.ContainsKey("chatId") && x["chatId"] != null && x["chatId"].ToString() == chatId);
+                    list.Add(reply);
+                    File.WriteAllText(repliesPath, ser.Serialize(list), Encoding.UTF8);
+                    break;
+                }
+                catch (IOException) { Thread.Sleep(100); }
+            }
+        }
 
         public void SendReply(string chatId, string text)
         {
@@ -571,7 +608,12 @@ namespace KidsControl
                 else if (type == "selectChat")
                 {
                     string chatId = msg.ContainsKey("chatId") ? msg["chatId"].ToString() : null;
-                    if (chatId != null) app.SetActiveChat(chatId);
+                    if (chatId != null) { app.SetActiveChat(chatId); app.SendReadReceipt(chatId); }
+                }
+                else if (type == "markRead")
+                {
+                    string chatId = msg.ContainsKey("chatId") ? msg["chatId"].ToString() : null;
+                    if (chatId != null) app.SendReadReceipt(chatId);
                 }
                 else if (type == "send")
                 {
@@ -663,6 +705,7 @@ namespace KidsControl
                         d["mimeType"] = m.MimeType ?? "";
                         d["senderName"] = m.SenderName ?? "";
                         d["senderType"] = m.SenderType ?? "parent";
+                        d["status"] = m.Status ?? "sent";
                         d["timestamp"] = m.Timestamp != DateTime.MinValue ? (object)m.Timestamp.ToString("o") : null;
                         list.Add(d);
                     }
@@ -785,7 +828,10 @@ body {
 .in .bubble { background: #1b1f35; border-bottom-left-radius: 5px; color: #d8e2f5; }
 .out .bubble { background: #5254cc; border-bottom-right-radius: 5px; color: #fff; }
 .bubble img { max-width: 220px; max-height: 200px; border-radius: 10px; display: block; }
-.msg-time { font-size: 10px; color: #363f58; margin-top: 3px; padding: 0 2px; }
+.msg-time { font-size: 10px; color: #363f58; margin-top: 3px; padding: 0 2px; display: flex; align-items: center; gap: 3px; }
+.out .msg-time { justify-content: flex-end; }
+.ticks { display: inline-flex; align-items: center; color: #8892b0; }
+.ticks.read { color: #4fc3f7; }
 .empty-msg {
   flex: 1; display: flex; align-items: center; justify-content: center;
   color: #363f58; font-size: 14px; text-align: center;
@@ -1008,7 +1054,11 @@ function updateData(data) {
     selectChat(allData.chats[0].id, allData.chats[0].name);
     return;
   }
-  if (currentChatId) renderMessages(currentChatId);
+  if (currentChatId) {
+    renderMessages(currentChatId);
+    // New messages may have arrived while this chat is open — mark them read.
+    window.chrome.webview.postMessage(JSON.stringify({type:'markRead',chatId:currentChatId}));
+  }
 }
 
 function renderChatList() {
@@ -1081,10 +1131,10 @@ function renderMessages(chatId) {
         (sizeStr ? '<span class=\'file-doc-size\'>' + sizeStr + '</span>' : '') + '</span></a>';
     }
     html += '<div class=\'bubble\'>' + bubbleContent + '</div>';
-    if (ts) {
-      var t2 = ts.toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'});
-      html += '<div class=\'msg-time\'>' + t2 + '</div>';
-    }
+    var timeInner = '';
+    if (ts) timeInner += ts.toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'});
+    if (isChild) timeInner += statusTicks(m.status);
+    if (timeInner) html += '<div class=\'msg-time\'>' + timeInner + '</div>';
     row.innerHTML = html;
     container.appendChild(row);
   });
@@ -1096,6 +1146,17 @@ function esc(s) {
 }
 function escA(s) {
   return String(s).replace(/'/g,'%27').replace(/""/g,'%22');
+}
+
+// WhatsApp-style ticks for the child's own outgoing messages.
+function statusTicks(status) {
+  var cls = status === 'read' ? 'ticks read' : 'ticks';
+  var d2 = (status === 'read' || status === 'delivered');
+  var w = d2 ? 16 : 11;
+  var vb = d2 ? '0 0 16 11' : '0 0 11 11';
+  var p2 = d2 ? '<path d=\'M6.5 8.2L7 8.5L12.5 2.5\' stroke=\'currentColor\' stroke-width=\'1.4\' fill=\'none\' stroke-linecap=\'round\' stroke-linejoin=\'round\'/>' : '';
+  return '<span class=\'' + cls + '\'><svg width=\'' + w + '\' height=\'11\' viewBox=\'' + vb + '\' fill=\'none\'>' +
+    '<path d=\'M1 5.5L4 8.5L9.5 2.5\' stroke=\'currentColor\' stroke-width=\'1.4\' fill=\'none\' stroke-linecap=\'round\' stroke-linejoin=\'round\'/>' + p2 + '</svg></span>';
 }
 
 var pendingFileData = null; // {name, size, mimeType, dataUrl}

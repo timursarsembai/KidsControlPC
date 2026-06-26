@@ -4,7 +4,8 @@ import {
   updateChat,
   deleteChat,
   sendMessage,
-  subscribeToMessages
+  subscribeToMessages,
+  markMessagesRead
 } from '../../firebase/chats.repo.js'
 import { updateChatName } from '../../firebase/profile.repo.js'
 
@@ -54,6 +55,12 @@ export const createChatSlice = (set, get) => ({
     set({ activeChatId: chatId, chatMessages: [] })
     const unsub = subscribeToMessages(ownerUid, chatId, (msgs) => {
       set({ chatMessages: msgs })
+      // Mark incoming (child) messages as read by this parent — drives the
+      // sender's read receipts. Only act if there's something unread by us.
+      const hasUnread = msgs.some(m =>
+        m.senderDeviceId !== user.uid && !(m.readBy || []).includes(user.uid)
+      )
+      if (hasUnread) markMessagesRead(ownerUid, chatId, user.uid).catch(() => {})
     })
     set({ _unsubMessages: unsub })
   },

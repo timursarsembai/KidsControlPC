@@ -76,6 +76,7 @@ export async function sendMessage(ownerUid, chatId, {
     senderDeviceId,
     senderName,
     readBy: senderDeviceId ? [senderDeviceId] : [],
+    deliveredTo: senderDeviceId ? [senderDeviceId] : [],
     timestamp: ts()
   })
 
@@ -104,6 +105,23 @@ export async function markMessagesRead(ownerUid, chatId, deviceId) {
     return data.senderDeviceId !== deviceId && !(data.readBy || []).includes(deviceId)
   })
   await Promise.all(
-    unread.map(d => updateDoc(d.ref, { readBy: arrayUnion(deviceId) }))
+    unread.map(d => updateDoc(d.ref, {
+      // Opening a chat implies both delivery and read.
+      deliveredTo: arrayUnion(deviceId),
+      readBy: arrayUnion(deviceId)
+    }))
+  )
+}
+
+// Mark messages from others as delivered to this reader (received by their app),
+// without marking them read. Used when the app receives messages in the background.
+export async function markMessagesDelivered(ownerUid, chatId, readerId) {
+  const snap = await getDocs(messagesCol(ownerUid, chatId))
+  const undelivered = snap.docs.filter(d => {
+    const data = d.data()
+    return data.senderDeviceId !== readerId && !(data.deliveredTo || []).includes(readerId)
+  })
+  await Promise.all(
+    undelivered.map(d => updateDoc(d.ref, { deliveredTo: arrayUnion(readerId) }))
   )
 }
