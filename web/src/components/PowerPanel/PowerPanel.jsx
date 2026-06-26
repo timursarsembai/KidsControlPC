@@ -270,22 +270,6 @@ export default function PowerPanel({ mode = 'power' }) {
             </div>
           </div>
 
-          {/* Update agent row */}
-          <div className="power-update-row">
-            <button
-              className={`power-update-btn ${successAction === 'update_agent' ? 'success' : ''}`}
-              onClick={() => handleCommand('update_agent')}
-              disabled={!!sendingAction}
-              type="button"
-            >
-              {sendingAction === 'update_agent'
-                ? <span className="power-spinner power-spinner--sm" />
-                : <i className="ti ti-package" aria-hidden="true" />
-              }
-              <span>{successAction === 'update_agent' ? 'Команда отправлена' : 'Принудительно обновить агента'}</span>
-            </button>
-          </div>
-
           {/* Timeline */}
           <div className="power-tl">
             <div className="power-tl-head">

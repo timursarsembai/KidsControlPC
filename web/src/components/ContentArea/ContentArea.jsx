@@ -51,8 +51,25 @@ export default function ContentArea() {
   const { t } = useTranslation()
   const {
     activeTab, activeSubTab, setActiveSubTab,
-    selectedDeviceId, devices, setShowSettings, rules, toggleProfileMode
+    selectedDeviceId, devices, setShowSettings, rules, toggleProfileMode,
+    updateDeviceSettings
   } = useRulesStore()
+
+  const [updatingAgent, setUpdatingAgent] = React.useState(false)
+  const [updateAgentDone, setUpdateAgentDone] = React.useState(false)
+
+  const handleUpdateAgent = async () => {
+    setUpdatingAgent(true)
+    try {
+      await updateDeviceSettings({ forceUpdateRequestedAtMs: Date.now() })
+      setUpdateAgentDone(true)
+      setTimeout(() => setUpdateAgentDone(false), 3000)
+    } catch (e) {
+      alert('Ошибка: ' + e.message)
+    } finally {
+      setUpdatingAgent(false)
+    }
+  }
 
   const isProfileTab = activeTab?.startsWith('profile_')
   const profileRule = isProfileTab
@@ -144,6 +161,24 @@ export default function ContentArea() {
             </p>
           </div>
         </div>
+
+        {/* Update agent button — only on agent_logs tab */}
+        {activeTab === 'agent_logs' && (
+          <button
+            className={`content-update-agent-btn ${updateAgentDone ? 'done' : ''}`}
+            onClick={handleUpdateAgent}
+            disabled={updatingAgent}
+            type="button"
+          >
+            {updatingAgent
+              ? <span className="content-update-agent-spinner" />
+              : updateAgentDone
+                ? <i className="ti ti-check" aria-hidden="true" />
+                : <i className="ti ti-package" aria-hidden="true" />
+            }
+            {updateAgentDone ? 'Команда отправлена' : 'Обновить агента'}
+          </button>
+        )}
 
         {/* Sub-tabs */}
         {activeTab !== 'notifications' && activeTab !== 'power' && activeTab !== 'lock_screen' && activeTab !== 'reminders' && activeTab !== 'screenshots' && activeTab !== 'agent_logs' && (
