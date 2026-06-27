@@ -201,8 +201,8 @@ $ErrorActionPreference = 'SilentlyContinue'
 
 $skip = @('svchost','csrss','smss','wininit','winlogon','services','lsass','conhost','dwm','fontdrvhost','Registry','Idle','System','SearchIndexer','MsMpEng')
 $procs = Get-Process |
-  Where-Object { $_.Name -notin $skip } |
-  Select-Object Name, Id, Path, MainWindowHandle
+  Where-Object { $_.Name -notin $skip -and $_.SessionId -gt 0 } |
+  Select-Object Name, Id, Path, MainWindowHandle, SessionId, MainWindowTitle
 
 if ($procs) {
   $procs | ConvertTo-Json -Compress -Depth 2
@@ -224,7 +224,9 @@ if ($procs) {
         pid:  p.Id,
         path: (p.Path || '').toLowerCase(),
         base: p.Path ? basename(p.Path, extname(p.Path)).toLowerCase() : p.Name.toLowerCase(),
-        hasWindow: Number(p.MainWindowHandle || 0) !== 0
+        hasWindow: Number(p.MainWindowHandle || 0) !== 0,
+        sessionId: p.SessionId || 0,
+        windowTitle: (p.MainWindowTitle || '').trim()
       }))
       .filter(p => !isProtectedProcess(p))
   } catch (err) {

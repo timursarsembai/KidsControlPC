@@ -10,6 +10,7 @@
 
 import { addDoc, collection, doc, setDoc, increment, serverTimestamp } from 'firebase/firestore'
 import { db } from '../network/firebaseSync.js'
+import { getInstalledBasenames } from './programInventory.js'
 
 function log(msg) {
   console.log(`[ActivityTracker] ${msg}`)
@@ -102,13 +103,22 @@ function activityStatsRef(parentUid, deviceId, date) {
 export async function trackAppDelta(processes, parentUid, deviceId) {
   if (!parentUid || !deviceId) return
 
-  // Filter out known Windows system/background processes by name
-  const userProcs = processes.filter(p =>
-    !SYSTEM_BLOCKLIST.has(p.base) &&
-    !SYSTEM_BLOCKLIST.has(p.name) &&
-    !isSystemByPattern(p.base) &&
-    !isSystemByPattern(p.name)
-  )
+  // 5-layer filter — each layer independently removes system/background processes
+  const whitelist = getInstalledBasenames()  // null until first program scan completes
+  const userProcs = processes.filter(p => {
+    // Layer 1: SessionId > 0 filtered in PowerShell, but double-check here
+    if ((p.sessionId || 0) === 0) return false
+    // Layer 2+3: no window title AND path in C:\Windows → system utility
+    if (!p.windowTitle && p.path && p.path.startsWith('c:\\windows\\')) return false
+    // Layer 3: any process in C:\Windows regardless of window title
+    if (p.path && p.path.startsWith('c:\\windows\\')) return false
+    // Layer 5: explicit blocklist + pattern filter
+    if (SYSTEM_BLOCKLIST.has(p.base) || SYSTEM_BLOCKLIST.has(p.name)) return false
+    if (isSystemByPattern(p.base) || isSystemByPattern(p.name)) return false
+    // Layer 4: whitelist — only installed apps (skip if scan not done yet)
+    if (whitelist !== null && !whitelist.has(p.base)) return false
+    return true
+  })
   const currentBases = new Set(userProcs.map(p => p.base).filter(Boolean))
   const now = Date.now()
 

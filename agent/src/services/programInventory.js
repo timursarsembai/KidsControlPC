@@ -8,6 +8,10 @@ export const PROGRAM_SCAN_INTERVAL_MS = 5 * 60 * 1000
 let programScanInProgress = false
 let lastUploadedAppsSignature = ''
 
+// In-memory whitelist of exe basenames for activity filtering
+let installedBasenames = null  // null = not yet scanned
+export function getInstalledBasenames() { return installedBasenames }
+
 export async function scanInstalledProgramsWithRetry(maxAttempts = 3, retryDelayMs = 30000) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const apps = await getInstalledPrograms()
@@ -68,6 +72,7 @@ export async function performProgramRescan(parentUid, deviceId, log, reason = 'm
     })
 
     lastUploadedAppsSignature = appsSignature
+    installedBasenames = new Set(apps.map(a => a.exeBasename).filter(Boolean))
     log(`[Apps] Uploaded ${apps.length} installed programs`)
   } catch (err) {
     log(`[Apps] Failed to upload programs: ${err.message}`)
