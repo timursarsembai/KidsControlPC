@@ -16,6 +16,7 @@ const REGION = process.env.FUNCTIONS_REGION || 'us-central1'
 // Storage triggers must be deployed in the same region as the bucket.
 const STORAGE_REGION = process.env.FUNCTIONS_STORAGE_REGION || 'us-east1'
 const ATTACHMENT_RE = /^users\/([^/]+)\/chats\/([^/]+)\/attachments\/(.+)$/
+const SCREENSHOT_RE = /^users\/([^/]+)\/devices\/([^/]+)\/screenshots\/(.+)$/
 const FILE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000   // 7 дней
 const DEFAULT_QUOTA = 100 * 1024 * 1024             // 100 МБ (Free план)
 const PURGE_THRESHOLD = 0.9                         // 90% — начать принудительную очистку
@@ -507,10 +508,11 @@ async function purgeOldestFiles(ownerUid, usedBytes, quotaBytes) {
 
 exports.onChatFileUploaded = onObjectFinalized({ region: STORAGE_REGION }, async (event) => {
   const objectName = event.data.name
-  const match = objectName?.match(ATTACHMENT_RE)
-  if (!match) return  // not an attachment — skip
+  const attachMatch = objectName?.match(ATTACHMENT_RE)
+  const ssMatch = objectName?.match(SCREENSHOT_RE)
+  if (!attachMatch && !ssMatch) return
 
-  const ownerUid = match[1]
+  const ownerUid = (attachMatch || ssMatch)[1]
   const size = Number(event.data.size || 0)
   const ref = profileRef(ownerUid)
 
@@ -532,11 +534,11 @@ exports.onChatFileUploaded = onObjectFinalized({ region: STORAGE_REGION }, async
 
 exports.onChatFileDeleted = onObjectDeleted({ region: STORAGE_REGION }, async (event) => {
   const objectName = event.data.name
-  const match = objectName?.match(ATTACHMENT_RE)
-  if (!match) return
+  const attachMatch = objectName?.match(ATTACHMENT_RE)
+  const ssMatch = objectName?.match(SCREENSHOT_RE)
+  if (!attachMatch && !ssMatch) return
 
-  const ownerUid = match[1]
-  const chatId = match[2]
+  const ownerUid = (attachMatch || ssMatch)[1]
   const size = Number(event.data.size || 0)
   const ref = profileRef(ownerUid)
 
@@ -545,7 +547,10 @@ exports.onChatFileDeleted = onObjectDeleted({ region: STORAGE_REGION }, async (e
     const current = snap.data()?.storageUsedBytes || 0
     tx.set(ref, { storageUsedBytes: Math.max(0, current - size) }, { merge: true })
   })
-  await markMessageFileDeleted(ownerUid, chatId, objectName)
+
+  if (attachMatch) {
+    await markMessageFileDeleted(ownerUid, attachMatch[2], objectName)
+  }
 })
 
 // Scheduled cleanup: delete attachments older than 7 days for all users.
@@ -567,6 +572,29 @@ exports.cleanupOldChatFiles = onSchedule({ region: REGION, schedule: 'every 24 h
     await file.delete().catch(() => {})
     await markMessageFileDeleted(ownerUid, chatId, file.name)
   }
+})
+
+// Hourly recalculation of storageUsedBytes from real Storage contents.
+exports.recalcStorageUsed = onSchedule({ region: REGION, schedule: 'every 60 minutes' }, async () => {
+  const bucket = admin.storage().bucket()
+  const [files] = await bucket.getFiles({ prefix: 'users/' })
+
+  const totals = {}
+  for (const file of files) {
+    const m = file.name.match(ATTACHMENT_RE) || file.name.match(SCREENSHOT_RE)
+    if (!m) continue
+    const uid = m[1]
+    const size = Number(file.metadata.size || 0)
+    totals[uid] = (totals[uid] || 0) + size
+  }
+
+  for (const [uid, bytes] of Object.entries(totals)) {
+    await profileRef(uid).set({ storageUsedBytes: bytes }, { merge: true })
+  }
+
+  // Zero out users with no files but a non-zero counter
+  // (files deleted outside of triggers). Skip — expensive, not worth it.
+  logger.info('recalcStorageUsed done', { users: Object.keys(totals).length })
 })
 
 // ── Parent invitations ─────────────────────────────────────────────────────────

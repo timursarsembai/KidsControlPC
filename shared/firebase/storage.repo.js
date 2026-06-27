@@ -11,6 +11,39 @@ async function listAllFiles(path) {
   return files
 }
 
+export async function listAllUserFiles(ownerUid) {
+  const [attachmentRefs, screenshotRefs] = await Promise.all([
+    listAllFiles(`users/${ownerUid}/chats`).catch(() => []),
+    listAllFiles(`users/${ownerUid}/devices`).catch(() => []),
+  ])
+
+  const toInfo = (fileRef, type) =>
+    getMetadata(fileRef).then(meta => ({
+      type,
+      name: meta.name,
+      fullPath: meta.fullPath,
+      size: meta.size,
+      timeCreated: meta.timeCreated,
+      contentType: meta.contentType || '',
+    })).catch(() => null)
+
+  const results = await Promise.all([
+    ...attachmentRefs.map(r => toInfo(r, 'attachment')),
+    ...screenshotRefs.map(r => toInfo(r, 'screenshot')),
+  ])
+  return results.filter(Boolean).sort((a, b) => new Date(b.timeCreated) - new Date(a.timeCreated))
+}
+
+export async function deleteFilesByPaths(fullPaths, onProgress) {
+  let deleted = 0
+  for (const path of fullPaths) {
+    await deleteObject(ref(storage, path))
+    deleted++
+    onProgress?.(deleted, fullPaths.length)
+  }
+  return deleted
+}
+
 export async function deleteAllUserAttachments(ownerUid, onProgress) {
   const files = await listAllFiles(`users/${ownerUid}/chats`)
   let deleted = 0

@@ -10,6 +10,10 @@ export function subscribeToProfile(ownerUid, callback) {
   })
 }
 
+export async function recalcStorageUsed(ownerUid, actualBytes) {
+  await setDoc(profileDoc(ownerUid), { storageUsedBytes: actualBytes }, { merge: true })
+}
+
 // Parent's display name shown to children in the chat (e.g. "Папа", "Мама").
 export async function updateChatName(uid, chatName) {
   await setDoc(profileDoc(uid), { chatName: chatName || '' }, { merge: true })

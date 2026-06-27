@@ -1,7 +1,6 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
-import { deleteAllUserAttachments, deleteUserAttachmentsOlderThan } from '@kidscontrol/shared/firebase/storage'
 import './DeviceSidebar.css'
 
 function formatStorageBytes(bytes) {
@@ -85,34 +84,9 @@ function DeviceItem({ device, isSelected, onClick, onDragStart, onDragEnter, onD
 }
 
 export default function DeviceSidebar({ isMobileOpen = false, onMobileNavigate }) {
-  const { devices, selectedDeviceId, selectDevice, showSettings, setShowSettings, activeTab, setActiveTab, alerts, storageUsedBytes, storageQuotaBytes, activeOwnerUid, user } = useRulesStore()
+  const { devices, selectedDeviceId, selectDevice, showSettings, setShowSettings, activeTab, setActiveTab, alerts, storageUsedBytes, storageQuotaBytes } = useRulesStore()
 
   const [orderedDevices, setOrderedDevices] = React.useState([])
-  const [cleanupState, setCleanupState] = React.useState(null) // null | 'confirm-all' | 'confirm-old' | 'running' | 'done'
-  const [cleanupProgress, setCleanupProgress] = React.useState('')
-
-  const ownerUid = activeOwnerUid || user?.uid
-
-  const handleCleanup = async (mode) => {
-    if (!ownerUid) return
-    setCleanupState('running')
-    setCleanupProgress('Удаление...')
-    try {
-      const onProgress = (done, total) => setCleanupProgress(`${done} / ${total}`)
-      if (mode === 'all') {
-        const n = await deleteAllUserAttachments(ownerUid, onProgress)
-        setCleanupProgress(`Удалено ${n} файлов`)
-      } else {
-        const n = await deleteUserAttachmentsOlderThan(ownerUid, 24 * 60 * 60 * 1000, onProgress)
-        setCleanupProgress(`Удалено ${n} файлов`)
-      }
-      setCleanupState('done')
-      setTimeout(() => setCleanupState(null), 3000)
-    } catch (e) {
-      setCleanupProgress('Ошибка: ' + e.message)
-      setTimeout(() => setCleanupState(null), 4000)
-    }
-  }
   const [dragIdx, setDragIdx] = React.useState(null)
   const [overIdx, setOverIdx] = React.useState(null)
 
@@ -201,6 +175,18 @@ export default function DeviceSidebar({ isMobileOpen = false, onMobileNavigate }
       <div style={{ flex: 1 }} />
 
       <button
+        className={`device-sidebar-settings-btn ${activeTab === 'storage' && !showSettings ? 'active' : ''}`}
+        onClick={() => { setActiveTab('storage'); setShowSettings(false); onMobileNavigate?.() }}
+      >
+        <svg width="14" height="14" viewBox="0 0 15 15" fill="none">
+          <rect x="1.5" y="2.5" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+          <path d="M1.5 6.5h12" stroke="currentColor" strokeWidth="1.2"/>
+          <path d="M5 9.5h5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+        </svg>
+        Хранилище
+      </button>
+
+      <button
         className={`device-sidebar-settings-btn ${activeTab === 'notifications' && !showSettings ? 'active' : ''}`}
         onClick={() => { setActiveTab('notifications'); setShowSettings(false); onMobileNavigate?.() }}
       >
@@ -233,7 +219,12 @@ export default function DeviceSidebar({ isMobileOpen = false, onMobileNavigate }
         const pct = storageQuotaBytes > 0 ? Math.min(100, (storageUsedBytes / storageQuotaBytes) * 100) : 0
         const color = pct >= 90 ? 'var(--danger, #ef4444)' : pct >= 70 ? '#f59e0b' : 'var(--accent)'
         return (
-          <div className="device-storage-bar">
+          <button
+            className="device-storage-bar device-storage-bar--clickable"
+            onClick={() => { setActiveTab('storage'); setShowSettings(false); onMobileNavigate?.() }}
+            title="Открыть хранилище"
+            type="button"
+          >
             <div className="device-storage-bar-row">
               <span className="device-storage-bar-label">Хранилище</span>
               <span className="device-storage-bar-nums">{formatStorageBytes(storageUsedBytes)} / {formatStorageBytes(storageQuotaBytes)}</span>
@@ -241,32 +232,7 @@ export default function DeviceSidebar({ isMobileOpen = false, onMobileNavigate }
             <div className="device-storage-bar-track">
               <div className="device-storage-bar-fill" style={{ width: pct + '%', background: color }} />
             </div>
-
-            {cleanupState === null && (
-              <div className="device-storage-actions">
-                <button className="device-storage-action-btn" onClick={() => setCleanupState('confirm-old')}>
-                  Удалить старше 24ч
-                </button>
-                <button className="device-storage-action-btn danger" onClick={() => setCleanupState('confirm-all')}>
-                  Очистить всё
-                </button>
-              </div>
-            )}
-
-            {(cleanupState === 'confirm-all' || cleanupState === 'confirm-old') && (
-              <div className="device-storage-confirm">
-                <span>{cleanupState === 'confirm-all' ? 'Удалить все файлы?' : 'Удалить файлы старше 24 часов?'}</span>
-                <div className="device-storage-confirm-btns">
-                  <button className="device-storage-action-btn danger" onClick={() => handleCleanup(cleanupState === 'confirm-all' ? 'all' : 'old')}>Да</button>
-                  <button className="device-storage-action-btn" onClick={() => setCleanupState(null)}>Нет</button>
-                </div>
-              </div>
-            )}
-
-            {(cleanupState === 'running' || cleanupState === 'done') && (
-              <div className="device-storage-progress">{cleanupProgress}</div>
-            )}
-          </div>
+          </button>
         )
       })()}
 

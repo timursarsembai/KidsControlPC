@@ -11,6 +11,7 @@ import RemindersPanel from '../RemindersPanel/RemindersPanel'
 import LogsPanel from '../LogsPanel/LogsPanel'
 import ScreenshotsPanel from '../ScreenshotsPanel/ScreenshotsPanel'
 import ChatPanel from '../ChatPanel/ChatPanel'
+import StoragePanel from '../StoragePanel/StoragePanel'
 import './ContentArea.css'
 
 // ── Empty state: no devices ───────────────────────────────────────────────────
@@ -121,6 +122,14 @@ export default function ContentArea() {
   const meta = isProfileTab
     ? { label: profileRule?.profileName || 'Новый режим', icon: profileRule?.profileIcon || '🧩', desc: 'Свои списки программ, сайтов и расписание' }
     : baseMeta
+
+  if (activeTab === 'storage') {
+    return (
+      <div className="content-area">
+        <StoragePanel />
+      </div>
+    )
+  }
 
   if (activeTab === 'chat') {
     return (
