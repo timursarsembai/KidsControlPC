@@ -15,6 +15,37 @@ function log(msg) {
   console.log(`[ActivityTracker] ${msg}`)
 }
 
+// ── System process blocklist ──────────────────────────────────────────────────
+// Processes that are always Windows internals — never user-facing apps.
+// Agent runs as SYSTEM service so MainWindowHandle is 0 for everything;
+// we use a name-based filter instead.
+const SYSTEM_BLOCKLIST = new Set([
+  // Windows core
+  'svchost', 'csrss', 'smss', 'wininit', 'winlogon', 'services', 'lsass',
+  'conhost', 'dwm', 'fontdrvhost', 'registry', 'idle', 'system', 'wininit',
+  // Windows search
+  'searchindexer', 'searchprotocolhost', 'searchfilterhost',
+  // Windows security / smartscreen
+  'smartscreen', 'msmpeng', 'nissrv', 'securityhealthservice', 'securityhealthsystray',
+  // Windows runtime hosts
+  'applicationframehost', 'backgroundtaskhost', 'runtimebroker',
+  'shellexperiencehost', 'startmenuexperiencehost', 'textinputhost',
+  'sihost', 'taskhostw', 'ctfmon', 'dllhost', 'wudfhost', 'wlanext',
+  // AMD / NVIDIA drivers
+  'atieclxx', 'atiesrxx', 'nvdisplay.container', 'nvcontainer',
+  // Bluetooth / hardware OEM
+  'btwrsupportservice', 'igfxem', 'igfxtray', 'hkcmd',
+  // Windows aggregation / helpers
+  'aggregatorhost', 'apphelpercap', 'filecoauth', 'microsoftedgeupdate',
+  'usoclient', 'wermgr', 'mobsync', 'spoolsv', 'lsaiso', 'dashost',
+  'audiodg', 'tabtip', 'tabtip32', 'regsvc', 'wmiprvse', 'msiexec',
+  // Windows update / telemetry
+  'tiworker', 'wuauclt', 'musnotification', 'musnotificationux',
+  'compattelrunner', 'wsqmcons',
+  // Our own agent / installer
+  'kca_setup_v1.1.77', 'kca_setup_v1.1.78', 'updater', 'node',
+])
+
 // ── App tracking ──────────────────────────────────────────────────────────────
 
 // { baseName: startedAtMs }  — set when process first appears
@@ -45,8 +76,13 @@ function activityStatsRef(parentUid, deviceId, date) {
 export async function trackAppDelta(processes, parentUid, deviceId) {
   if (!parentUid || !deviceId) return
 
-  // Only track user-facing processes (those with a visible window)
-  const userProcs = processes.filter(p => p.hasWindow)
+  // Filter out known Windows system/background processes by name
+  const userProcs = processes.filter(p =>
+    !SYSTEM_BLOCKLIST.has(p.base) &&
+    !SYSTEM_BLOCKLIST.has(p.name) &&
+    !p.base.startsWith('kca_setup') &&
+    !p.name.startsWith('kca_setup')
+  )
   const currentBases = new Set(userProcs.map(p => p.base).filter(Boolean))
   const now = Date.now()
 
