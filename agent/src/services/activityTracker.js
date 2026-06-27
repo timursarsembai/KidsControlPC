@@ -45,7 +45,9 @@ function activityStatsRef(parentUid, deviceId, date) {
 export async function trackAppDelta(processes, parentUid, deviceId) {
   if (!parentUid || !deviceId) return
 
-  const currentBases = new Set(processes.map(p => p.base).filter(Boolean))
+  // Only track user-facing processes (those with a visible window)
+  const userProcs = processes.filter(p => p.hasWindow)
+  const currentBases = new Set(userProcs.map(p => p.base).filter(Boolean))
   const now = Date.now()
 
   if (prevProcessBases === null) {
@@ -61,7 +63,7 @@ export async function trackAppDelta(processes, parentUid, deviceId) {
   for (const base of currentBases) {
     if (!prevProcessBases.has(base)) {
       launchTimes[base] = now
-      const proc = processes.find(p => p.base === base)
+      const proc = userProcs.find(p => p.base === base)
       try {
         await addDoc(activityLogsRef(parentUid, deviceId), {
           type: 'app_launch',
