@@ -18,6 +18,7 @@ import {
   hideWidgetIfUnlocked,
   syncPenaltyLockState
 } from './penaltyManager.js'
+import { trackAppDelta, trackBlockedDomains } from './activityTracker.js'
 
 const POWER_ACTIONS = new Set(['shutdown', 'restart', 'sleep', 'hibernate'])
 
@@ -71,6 +72,7 @@ export async function enforceRules(parentUid, deviceId, isShuttingDown) {
 
   const processes = await getRunningProcesses()
   await updateRunningStatuses(parentUid, deviceId, processes)
+  trackAppDelta(processes, parentUid, deviceId).catch(() => {})
 
   evaluatePomodoroState()
 
@@ -104,6 +106,7 @@ export async function enforceRules(parentUid, deviceId, isShuttingDown) {
   const webRules = effectiveRules.filter(r => r.type === 'web')
   const domains = webRules.flatMap(r => extractDomains(r.web || {}))
   applyHostsBlock(domains)
+  if (domains.length) trackBlockedDomains(domains, parentUid, deviceId).catch(() => {})
 
   const programRules = effectiveRules.filter(r => r.type === 'program')
   const killedEvents = await enforceProcessRules(programRules, processes)

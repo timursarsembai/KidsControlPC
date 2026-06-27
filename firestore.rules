@@ -118,6 +118,17 @@ service cloud.firestore {
       allow delete: if isOwner(userId) || resource.data.createdBy == request.auth.uid; // own chat
     }
 
+    // ── Activity logs & stats — agent writes via JS SDK (no auth) ────────────
+    match /users/{userId}/devices/{deviceId}/activityLogs/{logId} {
+      allow read: if canManageUser(userId);
+      allow write: if true;  // agent writes without auth
+    }
+
+    match /users/{userId}/devices/{deviceId}/activityStats/{date} {
+      allow read: if canManageUser(userId);
+      allow write: if true;  // agent writes without auth
+    }
+
     match /users/{userId}/chats/{chatId}/messages/{msgId} {
       allow read: if canManageUser(userId) || true;  // agent reads without auth
       allow create: if canManageUser(userId) || true; // agent writes without auth

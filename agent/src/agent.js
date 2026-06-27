@@ -24,6 +24,7 @@ import { loadPairing, runPairingFlow } from './pairing.js'
 import { initChatSync, stopChatSync } from './services/chatSync.js'
 import { startChatWidgetIfNeeded } from './services/chatWidgetManager.js'
 import { checkAndUpdateSilently } from './updater.js'
+import { tickScreenTime } from './services/activityTracker.js'
 import { delay } from './core/utils.js'
 import { clearHostsBlock } from './hostsBlocker.js'
 import { ENFORCE_INTERVAL_MS, HEARTBEAT_INTERVAL_MS } from './config.js'
@@ -142,7 +143,10 @@ async function main() {
 
   startTimerWidgetIfNeeded()
 
-  setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS)
+  setInterval(() => {
+    sendHeartbeat()
+    tickScreenTime(parentUid, deviceId, HEARTBEAT_INTERVAL_MS / 1000).catch(() => {})
+  }, HEARTBEAT_INTERVAL_MS)
   setInterval(() => enforceRules(parentUid, deviceId, isShuttingDown), ENFORCE_INTERVAL_MS)
   setInterval(() => {
     if (!isShuttingDown) {

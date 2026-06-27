@@ -12,6 +12,7 @@ import LogsPanel from '../LogsPanel/LogsPanel'
 import ScreenshotsPanel from '../ScreenshotsPanel/ScreenshotsPanel'
 import ChatPanel from '../ChatPanel/ChatPanel'
 import StoragePanel from '../StoragePanel/StoragePanel'
+import ActivityPanel from '../ActivityPanel/ActivityPanel'
 import './ContentArea.css'
 
 // ── Empty state: no devices ───────────────────────────────────────────────────
@@ -127,6 +128,25 @@ export default function ContentArea() {
     return (
       <div className="content-area">
         <StoragePanel />
+      </div>
+    )
+  }
+
+  if (activeTab === 'activity') {
+    return (
+      <div className="content-area">
+        <div className="content-header">
+          <div className="content-title-row">
+            <span className="content-mode-icon">📊</span>
+            <div>
+              <h1 className="content-title">Активность</h1>
+              <p className="content-desc">Приложения, сайты и время за ПК</p>
+            </div>
+          </div>
+        </div>
+        <div className="content-body">
+          <ActivityPanel />
+        </div>
       </div>
     )
   }

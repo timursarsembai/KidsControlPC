@@ -175,6 +175,16 @@ export default function DeviceSidebar({ isMobileOpen = false, onMobileNavigate }
       <div style={{ flex: 1 }} />
 
       <button
+        className={`device-sidebar-settings-btn ${activeTab === 'activity' && !showSettings ? 'active' : ''}`}
+        onClick={() => { setActiveTab('activity'); setShowSettings(false); onMobileNavigate?.() }}
+      >
+        <svg width="14" height="14" viewBox="0 0 15 15" fill="none">
+          <path d="M1 11l3.5-4 3 3 3.5-5 3 2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        Активность
+      </button>
+
+      <button
         className={`device-sidebar-settings-btn ${activeTab === 'storage' && !showSettings ? 'active' : ''}`}
         onClick={() => { setActiveTab('storage'); setShowSettings(false); onMobileNavigate?.() }}
       >
