@@ -22,11 +22,12 @@ function log(msg) {
 const SYSTEM_BLOCKLIST = new Set([
   // Windows core
   'svchost', 'csrss', 'smss', 'wininit', 'winlogon', 'services', 'lsass',
-  'conhost', 'dwm', 'fontdrvhost', 'registry', 'idle', 'system', 'wininit',
+  'conhost', 'dwm', 'fontdrvhost', 'registry', 'idle', 'system',
   // Windows search
   'searchindexer', 'searchprotocolhost', 'searchfilterhost',
-  // Windows security / smartscreen
+  // Windows security / smartscreen / defender
   'smartscreen', 'msmpeng', 'nissrv', 'securityhealthservice', 'securityhealthsystray',
+  'mpsigstub', 'mpdefendercorespsa',
   // Windows runtime hosts
   'applicationframehost', 'backgroundtaskhost', 'runtimebroker',
   'shellexperiencehost', 'startmenuexperiencehost', 'textinputhost',
@@ -39,17 +40,42 @@ const SYSTEM_BLOCKLIST = new Set([
   'aggregatorhost', 'apphelpercap', 'filecoauth', 'microsoftedgeupdate',
   'usoclient', 'wermgr', 'mobsync', 'spoolsv', 'lsaiso', 'dashost',
   'audiodg', 'tabtip', 'tabtip32', 'regsvc', 'wmiprvse', 'msiexec',
-  // Windows update / telemetry
+  // Windows update / telemetry / licensing
   'tiworker', 'wuauclt', 'musnotification', 'musnotificationux',
-  'compattelrunner', 'wsqmcons',
-  // Our own agent / installer
-  'kca_setup_v1.1.77', 'kca_setup_v1.1.78', 'updater', 'node',
+  'compattelrunner', 'wsqmcons', 'sppsvc', 'sppextcomobj', 'trustedinstaller',
+  // Location / notifications / sync services
+  'locationnotificationwindows', 'mobsync', 'wscsvc',
+  // Chrome elevation service
+  'elevation_service',
+  // Our own agent
+  'updater', 'node',
 ])
+
+// Pattern-based filter for processes whose names include a version number or
+// match known updater/installer naming conventions (e.g. microsoftedge_x64_149.8,
+// am_delta_patch_1.453.29, onedrivestandaloneupdat).
+function isSystemByPattern(name) {
+  if (!name) return false
+  // Starts with known prefixes
+  if (name.startsWith('kca_setup')) return true
+  if (name.startsWith('microsoftedge_')) return true
+  if (name.startsWith('am_delta_patch')) return true
+  if (name.startsWith('onedrive') && (name.includes('updat') || name.includes('setup'))) return true
+  // Generic: name contains digits after underscore (version pattern like foo_1.2.3)
+  if (/^[a-z_]+_\d/.test(name)) return true
+  // Ends in common service/stub/helper suffixes without being a known user app
+  if (/(?:svc|stub|helper|host|service|broker|daemon|agent|updater|installer|setup)$/.test(name) &&
+      !['explorer', 'taskmgr'].includes(name)) return true
+  return false
+}
 
 // ── App tracking ──────────────────────────────────────────────────────────────
 
 // { baseName: startedAtMs }  — set when process first appears
 const launchTimes = {}
+
+// { baseName: displayName }  — friendly name at launch time
+const launchNames = {}
 
 // Set of basenames seen in the previous enforcer tick
 let prevProcessBases = null
@@ -80,8 +106,8 @@ export async function trackAppDelta(processes, parentUid, deviceId) {
   const userProcs = processes.filter(p =>
     !SYSTEM_BLOCKLIST.has(p.base) &&
     !SYSTEM_BLOCKLIST.has(p.name) &&
-    !p.base.startsWith('kca_setup') &&
-    !p.name.startsWith('kca_setup')
+    !isSystemByPattern(p.base) &&
+    !isSystemByPattern(p.name)
   )
   const currentBases = new Set(userProcs.map(p => p.base).filter(Boolean))
   const now = Date.now()
@@ -91,6 +117,8 @@ export async function trackAppDelta(processes, parentUid, deviceId) {
     prevProcessBases = currentBases
     for (const base of currentBases) {
       launchTimes[base] = now
+      const p = userProcs.find(x => x.base === base)
+      launchNames[base] = p?.name || base
     }
     return
   }
@@ -100,11 +128,12 @@ export async function trackAppDelta(processes, parentUid, deviceId) {
     if (!prevProcessBases.has(base)) {
       launchTimes[base] = now
       const proc = userProcs.find(p => p.base === base)
+      launchNames[base] = proc?.name || base
       try {
         await addDoc(activityLogsRef(parentUid, deviceId), {
           type: 'app_launch',
           ts: serverTimestamp(),
-          name: proc?.name || base,
+          name: launchNames[base],
           detail: proc?.path || '',
         })
       } catch (e) {
@@ -118,7 +147,9 @@ export async function trackAppDelta(processes, parentUid, deviceId) {
     if (!currentBases.has(base)) {
       const startedAt = launchTimes[base] || now
       const durationSec = Math.round((now - startedAt) / 1000)
+      const displayName = launchNames[base] || base
       delete launchTimes[base]
+      delete launchNames[base]
 
       if ((now - startedAt) < MIN_DURATION_MS) continue  // too short — skip
 
@@ -126,7 +157,7 @@ export async function trackAppDelta(processes, parentUid, deviceId) {
         await addDoc(activityLogsRef(parentUid, deviceId), {
           type: 'app_close',
           ts: serverTimestamp(),
-          name: base,
+          name: displayName,
           detail: '',
           duration: durationSec,
         })

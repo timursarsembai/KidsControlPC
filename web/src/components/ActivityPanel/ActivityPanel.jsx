@@ -18,6 +18,15 @@ function fmtDuration(sec) {
   return m > 0 ? `${h} ч ${m} мин` : `${h} ч`
 }
 
+function useNow(intervalMs = 30000) {
+  const [now, setNow] = React.useState(Date.now())
+  React.useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), intervalMs)
+    return () => clearInterval(t)
+  }, [intervalMs])
+  return now
+}
+
 function fmtScreenTime(sec) {
   if (!sec || sec < 60) return sec ? `${sec} сек` : '0'
   const h = Math.floor(sec / 3600)
@@ -81,7 +90,7 @@ function VBarChart({ stats, today }) {
 
 // ── Apps Tab ─────────────────────────────────────────────────────────────────
 
-function AppsTab({ logs, stats }) {
+function AppsTab({ logs, stats, now }) {
   const appLogs = logs.filter(l => l.type === 'app_launch' || l.type === 'app_close')
 
   const appsUsage = {}
@@ -124,7 +133,15 @@ function AppsTab({ logs, stats }) {
                       {l.type === 'app_launch' ? '▶ Запуск' : '■ Закрыт'}
                     </span>
                   </td>
-                  <td className="ap-td-dim">{l.duration ? fmtDuration(l.duration) : '—'}</td>
+                  <td className="ap-td-dim">
+                    {l.type === 'app_close' && l.duration
+                      ? fmtDuration(l.duration)
+                      : l.type === 'app_launch' && l.ts
+                        ? <span style={{ color: 'var(--accent)', fontStyle: 'italic' }}>
+                            {fmtDuration(Math.round((now - (l.ts.toDate ? l.ts.toDate() : new Date(l.ts)).getTime()) / 1000))}
+                          </span>
+                        : '—'}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -234,6 +251,7 @@ export default function ActivityPanel() {
   const ownerUid = activeOwnerUid || user?.uid
 
   const [tab, setTab] = React.useState('apps')
+  const now = useNow(30000)
   const [logs, setLogs] = React.useState([])
   const [stats, setStats] = React.useState([])
   const [date] = React.useState(new Date())
@@ -272,7 +290,7 @@ export default function ActivityPanel() {
         ))}
       </div>
 
-      {tab === 'apps'  && <AppsTab  logs={logs} stats={stats} />}
+      {tab === 'apps'  && <AppsTab  logs={logs} stats={stats} now={now} />}
       {tab === 'sites' && <SitesTab logs={logs} stats={stats} />}
       {tab === 'time'  && <ScreenTimeTab stats={stats} />}
     </div>
