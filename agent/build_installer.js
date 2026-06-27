@@ -105,6 +105,19 @@ async function build() {
     console.log('📦 2.95/5 Compiling ChatTrayApp.cs...')
     execSync(`C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /win32icon:assets\\chat.ico /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:dist\\Microsoft.Web.WebView2.Core.dll /reference:dist\\Microsoft.Web.WebView2.WinForms.dll /target:winexe /out:dist\\ChatTrayApp.exe src\\widget\\ChatTrayApp.cs`, { stdio: 'inherit' })
 
+    // app.config: preserve %2F in Firebase Storage URLs (otherwise .NET Uri unescapes
+    // them to '/' and the server returns HTTP 400). Requires .NET 4.5+ at runtime.
+    fs.writeFileSync(path.join(distDir, 'ChatTrayApp.exe.config'), `<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <uri>
+    <schemeSettings>
+      <add name="https" genericUriParserOptions="DontUnescapePathDotsAndSlashes" />
+      <add name="http" genericUriParserOptions="DontUnescapePathDotsAndSlashes" />
+    </schemeSettings>
+  </uri>
+</configuration>
+`)
+
     console.log('📦 3/5 Downloading WinSW...')
     const winswPath = path.join(distDir, 'WinSW.exe')
     if (!fs.existsSync(winswPath)) {
@@ -257,6 +270,7 @@ ${processCleanupCommands}
   File "CustomDialogWidget.exe"
   File "ScreenshotHelper.exe"
   File "ChatTrayApp.exe"
+  File "ChatTrayApp.exe.config"
   File "Microsoft.Web.WebView2.Core.dll"
   File "Microsoft.Web.WebView2.WinForms.dll"
   File "WebView2Loader.dll"
@@ -326,6 +340,7 @@ Section "Uninstall"
   Delete "$INSTDIR\\CustomDialogWidget.exe"
   Delete "$INSTDIR\\ScreenshotHelper.exe"
   Delete "$INSTDIR\\ChatTrayApp.exe"
+  Delete "$INSTDIR\\ChatTrayApp.exe.config"
   Delete "$INSTDIR\\Microsoft.Web.WebView2.Core.dll"
   Delete "$INSTDIR\\Microsoft.Web.WebView2.WinForms.dll"
   Delete "$INSTDIR\\WebView2Loader.dll"

@@ -5,6 +5,7 @@ using System.Drawing;
 using System.IO;
 using System.Media;
 using System.Text;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
@@ -615,6 +616,54 @@ namespace KidsControl
             }
         }
 
+        // Build a safe, non-colliding destination path inside Downloads\KidsControl.
+        // Exposed for unit testing via reflection-free static call.
+        public static string BuildDownloadPath(string dir, string name, Func<string, bool> exists)
+        {
+            foreach (var c in System.IO.Path.GetInvalidFileNameChars())
+                name = name.Replace(c, '_');
+            if (string.IsNullOrWhiteSpace(name)) name = "file";
+
+            var dest = System.IO.Path.Combine(dir, name);
+            if (!exists(dest)) return dest;
+
+            var baseName = System.IO.Path.GetFileNameWithoutExtension(name);
+            var ext = System.IO.Path.GetExtension(name);
+            int i = 1;
+            do { dest = System.IO.Path.Combine(dir, baseName + " (" + i++ + ")" + ext); }
+            while (exists(dest));
+            return dest;
+        }
+
+        private static void DownloadAndOpen(string url, string name)
+        {
+            try
+            {
+                var dir = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    "Downloads", "KidsControl");
+                System.IO.Directory.CreateDirectory(dir);
+
+                var dest = BuildDownloadPath(dir, name, System.IO.File.Exists);
+
+                // TLS 1.2 — Firebase rejects older protocols. The Uri %2F preservation
+                // is handled by ChatTrayApp.exe.config (DontUnescapePathDotsAndSlashes).
+                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+                using (var wc = new WebClient())
+                    wc.DownloadFile(url, dest);
+
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dest) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                System.Windows.Forms.MessageBox.Show(
+                    "Не удалось открыть файл:\n" + ex.Message,
+                    "KidsControl",
+                    System.Windows.Forms.MessageBoxButtons.OK,
+                    System.Windows.Forms.MessageBoxIcon.Warning);
+            }
+        }
+
         private void OnNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
         {
             Log("NavigationCompleted pending=" + (pendingChats != null ? pendingChats.Count.ToString() : "null"));
@@ -665,24 +714,7 @@ namespace KidsControl
                 {
                     string url  = msg.ContainsKey("url")  ? msg["url"].ToString()  : null;
                     string name = msg.ContainsKey("name") ? msg["name"].ToString() : "file";
-                    if (!string.IsNullOrEmpty(url))
-                    {
-                        // Let WebView2 download via fetch→blob so it handles TLS/auth correctly.
-                        // OnDownloadStarting will intercept and save to Downloads\KidsControl\.
-                        var safeUrl  = url.Replace("\\", "\\\\").Replace("'", "\\'");
-                        var safeName = name.Replace("\\", "\\\\").Replace("'", "\\'");
-                        var script = "(function(){" +
-                            "fetch('" + safeUrl + "')" +
-                            ".then(function(r){return r.blob();})" +
-                            ".then(function(b){" +
-                            "var a=document.createElement('a');" +
-                            "a.href=URL.createObjectURL(b);" +
-                            "a.download='" + safeName + "';" +
-                            "document.body.appendChild(a);a.click();document.body.removeChild(a);" +
-                            "});" +
-                            "})();";
-                        webView.CoreWebView2.ExecuteScriptAsync(script);
-                    }
+                    if (!string.IsNullOrEmpty(url)) Task.Run(() => DownloadAndOpen(url, name));
                 }
                 else if (type == "sendFile")
                 {

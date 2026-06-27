@@ -3,6 +3,13 @@
   "version": "1.0.0",
   "description": "Shared data layer for KidsControlPC (firebase, stores, utils, locales)",
   "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.7"
+  },
   "exports": {
     "./firebase/config": "./firebase/config.js",
     "./firebase/firestore": "./firebase/firestore.js",
@@ -15,6 +22,7 @@
     "./firebase/pairing": "./firebase/pairing.repo.js",
     "./firebase/profile": "./firebase/profile.repo.js",
     "./firebase/storage": "./firebase/storage.repo.js",
+    "./firebase/storagePaths": "./firebase/storagePaths.js",
     "./billing/plans": "./billing/plans.js",
     "./firebase/parents": "./firebase/parents.repo.js",
     "./firebase/timestamps": "./firebase/timestamps.js",
