@@ -41,12 +41,16 @@ export function subscribeToActivityLogs(ownerUid, deviceId, date, callback) {
  * Fetch activityStats docs for the last N days.
  * Returns array of stat objects sorted newest first.
  */
+function localDate(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export async function getActivityStats(ownerUid, deviceId, days = 7) {
   const dates = []
   for (let i = 0; i < days; i++) {
     const d = new Date()
     d.setDate(d.getDate() - i)
-    dates.push(d.toISOString().slice(0, 10))
+    dates.push(localDate(d))
   }
 
   const snap = await getDocs(
@@ -66,7 +70,7 @@ export function subscribeToActivityStats(ownerUid, deviceId, days = 7, callback)
   for (let i = 0; i < days; i++) {
     const d = new Date()
     d.setDate(d.getDate() - i)
-    dates.push(d.toISOString().slice(0, 10))
+    dates.push(localDate(d))
   }
 
   const q = query(
@@ -79,5 +83,21 @@ export function subscribeToActivityStats(ownerUid, deviceId, days = 7, callback)
       .map(d => d.data())
       .sort((a, b) => (b.date > a.date ? 1 : -1))
     callback(stats)
+  }, () => callback([]))
+}
+
+/**
+ * Subscribe to activityStats for a date range (for long-term charts).
+ * startDateStr / endDateStr: 'YYYY-MM-DD'
+ */
+export function subscribeToActivityStatsRange(ownerUid, deviceId, startDateStr, endDateStr, callback) {
+  const q = query(
+    activityStatsRef(ownerUid, deviceId),
+    where('date', '>=', startDateStr),
+    where('date', '<=', endDateStr),
+    orderBy('date', 'desc')
+  )
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map(d => d.data()))
   }, () => callback([]))
 }

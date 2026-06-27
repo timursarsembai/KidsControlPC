@@ -85,7 +85,8 @@ let prevProcessBases = null
 const MIN_DURATION_MS = 5_000  // 5 sec
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10)  // YYYY-MM-DD
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 function activityLogsRef(parentUid, deviceId) {
