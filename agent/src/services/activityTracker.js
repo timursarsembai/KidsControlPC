@@ -111,7 +111,7 @@ function activityStatsRef(parentUid, deviceId, date) {
 export async function trackAppDelta(processes, parentUid, deviceId) {
   if (!parentUid || !deviceId) return
 
-  // 5-layer filter — each layer independently removes system/background processes
+  // Filter pipeline — removes system/background processes, keeps user-facing apps
   const whitelist = getInstalledBasenames()  // null until first program scan completes
   const userProcs = processes.filter(p => {
     // Layer 1: SessionId > 0 filtered in PowerShell, but double-check here
@@ -119,16 +119,17 @@ export async function trackAppDelta(processes, parentUid, deviceId) {
     // Layer 2: require visible window handle — tray apps and background services
     // have MainWindowHandle=0; games (Roblox) have a handle even without a title
     if (!p.hasWindow) return false
-    // Layer 5: explicit blocklist + pattern filter
+    // Layer 3: explicit blocklist
     if (SYSTEM_BLOCKLIST.has(p.base) || SYSTEM_BLOCKLIST.has(p.name)) return false
+    // Layer 4: whitelist bypass — installed apps skip pattern filter entirely,
+    // so apps with "host/service/agent" in their name (e.g. BattleHost) are not blocked
+    if (whitelist !== null && whitelist.has(p.base)) return true
+    // Layer 5: pattern filter — only for processes not in whitelist
     if (isSystemByPattern(p.base) || isSystemByPattern(p.name)) return false
-    // Layer 4: whitelist — only installed apps (skip if scan not done yet)
-    if (whitelist !== null && !whitelist.has(p.base)) {
-      // Exception: Windows built-ins (explorer, notepad…) passed layer 2 because they
-      // have a window title — skip whitelist for them, they're clearly user-facing
+    // Layer 5b: path prefix fallback + Windows built-ins
+    if (whitelist !== null) {
       const isWindowsBuiltin = p.path && p.path.startsWith('c:\\windows\\') && p.windowTitle
       if (!isWindowsBuiltin) {
-        // Fallback: allow if process path starts with a known install directory
         const prefixes = getInstalledPathPrefixes()
         const procPath = (p.path || '').toLowerCase()
         if (!prefixes || !procPath || !prefixes.some(prefix => procPath.startsWith(prefix))) return false

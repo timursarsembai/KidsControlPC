@@ -128,6 +128,12 @@ export async function tickDnsTracking(parentUid, deviceId) {
 
   _lastCacheDomains = cacheDomains
 
+  // Prune stale entries to prevent unbounded Map growth
+  const pruneThreshold = now - LOG_COOLDOWN_MS
+  for (const [domain, lastSeen] of loggedDomains) {
+    if (lastSeen < pruneThreshold) loggedDomains.delete(domain)
+  }
+
   if (!newDomains.length) return
 
   const logsRef = collection(db, 'users', parentUid, 'devices', deviceId, 'activityLogs')

@@ -12,7 +12,7 @@ import {
   markDeviceOffline
 } from './network/firebaseSync.js'
 import { startIpcServer } from './network/ipcServer.js'
-import { startTimerWidgetIfNeeded, ensureWidgetLocked } from './services/widgetManager.js'
+import { startTimerWidgetIfNeeded, ensureWidgetLocked, getIsWidgetLocked } from './services/widgetManager.js'
 import { enforceRules } from './services/enforcer.js'
 import { startScreenshotService, stopScreenshotService } from './services/screenshotService.js'
 import { registerCommandHandlers } from './services/commandHandler.js'
@@ -147,7 +147,7 @@ async function main() {
   let _dnsTick = 0
   setInterval(() => {
     sendHeartbeat()
-    tickScreenTime(parentUid, deviceId, HEARTBEAT_INTERVAL_MS / 1000).catch(() => {})
+    if (!getIsWidgetLocked()) tickScreenTime(parentUid, deviceId, HEARTBEAT_INTERVAL_MS / 1000).catch(() => {})
     if (++_dnsTick % 2 === 0) tickDnsTracking(parentUid, deviceId).catch(() => {})
   }, HEARTBEAT_INTERVAL_MS)
   setInterval(() => enforceRules(parentUid, deviceId, isShuttingDown), ENFORCE_INTERVAL_MS)

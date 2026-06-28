@@ -8,6 +8,7 @@ import { promisify } from 'util'
 import { writeFileSync, unlinkSync, existsSync } from 'fs'
 import { join, basename, extname } from 'path'
 import { tmpdir } from 'os'
+import { createHash } from 'crypto'
 import { isProtectedProgramEntry, isProtectedProcess } from './selfProtection.js'
 
 const execAsync = promisify(exec)
@@ -174,7 +175,7 @@ if ($result) {
           ? basename(execPath, '.exe').toLowerCase()
           : ''
 
-        const id = Buffer.from(app.DisplayName).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 20)
+        const id = createHash('sha1').update(app.DisplayName).digest('base64url').slice(0, 28)
         return {
           id,
           name: app.DisplayName.trim(),
