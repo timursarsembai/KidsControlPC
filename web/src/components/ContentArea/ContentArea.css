@@ -41,8 +41,9 @@
   opacity: 0.9;
 }
 .content-update-agent-btn svg { flex-shrink: 0; }
-.content-update-agent-btn:hover { opacity: 1; }
+.content-update-agent-btn:hover:not(:disabled) { opacity: 1; }
 .content-update-agent-btn:disabled { cursor: not-allowed; }
+.content-update-agent-btn.offline { opacity: 0.4; background: var(--bg-secondary); border-color: var(--border); color: var(--text-secondary); }
 .content-update-agent-btn.updating { opacity: 0.85; }
 .content-update-agent-btn.no-update { background: var(--bg-success); border-color: var(--border-success); color: var(--text-success); opacity: 1; }
 .content-update-agent-spin {

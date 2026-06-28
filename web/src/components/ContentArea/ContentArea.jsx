@@ -62,6 +62,8 @@ export default function ContentArea() {
   const versionBeforeUpdate = React.useRef(null)
   const updateTimeoutRef = React.useRef(null)
   const selectedDevice = devices.find(d => d.id === selectedDeviceId)
+  const lastSeen = selectedDevice?.lastSeen?.toDate?.() || (selectedDevice?.lastSeen ? new Date(selectedDevice.lastSeen.seconds ? selectedDevice.lastSeen.seconds * 1000 : selectedDevice.lastSeen) : null)
+  const isAgentOnline = selectedDevice?.status !== 'offline' && lastSeen && (Date.now() - lastSeen.getTime()) < 2 * 60 * 1000
 
   const updatingAgent = updatingDeviceId === selectedDeviceId
 
@@ -219,9 +221,9 @@ export default function ContentArea() {
         {/* Update agent button — only on agent_logs tab */}
         {activeTab === 'agent_logs' && (
           <button
-            className={`content-update-agent-btn ${updatingAgent ? 'updating' : ''} ${noUpdateFound ? 'no-update' : ''}`}
+            className={`content-update-agent-btn ${updatingAgent ? 'updating' : ''} ${noUpdateFound ? 'no-update' : ''} ${!isAgentOnline && !updatingAgent ? 'offline' : ''}`}
             onClick={handleUpdateAgent}
-            disabled={updatingAgent}
+            disabled={updatingAgent || !isAgentOnline}
             type="button"
           >
             {updatingAgent ? (
