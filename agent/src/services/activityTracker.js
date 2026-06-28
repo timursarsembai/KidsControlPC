@@ -109,19 +109,23 @@ export async function trackAppDelta(processes, parentUid, deviceId) {
   const userProcs = processes.filter(p => {
     // Layer 1: SessionId > 0 filtered in PowerShell, but double-check here
     if ((p.sessionId || 0) === 0) return false
-    // Layer 2+3: no window title AND path in C:\Windows → system utility
+    // Layer 2+3: no window title AND path in C:\Windows → headless system utility
+    // (Explorer, Notepad etc. have a window title and will pass through)
     if (!p.windowTitle && p.path && p.path.startsWith('c:\\windows\\')) return false
-    // Layer 3: any process in C:\Windows regardless of window title
-    if (p.path && p.path.startsWith('c:\\windows\\')) return false
     // Layer 5: explicit blocklist + pattern filter
     if (SYSTEM_BLOCKLIST.has(p.base) || SYSTEM_BLOCKLIST.has(p.name)) return false
     if (isSystemByPattern(p.base) || isSystemByPattern(p.name)) return false
     // Layer 4: whitelist — only installed apps (skip if scan not done yet)
     if (whitelist !== null && !whitelist.has(p.base)) {
-      // Fallback: allow if process path starts with a known install directory
-      const prefixes = getInstalledPathPrefixes()
-      const procPath = (p.path || '').toLowerCase()
-      if (!prefixes || !procPath || !prefixes.some(prefix => procPath.startsWith(prefix))) return false
+      // Exception: Windows built-ins (explorer, notepad…) passed layer 2 because they
+      // have a window title — skip whitelist for them, they're clearly user-facing
+      const isWindowsBuiltin = p.path && p.path.startsWith('c:\\windows\\') && p.windowTitle
+      if (!isWindowsBuiltin) {
+        // Fallback: allow if process path starts with a known install directory
+        const prefixes = getInstalledPathPrefixes()
+        const procPath = (p.path || '').toLowerCase()
+        if (!prefixes || !procPath || !prefixes.some(prefix => procPath.startsWith(prefix))) return false
+      }
     }
     return true
   })
