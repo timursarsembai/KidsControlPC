@@ -116,9 +116,9 @@ export async function trackAppDelta(processes, parentUid, deviceId) {
   const userProcs = processes.filter(p => {
     // Layer 1: SessionId > 0 filtered in PowerShell, but double-check here
     if ((p.sessionId || 0) === 0) return false
-    // Layer 2: require visible window — tray apps, crash handlers, background services
-    // have no window title, so the child isn't actively using them
-    if (!p.windowTitle) return false
+    // Layer 2: require visible window handle — tray apps and background services
+    // have MainWindowHandle=0; games (Roblox) have a handle even without a title
+    if (!p.hasWindow) return false
     // Layer 5: explicit blocklist + pattern filter
     if (SYSTEM_BLOCKLIST.has(p.base) || SYSTEM_BLOCKLIST.has(p.name)) return false
     if (isSystemByPattern(p.base) || isSystemByPattern(p.name)) return false
