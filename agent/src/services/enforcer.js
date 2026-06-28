@@ -19,11 +19,13 @@ import {
   syncPenaltyLockState
 } from './penaltyManager.js'
 import { trackAppDelta, trackBlockedDomains } from './activityTracker.js'
+import { getLastCacheDomains } from './dnsTracker.js'
 
 const POWER_ACTIONS = new Set(['shutdown', 'restart', 'sleep', 'hibernate'])
 
 let executedPowerRuleIds = new Set()
 let runningStateCache = {}
+let isEnforcing = false
 
 function log(msg) {
   console.log(`[Enforcer] ${msg}`)
@@ -56,8 +58,16 @@ async function updateRunningStatuses(parentUid, deviceId, currentProcesses) {
 }
 
 export async function enforceRules(parentUid, deviceId, isShuttingDown) {
-  if (isShuttingDown) return
+  if (isShuttingDown || isEnforcing) return
+  isEnforcing = true
+  try {
+    await _enforceRules(parentUid, deviceId)
+  } finally {
+    isEnforcing = false
+  }
+}
 
+async function _enforceRules(parentUid, deviceId) {
   const parentConfig = getParentConfig()
   if (parentConfig?.pauseAllRules) {
     applyHostsBlock([])
@@ -72,7 +82,7 @@ export async function enforceRules(parentUid, deviceId, isShuttingDown) {
 
   const processes = await getRunningProcesses()
   await updateRunningStatuses(parentUid, deviceId, processes)
-  trackAppDelta(processes, parentUid, deviceId).catch(() => {})
+  await trackAppDelta(processes, parentUid, deviceId).catch(e => log(`trackAppDelta error: ${e.message}`))
 
   evaluatePomodoroState()
 
@@ -106,7 +116,11 @@ export async function enforceRules(parentUid, deviceId, isShuttingDown) {
   const webRules = effectiveRules.filter(r => r.type === 'web')
   const domains = webRules.flatMap(r => extractDomains(r.web || {}))
   applyHostsBlock(domains)
-  if (domains.length) trackBlockedDomains(domains, parentUid, deviceId).catch(() => {})
+  if (domains.length) {
+    const visitedBlockedDomains = domains.filter(d => getLastCacheDomains().has(d))
+    if (visitedBlockedDomains.length)
+      trackBlockedDomains(visitedBlockedDomains, parentUid, deviceId).catch(e => log(`trackBlockedDomains error: ${e.message}`))
+  }
 
   const programRules = effectiveRules.filter(r => r.type === 'program')
   const killedEvents = await enforceProcessRules(programRules, processes)

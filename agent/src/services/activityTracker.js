@@ -173,12 +173,17 @@ export async function trackAppDelta(processes, parentUid, deviceId) {
   for (const base of prevProcessBases) {
     if (!currentBases.has(base)) {
       const startedAt = launchTimes[base] || now
+
+      if ((now - startedAt) < MIN_DURATION_MS) {
+        delete launchTimes[base]
+        delete launchNames[base]
+        continue  // too short — skip
+      }
+
       const durationSec = Math.round((now - startedAt) / 1000)
       const displayName = launchNames[base] || base
       delete launchTimes[base]
       delete launchNames[base]
-
-      if ((now - startedAt) < MIN_DURATION_MS) continue  // too short — skip
 
       try {
         await addDoc(activityLogsRef(parentUid, deviceId), {

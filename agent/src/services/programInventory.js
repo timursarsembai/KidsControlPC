@@ -75,7 +75,6 @@ export async function performProgramRescan(parentUid, deviceId, log, reason = 'm
     }
 
     await updateDoc(doc(db, 'users', parentUid, 'devices', deviceId), {
-      installedApps: apps,
       installedAppsCount: apps.length,
       lastScanAt: new Date().toISOString()
     })

@@ -20,6 +20,11 @@ function todayStr() {
 const loggedDomains = new Map()
 const LOG_COOLDOWN_MS = 60 * 60 * 1000  // 1 hour
 
+// Last set of normalized non-system domains seen in DNS cache (used by enforcer
+// to detect which blocked domains were actually visited)
+let _lastCacheDomains = new Set()
+export function getLastCacheDomains() { return _lastCacheDomains }
+
 // System/CDN domain suffixes to skip
 const SYSTEM_SUFFIXES = [
   'microsoft.com', 'windows.com', 'windowsupdate.com', 'msn.com',
@@ -108,16 +113,20 @@ export async function tickDnsTracking(parentUid, deviceId) {
 
   const now = Date.now()
   const newDomains = []
+  const cacheDomains = new Set()
 
   for (const entry of rawDomains) {
     const domain = normalizeDomain(String(entry))
     if (!domain) continue
     if (isSystemDomain(domain)) continue
+    cacheDomains.add(domain)
     const lastLogged = loggedDomains.get(domain)
     if (lastLogged && (now - lastLogged) < LOG_COOLDOWN_MS) continue
     loggedDomains.set(domain, now)
     newDomains.push(domain)
   }
+
+  _lastCacheDomains = cacheDomains
 
   if (!newDomains.length) return
 
