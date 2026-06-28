@@ -10,7 +10,7 @@
 
 import { addDoc, collection, doc, setDoc, increment, serverTimestamp } from 'firebase/firestore'
 import { db } from '../network/firebaseSync.js'
-import { getInstalledBasenames, getInstalledPathPrefixes } from './programInventory.js'
+import { getInstalledBasenames, getInstalledPathPrefixes, getInstalledNameMap } from './programInventory.js'
 
 function log(msg) {
   console.log(`[ActivityTracker] ${msg}`)
@@ -48,6 +48,8 @@ const SYSTEM_BLOCKLIST = new Set([
   'locationnotificationwindows', 'mobsync', 'wscsvc',
   // Chrome elevation service
   'elevation_service',
+  // Xbox Game Bar (launches automatically with games)
+  'gamebar', 'gamebarftserver', 'gamebarft', 'gameinputsvc',
   // Our own agent
   'updater', 'node',
 ])
@@ -68,6 +70,11 @@ function isSystemByPattern(name) {
   if (/(?:svc|stub|helper|host|service|broker|daemon|agent|updater|installer|setup)$/.test(name) &&
       !['explorer', 'taskmgr'].includes(name)) return true
   return false
+}
+
+function friendlyName(base, procName) {
+  const map = getInstalledNameMap()
+  return (map && map.get(base)) || procName || base
 }
 
 // ── App tracking ──────────────────────────────────────────────────────────────
@@ -138,7 +145,7 @@ export async function trackAppDelta(processes, parentUid, deviceId) {
     for (const base of currentBases) {
       launchTimes[base] = now
       const p = userProcs.find(x => x.base === base)
-      launchNames[base] = p?.name || base
+      launchNames[base] = friendlyName(base, p?.name)
     }
     return
   }
@@ -148,7 +155,7 @@ export async function trackAppDelta(processes, parentUid, deviceId) {
     if (!prevProcessBases.has(base)) {
       launchTimes[base] = now
       const proc = userProcs.find(p => p.base === base)
-      launchNames[base] = proc?.name || base
+      launchNames[base] = friendlyName(base, proc?.name)
       try {
         await addDoc(activityLogsRef(parentUid, deviceId), {
           type: 'app_launch',

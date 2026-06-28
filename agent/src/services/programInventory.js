@@ -17,6 +17,10 @@ export function getInstalledBasenames() { return installedBasenames }
 let installedPathPrefixes = null  // null = not yet scanned
 export function getInstalledPathPrefixes() { return installedPathPrefixes }
 
+// Map of exeBasename → friendly display name  e.g. 'chrome' → 'Google Chrome'
+let installedNameMap = null  // null = not yet scanned
+export function getInstalledNameMap() { return installedNameMap }
+
 export async function scanInstalledProgramsWithRetry(maxAttempts = 3, retryDelayMs = 30000) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const apps = await getInstalledPrograms()
@@ -78,6 +82,7 @@ export async function performProgramRescan(parentUid, deviceId, log, reason = 'm
 
     lastUploadedAppsSignature = appsSignature
     installedBasenames = new Set(apps.map(a => a.exeBasename).filter(Boolean))
+    installedNameMap = new Map(apps.filter(a => a.exeBasename).map(a => [a.exeBasename, a.name]))
     // For apps without a known exeBasename, store the install directory as path prefix
     installedPathPrefixes = apps
       .filter(a => !a.exeBasename && a.path)
