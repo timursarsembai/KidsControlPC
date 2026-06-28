@@ -109,7 +109,23 @@ function appUsageTotal(stat) {
   return Object.values(stat.appsUsage || {}).reduce((sum, v) => sum + v, 0)
 }
 
-function computeDayOfWeek(longStats) {
+// Sum of still-running app seconds from today's logs (apps launched but not closed)
+function runningSecFromLogs(appLogs, now) {
+  const byName = {}
+  for (const l of appLogs) {
+    if (!byName[l.name]) byName[l.name] = l // newest first
+  }
+  let total = 0
+  for (const newest of Object.values(byName)) {
+    if (newest.type === 'app_launch' && newest.ts) {
+      const launchTs = newest.ts.toDate ? newest.ts.toDate().getTime() : new Date(newest.ts).getTime()
+      total += elapsedToday(launchTs, now)
+    }
+  }
+  return total
+}
+
+function computeDayOfWeek(longStats, todayExtraSec) {
   const labels = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс']
   const totals = [0, 0, 0, 0, 0, 0, 0]
   const todayDow = (new Date().getDay() + 6) % 7 // 0=Mon, 6=Sun
@@ -118,10 +134,11 @@ function computeDayOfWeek(longStats) {
     const dow = (d.getDay() + 6) % 7
     totals[dow] += appUsageTotal(s)
   }
+  totals[todayDow] += todayExtraSec
   return labels.map((label, i) => ({ label, sec: totals[i], isHighlight: i === todayDow }))
 }
 
-function computeByMonth(longStats) {
+function computeByMonth(longStats, todayExtraSec) {
   const monthLabels = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек']
   const totals = {}
   for (const s of longStats) {
@@ -129,6 +146,8 @@ function computeByMonth(longStats) {
     totals[key] = (totals[key] || 0) + appUsageTotal(s)
   }
   const today = new Date()
+  const thisMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+  totals[thisMonthKey] = (totals[thisMonthKey] || 0) + todayExtraSec
   const items = []
   for (let i = 11; i >= 0; i--) {
     const d = new Date(today.getFullYear(), today.getMonth() - i, 1)
@@ -207,8 +226,9 @@ function AppsTab({ logs, stats, longStats, now }) {
   const topApps = Object.entries(appsUsage7).sort((a, b) => b[1] - a[1]).slice(0, 8)
   const maxSec7 = topApps[0]?.[1] || 1
 
-  const dowItems = React.useMemo(() => computeDayOfWeek(longStats), [longStats])
-  const monthItems = React.useMemo(() => computeByMonth(longStats), [longStats])
+  const todayExtraSec = React.useMemo(() => runningSecFromLogs(appLogs, now), [appLogs, now])
+  const dowItems = React.useMemo(() => computeDayOfWeek(longStats, todayExtraSec), [longStats, todayExtraSec])
+  const monthItems = React.useMemo(() => computeByMonth(longStats, todayExtraSec), [longStats, todayExtraSec])
 
   // Events table data based on period
   let aggregatedRows = null
@@ -270,35 +290,45 @@ function AppsTab({ logs, stats, longStats, now }) {
         {period === 'hours' ? (
           appLogs.length === 0 ? (
             <div className="ap-empty">Нет событий за сегодня</div>
-          ) : (
-            <table className="ap-table">
-              <thead>
-                <tr><th>Время</th><th>Приложение</th><th>Событие</th><th>В эфире</th></tr>
-              </thead>
-              <tbody>
-                {appLogs.map(l => (
-                  <tr key={l.id}>
-                    <td className="ap-td-mono">{fmtTime(l.ts)}</td>
-                    <td className="ap-td-name">{l.name}</td>
-                    <td>
-                      <span className={`ap-badge ap-badge--${l.type === 'app_launch' ? 'launch' : 'close'}`}>
-                        {l.type === 'app_launch' ? '▶ Запуск' : '■ Закрыт'}
-                      </span>
-                    </td>
-                    <td className="ap-td-dim">
-                      {l.type === 'app_close' && l.duration
-                        ? fmtDuration(l.duration)
-                        : l.type === 'app_launch' && l.ts
-                          ? <span style={{ color: 'var(--accent)', fontStyle: 'italic' }}>
-                              {fmtDuration(Math.round((now - (l.ts.toDate ? l.ts.toDate() : new Date(l.ts)).getTime()) / 1000))}
-                            </span>
-                          : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )
+          ) : (() => {
+            // Determine which launches are still running (newest event per app is a launch)
+            const newestByName = {}
+            for (const l of appLogs) { // appLogs are desc (newest first)
+              if (!newestByName[l.name]) newestByName[l.name] = l
+            }
+            const stillRunningIds = new Set(
+              Object.values(newestByName).filter(l => l.type === 'app_launch').map(l => l.id)
+            )
+            return (
+              <table className="ap-table">
+                <thead>
+                  <tr><th>Время</th><th>Приложение</th><th>Событие</th><th>В эфире</th></tr>
+                </thead>
+                <tbody>
+                  {appLogs.map(l => (
+                    <tr key={l.id}>
+                      <td className="ap-td-mono">{fmtTime(l.ts)}</td>
+                      <td className="ap-td-name">{l.name}</td>
+                      <td>
+                        <span className={`ap-badge ap-badge--${l.type === 'app_launch' ? 'launch' : 'close'}`}>
+                          {l.type === 'app_launch' ? '▶ Запуск' : '■ Закрыт'}
+                        </span>
+                      </td>
+                      <td className="ap-td-dim">
+                        {l.type === 'app_close' && l.duration
+                          ? fmtDuration(l.duration)
+                          : l.type === 'app_launch' && stillRunningIds.has(l.id) && l.ts
+                            ? <span style={{ color: 'var(--accent)', fontStyle: 'italic' }}>
+                                {fmtDuration(Math.round((now - (l.ts.toDate ? l.ts.toDate() : new Date(l.ts)).getTime()) / 1000))}
+                              </span>
+                            : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
+          })()
         ) : (
           !aggregatedRows || aggregatedRows.length === 0 ? (
             <div className="ap-empty">Нет данных за выбранный период</div>
@@ -325,51 +355,155 @@ function AppsTab({ logs, stats, longStats, now }) {
 
 // ── Sites Tab ─────────────────────────────────────────────────────────────────
 
-function SitesTab({ logs, stats }) {
+function computeSiteDayOfWeek(longStats) {
+  const labels = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс']
+  const totals = [0, 0, 0, 0, 0, 0, 0]
+  const todayDow = (new Date().getDay() + 6) % 7
+  for (const s of longStats) {
+    const d = new Date(s.date + 'T12:00:00')
+    const dow = (d.getDay() + 6) % 7
+    totals[dow] += Object.values(s.sitesBlocked || {}).reduce((sum, v) => sum + v, 0)
+  }
+  return labels.map((label, i) => ({ label, sec: totals[i], isHighlight: i === todayDow }))
+}
+
+function computeSiteByMonth(longStats) {
+  const monthLabels = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек']
+  const totals = {}
+  for (const s of longStats) {
+    const key = s.date.slice(0, 7)
+    totals[key] = (totals[key] || 0) + Object.values(s.sitesBlocked || {}).reduce((sum, v) => sum + v, 0)
+  }
+  const today = new Date()
+  const items = []
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(today.getFullYear(), today.getMonth() - i, 1)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    items.push({ label: monthLabels[d.getMonth()], sec: totals[key] || 0, isHighlight: i === 0 })
+  }
+  return items
+}
+
+const SITE_PERIOD_OPTIONS = [
+  { value: 'hours', label: 'По часам' },
+  { value: 'day',   label: 'За сутки' },
+  { value: 'week',  label: 'За неделю' },
+  { value: 'month', label: 'За месяц' },
+]
+
+function SitesTab({ logs, stats, longStats }) {
+  const [period, setPeriod] = React.useState('hours')
+
   const siteLogs = logs.filter(l => l.type === 'site_blocked')
 
-  const sitesBlocked = {}
+  // Top sites chart (7 days)
+  const sitesBlocked7 = {}
   for (const stat of stats) {
     for (const [domain, count] of Object.entries(stat.sitesBlocked || {})) {
-      sitesBlocked[domain] = (sitesBlocked[domain] || 0) + count
+      sitesBlocked7[domain] = (sitesBlocked7[domain] || 0) + count
     }
   }
-  const topSites = Object.entries(sitesBlocked)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
+  const topSites = Object.entries(sitesBlocked7).sort((a, b) => b[1] - a[1]).slice(0, 8)
   const maxCount = topSites[0]?.[1] || 1
+
+  const dowItems = React.useMemo(() => computeSiteDayOfWeek(longStats), [longStats])
+  const monthItems = React.useMemo(() => computeSiteByMonth(longStats), [longStats])
+
+  // Aggregated rows for non-hourly periods
+  let aggregatedRows = null
+  const aggregateSiteStats = (statsList) => {
+    const acc = {}
+    for (const s of statsList) {
+      for (const [domain, count] of Object.entries(s.sitesBlocked || {})) {
+        acc[domain] = (acc[domain] || 0) + count
+      }
+    }
+    return Object.entries(acc).sort((a, b) => b[1] - a[1])
+  }
+  if (period === 'day') {
+    const acc = {}
+    for (const l of siteLogs) { acc[l.name] = (acc[l.name] || 0) + 1 }
+    aggregatedRows = Object.entries(acc).sort((a, b) => b[1] - a[1])
+  } else if (period === 'week') {
+    aggregatedRows = aggregateSiteStats(stats)
+  } else if (period === 'month') {
+    aggregatedRows = aggregateSiteStats(longStats.slice(0, 30))
+  }
 
   return (
     <div className="ap-tab-content">
-      <div className="ap-section">
-        <div className="ap-section-title">Заблокированные сайты за 7 дней</div>
-        <HBarChart
-          items={topSites.map(([domain, count]) => ({ label: domain, value: count, formatted: `${count}×` }))}
-          maxValue={maxCount}
-          colorVar="var(--danger, #ef4444)"
-        />
-        {!topSites.length && <div className="ap-empty">Нет заблокированных сайтов</div>}
+      {/* Three charts in a row */}
+      <div className="ap-charts-row">
+        <div className="ap-chart-col">
+          <div className="ap-section-title">Топ заблокированных · 7 дней</div>
+          <HBarChart
+            items={topSites.map(([domain, count]) => ({ label: domain, value: count, formatted: `${count}×` }))}
+            maxValue={maxCount}
+            colorVar="var(--danger, #ef4444)"
+          />
+        </div>
+        <div className="ap-chart-col">
+          <div className="ap-section-title">По дням недели</div>
+          <VBarChart items={dowItems} />
+        </div>
+        <div className="ap-chart-col">
+          <div className="ap-section-title">По месяцам</div>
+          <VBarChart items={monthItems} />
+        </div>
       </div>
 
+      {/* Events table with period filter */}
       <div className="ap-section">
-        <div className="ap-section-title">События сегодня</div>
-        {siteLogs.length === 0 ? (
-          <div className="ap-empty">Нет заблокированных сайтов за сегодня</div>
+        <div className="ap-section-header">
+          <div className="ap-section-title">События</div>
+          <select
+            className="ap-period-select"
+            value={period}
+            onChange={e => setPeriod(e.target.value)}
+          >
+            {SITE_PERIOD_OPTIONS.map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {period === 'hours' ? (
+          siteLogs.length === 0 ? (
+            <div className="ap-empty">Нет событий за сегодня</div>
+          ) : (
+            <table className="ap-table">
+              <thead>
+                <tr><th>Время</th><th>Домен</th><th>Статус</th></tr>
+              </thead>
+              <tbody>
+                {siteLogs.map(l => (
+                  <tr key={l.id}>
+                    <td className="ap-td-mono">{fmtTime(l.ts)}</td>
+                    <td className="ap-td-name">{l.name}</td>
+                    <td><span className="ap-badge ap-badge--blocked">🚫 Заблокирован</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )
         ) : (
-          <table className="ap-table">
-            <thead>
-              <tr><th>Время</th><th>Домен</th><th>Статус</th></tr>
-            </thead>
-            <tbody>
-              {siteLogs.map(l => (
-                <tr key={l.id}>
-                  <td className="ap-td-mono">{fmtTime(l.ts)}</td>
-                  <td className="ap-td-name">{l.name}</td>
-                  <td><span className="ap-badge ap-badge--blocked">🚫 Заблокирован</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          !aggregatedRows || aggregatedRows.length === 0 ? (
+            <div className="ap-empty">Нет данных за выбранный период</div>
+          ) : (
+            <table className="ap-table">
+              <thead>
+                <tr><th>Домен</th><th>Блокировок</th></tr>
+              </thead>
+              <tbody>
+                {aggregatedRows.map(([domain, count]) => (
+                  <tr key={domain}>
+                    <td className="ap-td-name">{domain}</td>
+                    <td className="ap-td-dim">{count}×</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )
         )}
       </div>
     </div>
@@ -462,7 +596,6 @@ export default function ActivityPanel() {
         {[
           { id: 'apps',  icon: '⬛', label: 'Приложения' },
           { id: 'sites', icon: '🌐', label: 'Сайты' },
-          { id: 'time',  icon: '⏱', label: 'Время за ПК' },
         ].map(t => (
           <button
             key={t.id}
@@ -475,8 +608,7 @@ export default function ActivityPanel() {
       </div>
 
       {tab === 'apps'  && <AppsTab  logs={logs} stats={stats} longStats={longStats} now={now} />}
-      {tab === 'sites' && <SitesTab logs={logs} stats={stats} />}
-      {tab === 'time'  && <ScreenTimeTab stats={stats} />}
+      {tab === 'sites' && <SitesTab logs={logs} stats={stats} longStats={longStats} />}
     </div>
   )
 }

@@ -116,9 +116,9 @@ export async function trackAppDelta(processes, parentUid, deviceId) {
   const userProcs = processes.filter(p => {
     // Layer 1: SessionId > 0 filtered in PowerShell, but double-check here
     if ((p.sessionId || 0) === 0) return false
-    // Layer 2+3: no window title AND path in C:\Windows → headless system utility
-    // (Explorer, Notepad etc. have a window title and will pass through)
-    if (!p.windowTitle && p.path && p.path.startsWith('c:\\windows\\')) return false
+    // Layer 2: require visible window — tray apps, crash handlers, background services
+    // have no window title, so the child isn't actively using them
+    if (!p.windowTitle) return false
     // Layer 5: explicit blocklist + pattern filter
     if (SYSTEM_BLOCKLIST.has(p.base) || SYSTEM_BLOCKLIST.has(p.name)) return false
     if (isSystemByPattern(p.base) || isSystemByPattern(p.name)) return false
