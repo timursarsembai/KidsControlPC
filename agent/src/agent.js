@@ -25,6 +25,7 @@ import { initChatSync, stopChatSync } from './services/chatSync.js'
 import { startChatWidgetIfNeeded } from './services/chatWidgetManager.js'
 import { checkAndUpdateSilently } from './updater.js'
 import { tickScreenTime } from './services/activityTracker.js'
+import { tickDnsTracking } from './services/dnsTracker.js'
 import { delay } from './core/utils.js'
 import { clearHostsBlock } from './hostsBlocker.js'
 import { ENFORCE_INTERVAL_MS, HEARTBEAT_INTERVAL_MS } from './config.js'
@@ -143,9 +144,11 @@ async function main() {
 
   startTimerWidgetIfNeeded()
 
+  let _dnsTick = 0
   setInterval(() => {
     sendHeartbeat()
     tickScreenTime(parentUid, deviceId, HEARTBEAT_INTERVAL_MS / 1000).catch(() => {})
+    if (++_dnsTick % 2 === 0) tickDnsTracking(parentUid, deviceId).catch(() => {})
   }, HEARTBEAT_INTERVAL_MS)
   setInterval(() => enforceRules(parentUid, deviceId, isShuttingDown), ENFORCE_INTERVAL_MS)
   setInterval(() => {

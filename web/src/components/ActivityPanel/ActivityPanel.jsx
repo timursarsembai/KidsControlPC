@@ -362,7 +362,7 @@ function computeSiteDayOfWeek(longStats) {
   for (const s of longStats) {
     const d = new Date(s.date + 'T12:00:00')
     const dow = (d.getDay() + 6) % 7
-    totals[dow] += Object.values(s.sitesBlocked || {}).reduce((sum, v) => sum + v, 0)
+    totals[dow] += Object.values(s.sitesVisited || {}).reduce((sum, v) => sum + v, 0)
   }
   return labels.map((label, i) => ({ label, sec: totals[i], isHighlight: i === todayDow }))
 }
@@ -372,7 +372,7 @@ function computeSiteByMonth(longStats) {
   const totals = {}
   for (const s of longStats) {
     const key = s.date.slice(0, 7)
-    totals[key] = (totals[key] || 0) + Object.values(s.sitesBlocked || {}).reduce((sum, v) => sum + v, 0)
+    totals[key] = (totals[key] || 0) + Object.values(s.sitesVisited || {}).reduce((sum, v) => sum + v, 0)
   }
   const today = new Date()
   const items = []
@@ -394,16 +394,16 @@ const SITE_PERIOD_OPTIONS = [
 function SitesTab({ logs, stats, longStats }) {
   const [period, setPeriod] = React.useState('hours')
 
-  const siteLogs = logs.filter(l => l.type === 'site_blocked')
+  const siteLogs = logs.filter(l => l.type === 'site_visit')
 
   // Top sites chart (7 days)
-  const sitesBlocked7 = {}
+  const sitesVisited7 = {}
   for (const stat of stats) {
-    for (const [domain, count] of Object.entries(stat.sitesBlocked || {})) {
-      sitesBlocked7[domain] = (sitesBlocked7[domain] || 0) + count
+    for (const [domain, count] of Object.entries(stat.sitesVisited || {})) {
+      sitesVisited7[domain] = (sitesVisited7[domain] || 0) + count
     }
   }
-  const topSites = Object.entries(sitesBlocked7).sort((a, b) => b[1] - a[1]).slice(0, 8)
+  const topSites = Object.entries(sitesVisited7).sort((a, b) => b[1] - a[1]).slice(0, 8)
   const maxCount = topSites[0]?.[1] || 1
 
   const dowItems = React.useMemo(() => computeSiteDayOfWeek(longStats), [longStats])
@@ -414,7 +414,7 @@ function SitesTab({ logs, stats, longStats }) {
   const aggregateSiteStats = (statsList) => {
     const acc = {}
     for (const s of statsList) {
-      for (const [domain, count] of Object.entries(s.sitesBlocked || {})) {
+      for (const [domain, count] of Object.entries(s.sitesVisited || {})) {
         acc[domain] = (acc[domain] || 0) + count
       }
     }
@@ -435,11 +435,10 @@ function SitesTab({ logs, stats, longStats }) {
       {/* Three charts in a row */}
       <div className="ap-charts-row">
         <div className="ap-chart-col">
-          <div className="ap-section-title">Топ заблокированных · 7 дней</div>
+          <div className="ap-section-title">Топ сайтов · 7 дней</div>
           <HBarChart
             items={topSites.map(([domain, count]) => ({ label: domain, value: count, formatted: `${count}×` }))}
             maxValue={maxCount}
-            colorVar="var(--danger, #ef4444)"
           />
         </div>
         <div className="ap-chart-col">
@@ -455,7 +454,7 @@ function SitesTab({ logs, stats, longStats }) {
       {/* Events table with period filter */}
       <div className="ap-section">
         <div className="ap-section-header">
-          <div className="ap-section-title">События</div>
+          <div className="ap-section-title">Посещения</div>
           <select
             className="ap-period-select"
             value={period}
@@ -469,18 +468,17 @@ function SitesTab({ logs, stats, longStats }) {
 
         {period === 'hours' ? (
           siteLogs.length === 0 ? (
-            <div className="ap-empty">Нет событий за сегодня</div>
+            <div className="ap-empty">Нет посещений за сегодня</div>
           ) : (
             <table className="ap-table">
               <thead>
-                <tr><th>Время</th><th>Домен</th><th>Статус</th></tr>
+                <tr><th>Время</th><th>Домен</th></tr>
               </thead>
               <tbody>
                 {siteLogs.map(l => (
                   <tr key={l.id}>
                     <td className="ap-td-mono">{fmtTime(l.ts)}</td>
                     <td className="ap-td-name">{l.name}</td>
-                    <td><span className="ap-badge ap-badge--blocked">🚫 Заблокирован</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -492,7 +490,7 @@ function SitesTab({ logs, stats, longStats }) {
           ) : (
             <table className="ap-table">
               <thead>
-                <tr><th>Домен</th><th>Блокировок</th></tr>
+                <tr><th>Домен</th><th>Посещений</th></tr>
               </thead>
               <tbody>
                 {aggregatedRows.map(([domain, count]) => (
