@@ -10,7 +10,7 @@
 
 import { addDoc, collection, doc, setDoc, increment, serverTimestamp } from 'firebase/firestore'
 import { db } from '../network/firebaseSync.js'
-import { getInstalledBasenames } from './programInventory.js'
+import { getInstalledBasenames, getInstalledPathPrefixes } from './programInventory.js'
 
 function log(msg) {
   console.log(`[ActivityTracker] ${msg}`)
@@ -117,7 +117,12 @@ export async function trackAppDelta(processes, parentUid, deviceId) {
     if (SYSTEM_BLOCKLIST.has(p.base) || SYSTEM_BLOCKLIST.has(p.name)) return false
     if (isSystemByPattern(p.base) || isSystemByPattern(p.name)) return false
     // Layer 4: whitelist — only installed apps (skip if scan not done yet)
-    if (whitelist !== null && !whitelist.has(p.base)) return false
+    if (whitelist !== null && !whitelist.has(p.base)) {
+      // Fallback: allow if process path starts with a known install directory
+      const prefixes = getInstalledPathPrefixes()
+      const procPath = (p.path || '').toLowerCase()
+      if (!prefixes || !procPath || !prefixes.some(prefix => procPath.startsWith(prefix))) return false
+    }
     return true
   })
   const currentBases = new Set(userProcs.map(p => p.base).filter(Boolean))

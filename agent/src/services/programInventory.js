@@ -12,6 +12,11 @@ let lastUploadedAppsSignature = ''
 let installedBasenames = null  // null = not yet scanned
 export function getInstalledBasenames() { return installedBasenames }
 
+// Directory path prefixes for apps where exeBasename couldn't be extracted
+// (e.g. Roblox installs to a versioned subdir, DisplayIcon is a directory not an .exe)
+let installedPathPrefixes = null  // null = not yet scanned
+export function getInstalledPathPrefixes() { return installedPathPrefixes }
+
 export async function scanInstalledProgramsWithRetry(maxAttempts = 3, retryDelayMs = 30000) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const apps = await getInstalledPrograms()
@@ -73,6 +78,15 @@ export async function performProgramRescan(parentUid, deviceId, log, reason = 'm
 
     lastUploadedAppsSignature = appsSignature
     installedBasenames = new Set(apps.map(a => a.exeBasename).filter(Boolean))
+    // For apps without a known exeBasename, store the install directory as path prefix
+    installedPathPrefixes = apps
+      .filter(a => !a.exeBasename && a.path)
+      .map(a => {
+        const p = a.path.toLowerCase().replace(/\\/g, '\\')
+        // If path ends in .exe take its directory, otherwise use path as-is (directory)
+        return p.endsWith('.exe') ? p.slice(0, p.lastIndexOf('\\')) : p.replace(/\\+$/, '')
+      })
+      .filter(Boolean)
     log(`[Apps] Uploaded ${apps.length} installed programs`)
   } catch (err) {
     log(`[Apps] Failed to upload programs: ${err.message}`)
