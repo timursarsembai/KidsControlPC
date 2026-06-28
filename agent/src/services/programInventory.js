@@ -83,12 +83,13 @@ export async function performProgramRescan(parentUid, deviceId, log, reason = 'm
     lastUploadedAppsSignature = appsSignature
     installedBasenames = new Set(apps.map(a => a.exeBasename).filter(Boolean))
     installedNameMap = new Map(apps.filter(a => a.exeBasename).map(a => [a.exeBasename, a.name]))
-    // For apps without a known exeBasename, store the install directory as path prefix
+    // Store install directory for ALL apps as path prefixes.
+    // This catches processes whose basename differs from the registered exeBasename
+    // (e.g. Roblox registers as 'roblox' but runs as 'robloxplayerbeta').
     installedPathPrefixes = apps
-      .filter(a => !a.exeBasename && a.path)
+      .filter(a => a.path)
       .map(a => {
-        const p = a.path.toLowerCase().replace(/\\/g, '\\')
-        // If path ends in .exe take its directory, otherwise use path as-is (directory)
+        const p = a.path.toLowerCase()
         return p.endsWith('.exe') ? p.slice(0, p.lastIndexOf('\\')) : p.replace(/\\+$/, '')
       })
       .filter(Boolean)
