@@ -93,7 +93,7 @@ function escapeHtml(value) {
 
 function formatInvitationExpiry(date) {
   return date.toLocaleString('ru-RU', {
-    timeZone: 'Asia/Qyzylorda',
+    timeZone: process.env.MAIL_TIMEZONE || 'UTC',
     day: '2-digit',
     month: 'long',
     year: 'numeric',
@@ -601,6 +601,8 @@ exports.recalcStorageUsed = onSchedule({ region: REGION, schedule: 'every 60 min
 
 exports.cleanupExpiredParentInvitations = onSchedule({ region: REGION, schedule: 'every 6 hours' }, async () => {
   const now = admin.firestore.Timestamp.now()
+
+  // Delete expired/declined invitations
   const snap = await db.collection('parentInvitations')
     .where('cleanupAt', '<=', now)
     .limit(100)
@@ -611,10 +613,7 @@ exports.cleanupExpiredParentInvitations = onSchedule({ region: REGION, schedule:
     if (invitation.status === 'accepted') return
 
     const { ownerRef } = invitationRefs(docSnap.id, invitation.ownerUid)
-    await Promise.allSettled([
-      docSnap.ref.delete(),
-      ownerRef.delete()
-    ])
+    await Promise.allSettled([docSnap.ref.delete(), ownerRef.delete()])
 
     if (invitation.accountCreated && invitation.invitedUserUid) {
       await auth.deleteUser(invitation.invitedUserUid).catch((error) => {
@@ -624,4 +623,195 @@ exports.cleanupExpiredParentInvitations = onSchedule({ region: REGION, schedule:
       })
     }
   }))
+
+  // Also clean up accepted invitation docs older than 90 days (housekeeping)
+  const cutoff90 = admin.firestore.Timestamp.fromMillis(Date.now() - 90 * 24 * 60 * 60 * 1000)
+  const oldAccepted = await db.collection('parentInvitations')
+    .where('status', '==', 'accepted')
+    .where('acceptedAt', '<=', cutoff90)
+    .limit(100)
+    .get()
+
+  await Promise.all(oldAccepted.docs.map(async (docSnap) => {
+    const { ownerRef } = invitationRefs(docSnap.id, docSnap.data().ownerUid)
+    await Promise.allSettled([docSnap.ref.delete(), ownerRef.delete()])
+  }))
+})
+
+// ── Pairing ───────────────────────────────────────────────────────────────────
+
+const PAIRING_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+const PAIRING_CODE_TTL_MS = 15 * 60 * 1000  // 15 minutes
+
+exports.createPairingCode = onCall({ region: REGION }, async (request) => {
+  const ownerUid = requireAuth(request)
+
+  let code = ''
+  for (let i = 0; i < 6; i++) code += PAIRING_CODE_CHARS[crypto.randomInt(0, PAIRING_CODE_CHARS.length)]
+
+  const now = admin.firestore.Timestamp.now()
+  const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + PAIRING_CODE_TTL_MS)
+  await db.collection('pairingCodes').doc(code).set({
+    parentUid: ownerUid,
+    createdAt: now,
+    expiresAt,
+    used: false
+  })
+
+  return { code, expiresAt: expiresAt.toDate().toISOString() }
+})
+
+exports.pairDevice = onCall({ region: REGION }, async (request) => {
+  const agentUid = request.auth?.uid
+  if (!agentUid) throw new HttpsError('unauthenticated', 'Sign in first.')
+
+  const code = String(request.data?.code || '').toUpperCase().replace(/\s/g, '')
+  if (code.length !== 6) throw new HttpsError('invalid-argument', 'Code must be exactly 6 characters.')
+
+  const hostname = String(request.data?.hostname || '').slice(0, 100)
+  const osType = String(request.data?.osType || '').slice(0, 50)
+  const agentVersion = String(request.data?.agentVersion || '').slice(0, 20)
+
+  const codeRef = db.collection('pairingCodes').doc(code)
+  const deviceId = crypto.randomUUID()
+
+  const parentUid = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(codeRef)
+    if (!snap.exists) throw new HttpsError('not-found', 'Code not found or expired.')
+    const data = snap.data()
+    if (data.used) throw new HttpsError('already-exists', 'Code has already been used.')
+    if (data.expiresAt.toMillis() <= Date.now()) throw new HttpsError('deadline-exceeded', 'Code has expired.')
+
+    const now = admin.firestore.Timestamp.now()
+    tx.update(codeRef, { used: true, usedAt: now, deviceId })
+    tx.set(db.doc(`users/${data.parentUid}/devices/${deviceId}`), {
+      hostname,
+      osType,
+      pairedAt: now,
+      lastSeen: now,
+      deviceName: hostname,
+      agentVersion,
+      agentUid,
+      status: 'online'
+    })
+    return data.parentUid
+  })
+
+  return { parentUid, deviceId }
+})
+
+exports.registerAgentUid = onCall({ region: REGION }, async (request) => {
+  const agentUid = request.auth?.uid
+  if (!agentUid) throw new HttpsError('unauthenticated', 'Sign in first.')
+
+  const parentUid = String(request.data?.parentUid || '').trim()
+  const deviceId = String(request.data?.deviceId || '').trim()
+  if (!parentUid || !deviceId) throw new HttpsError('invalid-argument', 'parentUid and deviceId are required.')
+
+  const deviceRef = db.doc(`users/${parentUid}/devices/${deviceId}`)
+  const snap = await deviceRef.get()
+  if (!snap.exists) throw new HttpsError('not-found', 'Device not found.')
+
+  const existing = snap.data()
+  if (existing.agentUid && existing.agentUid !== agentUid) {
+    throw new HttpsError('permission-denied', 'Device already has a different agent registered.')
+  }
+
+  if (existing.agentUid !== agentUid) {
+    await deviceRef.update({ agentUid })
+  }
+
+  return { ok: true }
+})
+
+// ── Commands ──────────────────────────────────────────────────────────────────
+
+const ALLOWED_COMMAND_ACTIONS = new Set([
+  'lock', 'unlock', 'screenshot_request', 'fetch_logs',
+  'shutdown', 'restart', 'sleep', 'hibernate',
+  'update_agent', 'force_update', 'uninstall'
+])
+
+exports.sendDeviceCommand = onCall({ region: REGION }, async (request) => {
+  const callerUid = requireAuth(request)
+  const { ownerUid: rawOwnerUid, deviceId, action, command, ...rest } = request.data || {}
+
+  const normalizedAction = action || command
+  if (!deviceId || !normalizedAction) {
+    throw new HttpsError('invalid-argument', 'deviceId and action are required.')
+  }
+  if (!ALLOWED_COMMAND_ACTIONS.has(normalizedAction)) {
+    throw new HttpsError('invalid-argument', `Unknown action: ${normalizedAction}`)
+  }
+
+  const ownerUid = rawOwnerUid || callerUid
+
+  if (callerUid !== ownerUid) {
+    const accessSnap = await db.doc(`users/${ownerUid}/parentAccess/${callerUid}`).get()
+    if (!accessSnap.exists || accessSnap.data().status !== 'active') {
+      throw new HttpsError('permission-denied', 'You do not have access to this device.')
+    }
+  }
+
+  const deviceSnap = await db.doc(`users/${ownerUid}/devices/${deviceId}`).get()
+  if (!deviceSnap.exists) throw new HttpsError('not-found', 'Device not found.')
+
+  const device = deviceSnap.data()
+  if (!device.screenshotUploadToken) throw new HttpsError('failed-precondition', 'Device is not ready (no upload token).')
+
+  // Allowlist safe extra fields
+  const extras = {}
+  if (rest.message !== undefined) extras.message = String(rest.message || '').slice(0, 500)
+  if (rest.requestedAtClientMs !== undefined) extras.requestedAtClientMs = Number(rest.requestedAtClientMs) || 0
+  if (rest.appId !== undefined) extras.appId = String(rest.appId || '').slice(0, 100)
+
+  const cmdRef = await db.collection(`users/${ownerUid}/devices/${deviceId}/commands`).add({
+    action: normalizedAction,
+    command: normalizedAction,
+    ...extras,
+    uploadToken: device.screenshotUploadToken,
+    status: 'pending',
+    timestamp: admin.firestore.Timestamp.now()
+  })
+
+  return { commandId: cmdRef.id }
+})
+
+// ── Data cleanup ──────────────────────────────────────────────────────────────
+
+exports.cleanupOldCommands = onSchedule({ region: REGION, schedule: 'every 24 hours' }, async () => {
+  const cutoff = admin.firestore.Timestamp.fromMillis(Date.now() - 7 * 24 * 60 * 60 * 1000)
+  const snap = await db.collectionGroup('commands')
+    .where('status', 'in', ['completed', 'failed'])
+    .where('timestamp', '<', cutoff)
+    .limit(500)
+    .get()
+
+  if (snap.empty) {
+    logger.info('cleanupOldCommands: nothing to clean')
+    return
+  }
+
+  const batch = db.batch()
+  snap.docs.forEach(d => batch.delete(d.ref))
+  await batch.commit()
+  logger.info('cleanupOldCommands done', { deleted: snap.docs.length })
+})
+
+exports.cleanupOldActivityLogs = onSchedule({ region: REGION, schedule: 'every 24 hours' }, async () => {
+  const cutoff = admin.firestore.Timestamp.fromMillis(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  const snap = await db.collectionGroup('activityLogs')
+    .where('ts', '<', cutoff)
+    .limit(500)
+    .get()
+
+  if (snap.empty) {
+    logger.info('cleanupOldActivityLogs: nothing to clean')
+    return
+  }
+
+  const batch = db.batch()
+  snap.docs.forEach(d => batch.delete(d.ref))
+  await batch.commit()
+  logger.info('cleanupOldActivityLogs done', { deleted: snap.docs.length })
 })

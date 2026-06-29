@@ -1,145 +1,116 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { loadPairing, runPairingFlow } from './pairing.js'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
-import { createInterface } from 'readline'
-import * as firestore from 'firebase/firestore'
 
-// Mock dependencies
+// Mock fs
 vi.mock('fs', () => ({
   existsSync: vi.fn(),
   readFileSync: vi.fn(),
   writeFileSync: vi.fn()
 }))
 
+// Mock the widget UI (child_process)
 vi.mock('child_process', () => ({
   execFile: vi.fn((file, args, cb) => {
-    // We will dynamically override this per test
     cb(null, { stdout: '', stderr: '' })
   })
 }))
 
-vi.mock('firebase/app', () => ({
-  initializeApp: vi.fn()
+// Mock Firebase auth module
+vi.mock('firebase/auth', () => ({
+  signInAnonymously: vi.fn()
 }))
 
-vi.mock('firebase/firestore', async (importOriginal) => {
-  return {
-    getFirestore: vi.fn(),
-    collection: vi.fn(),
-    query: vi.fn(),
-    where: vi.fn(),
-    getDocs: vi.fn(),
-    doc: vi.fn(),
-    getDoc: vi.fn(),
-    setDoc: vi.fn(),
-    updateDoc: vi.fn(),
-    serverTimestamp: vi.fn(),
-    Timestamp: class {
-      constructor() {}
-      static now() {
-        return { toMillis: () => Date.now() }
-      }
-    }
-  }
-})
+// Mock Firebase functions module
+const mockPairDeviceFn = vi.fn()
+vi.mock('firebase/functions', () => ({
+  httpsCallable: vi.fn(() => mockPairDeviceFn)
+}))
 
-describe('pairing', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+// Mock firebaseSync to avoid real Firebase init
+vi.mock('./network/firebaseSync.js', () => ({
+  auth: { currentUser: { uid: 'agent-anon-uid-123' } },
+  functions: {}
+}))
 
-  it('loadPairing should return null if file does not exist', () => {
+describe('loadPairing', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('returns null if file does not exist', () => {
     existsSync.mockReturnValue(false)
     expect(loadPairing()).toBeNull()
   })
 
-  it('loadPairing should parse pairing.json if exists', () => {
+  it('parses pairing.json when file exists', () => {
     existsSync.mockReturnValue(true)
-    readFileSync.mockReturnValue(JSON.stringify({ deviceId: '123' }))
-    expect(loadPairing()).toEqual({ deviceId: '123' })
+    readFileSync.mockReturnValue(JSON.stringify({ deviceId: 'dev123', parentUid: 'parent456' }))
+    expect(loadPairing()).toEqual({ deviceId: 'dev123', parentUid: 'parent456' })
   })
 
-  it('runPairingFlow should prompt and handle valid code', async () => {
+  it('returns null on JSON parse error', () => {
+    existsSync.mockReturnValue(true)
+    readFileSync.mockReturnValue('invalid json{{{')
+    expect(loadPairing()).toBeNull()
+  })
+})
+
+describe('runPairingFlow', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  async function setupUI(responses) {
     const { execFile } = await import('child_process')
     let callCount = 0
     execFile.mockImplementation((file, args, cb) => {
-      if (callCount === 0) {
-        callCount++
-        cb(null, { stdout: '1', stderr: '' }) // language
-      } else if (callCount === 1) {
-        callCount++
-        cb(null, { stdout: 'OK', stderr: '' }) // info message
-      } else {
-        callCount++
-        cb(null, { stdout: 'ABCDEF', stderr: '' }) // pairing code
-      }
+      const resp = responses[callCount] ?? ''
+      callCount++
+      cb(null, { stdout: resp, stderr: '' })
     })
+  }
 
-    firestore.getDoc.mockImplementation(async (ref) => {
-      // Mock code finding
-      if (ref === 'mocked_doc_pairingCodes_ABCDEF') {
-        return {
-          exists: () => true,
-          data: () => ({ parentUid: 'parent123', expiresAt: Date.now() + 60000 })
-        }
-      }
-      // Mock device existence
-      return { exists: () => false }
-    })
-    
-    // Mock doc() to return a string for easy checking
-    firestore.doc.mockImplementation((db, col, id) => `mocked_doc_${col}_${id}`)
+  it('pairs successfully with valid code', async () => {
+    await setupUI(['1', 'OK', 'ABCDEF', 'OK'])  // lang, info, code, success
+    mockPairDeviceFn.mockResolvedValue({ data: { parentUid: 'parent123', deviceId: 'device-uuid' } })
 
-    const pairingData = await runPairingFlow()
+    const result = await runPairingFlow()
 
-    expect(pairingData).toBeTruthy()
-    expect(pairingData.parentUid).toBe('parent123')
+    expect(result.parentUid).toBe('parent123')
+    expect(result.deviceId).toBe('device-uuid')
+    expect(result.agentUid).toBe('agent-anon-uid-123')
     expect(writeFileSync).toHaveBeenCalledTimes(1)
-    expect(firestore.setDoc).toHaveBeenCalledTimes(1) // saving device
+    expect(mockPairDeviceFn).toHaveBeenCalledWith(expect.objectContaining({ code: 'ABCDEF' }))
   })
 
-  it('runPairingFlow should reject expired code', async () => {
-    const { execFile } = await import('child_process')
-    let callCount = 0
-    execFile.mockImplementation((file, args, cb) => {
-      if (callCount === 0) {
-        callCount++
-        cb(null, { stdout: '1', stderr: '' }) // language
-      } else if (callCount === 1) {
-        callCount++
-        cb(null, { stdout: 'OK', stderr: '' }) // info message
-      } else if (callCount === 2) {
-        callCount++
-        cb(null, { stdout: 'EXPIRE', stderr: '' }) // expired pairing code
-      } else if (callCount === 3) {
-        callCount++
-        cb(null, { stdout: 'OK', stderr: '' }) // error message
-      } else {
-        callCount++
-        cb(null, { stdout: 'VALID1', stderr: '' }) // valid pairing code
-      }
-    })
+  it('retries on CF error and succeeds with second code', async () => {
+    await setupUI(['1', 'OK', 'BADCO', 'OK', 'VALID1', 'OK'])
+    mockPairDeviceFn
+      .mockRejectedValueOnce(Object.assign(new Error('not-found'), { code: 'functions/not-found' }))
+      .mockResolvedValueOnce({ data: { parentUid: 'parentXYZ', deviceId: 'dev-456' } })
 
-    firestore.getDoc.mockImplementation(async (ref) => {
-      if (ref === 'mocked_doc_pairingCodes_EXPIRE') {
-        return {
-          exists: () => true,
-          data: () => ({ parentUid: 'parent123', expiresAt: Date.now() - 60000 }) // EXPIRED
-        }
-      }
-      if (ref === 'mocked_doc_pairingCodes_VALID1') {
-        return {
-          exists: () => true,
-          data: () => ({ parentUid: 'parent123', expiresAt: Date.now() + 60000 }) // VALID
-        }
-      }
-      return { exists: () => false }
-    })
-    
-    firestore.doc.mockImplementation((db, col, id) => `mocked_doc_${col}_${id}`)
+    const result = await runPairingFlow()
 
-    const pairingData = await runPairingFlow()
+    expect(result.parentUid).toBe('parentXYZ')
+    expect(mockPairDeviceFn).toHaveBeenCalledTimes(2)
+  })
 
-    expect(pairingData.parentUid).toBe('parent123')
+  it('rejects codes shorter than 6 characters without calling CF', async () => {
+    await setupUI(['1', 'OK', 'ABC', 'OK', 'ABCDEF', 'OK'])
+    mockPairDeviceFn.mockResolvedValue({ data: { parentUid: 'p', deviceId: 'd' } })
+
+    await runPairingFlow()
+
+    // First call was 'ABC' (3 chars) — should not call CF, then 'ABCDEF' succeeds
+    expect(mockPairDeviceFn).toHaveBeenCalledTimes(1)
+  })
+
+  it('throws after 3 failed attempts', async () => {
+    await setupUI(['1', 'OK', 'FAIL1', 'OK', 'FAIL2', 'OK', 'FAIL3', 'OK'])
+    mockPairDeviceFn.mockRejectedValue(Object.assign(new Error('not-found'), { code: 'functions/not-found' }))
+
+    await expect(runPairingFlow()).rejects.toThrow(/attempts/)
+  })
+
+  it('throws on cancellation', async () => {
+    await setupUI(['1', 'OK', 'CANCEL'])
+    await expect(runPairingFlow()).rejects.toThrow(/cancelled/)
   })
 })

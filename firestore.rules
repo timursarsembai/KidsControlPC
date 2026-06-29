@@ -19,9 +19,18 @@ service cloud.firestore {
       return isOwner(userId) || activeParentAccess(userId);
     }
 
+    // True if the signed-in user is the registered agent for the given device.
+    // agentUid is written to the device doc by the pairDevice / registerAgentUid Cloud Functions.
+    function isDeviceAgent(userId, deviceId) {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/users/$(userId)/devices/$(deviceId)).data.agentUid == request.auth.uid;
+    }
+
     // ── User root document (e.g. pauseAllRules flag) ─────────────────────────
+    // Agents read this to check pauseAllRules; any authenticated user (anonymous
+    // or real) can read. Writes require parent ownership.
     match /users/{userId} {
-      allow read: if true;  // Agent reads pauseAllRules without auth
+      allow read: if canManageUser(userId) || isSignedIn();
       allow write: if canManageUser(userId);
     }
 
@@ -40,27 +49,27 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // ── Pairing codes — root collection ───────────────────────────────────────
+    // ── Pairing codes — read/write only via Cloud Functions (admin SDK) ───────
     match /pairingCodes/{code} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
 
-    // ── Devices — agent can write its own device doc ──────────────────────────
-    // Note: agent uses Firebase SDK without auth.
-    // For MVP: allow writes if the parent's UID is known.
+    // ── Devices ───────────────────────────────────────────────────────────────
     match /users/{userId}/devices/{deviceId} {
-      allow read, write: if true;  // Tighten after MVP
+      allow read: if canManageUser(userId) || isDeviceAgent(userId, deviceId);
+      allow write: if canManageUser(userId) || isDeviceAgent(userId, deviceId);
     }
 
-    // ── Device Rules — agent needs to read rules ──────────────────────────────
+    // ── Device Rules ──────────────────────────────────────────────────────────
     match /users/{userId}/devices/{deviceId}/rules/{ruleId} {
-      allow read: if true;
+      allow read: if canManageUser(userId) || isDeviceAgent(userId, deviceId);
       allow write: if canManageUser(userId);
     }
 
-    // ── Installed Apps — agent needs to upload its apps ───────────────────────
+    // ── Installed Apps ────────────────────────────────────────────────────────
     match /users/{userId}/devices/{deviceId}/installedApps/{appId} {
-      allow read, write: if true;
+      allow read: if canManageUser(userId) || isDeviceAgent(userId, deviceId);
+      allow write: if canManageUser(userId) || isDeviceAgent(userId, deviceId);
     }
 
     function deviceScreenshotToken(userId, deviceId) {
@@ -77,7 +86,8 @@ service cloud.firestore {
         && resource.data.uploadToken == deviceScreenshotToken(userId, deviceId);
     }
 
-    // Commands - parent creates commands; agent reads and marks only token-matched commands.
+    // Commands - parent creates via CF (which validates and adds token server-side);
+    // agent reads and marks only token-matched commands.
     match /users/{userId}/devices/{deviceId}/commands/{commandId} {
       allow create: if canManageUser(userId)
         && hasValidNewCommandToken(userId, deviceId);
@@ -102,37 +112,37 @@ service cloud.firestore {
         || (resource.data.uploadToken == deviceScreenshotToken(userId, deviceId));
     }
 
-    // Alerts - agent can write alerts.
+    // Alerts - agent writes (any authenticated user writing to the owner's alerts is
+    // acceptable; the write comes from a signed-in anonymous agent session).
     match /users/{userId}/alerts/{alertId} {
-      allow read, write: if true;  // Tighten after MVP
+      allow read: if canManageUser(userId);
+      allow write: if isSignedIn();
     }
 
     // ── Chats ─────────────────────────────────────────────────────────────────
-    // NOTE: read stays public (|| true) because the child agent reads chats
-    // without auth. Per-parent privacy of direct chats is enforced client-side
-    // (chatSlice.initChats filters by createdBy).
+    // Agent is authenticated (anonymous), so isSignedIn() replaces the old || true.
     match /users/{userId}/chats/{chatId} {
-      allow read: if canManageUser(userId) || true;   // agent reads chat list without auth
+      allow read: if canManageUser(userId) || isSignedIn();
       allow create: if canManageUser(userId);
-      allow update: if canManageUser(userId) || true; // agent updates lastMessage on child reply
-      allow delete: if isOwner(userId) || resource.data.createdBy == request.auth.uid; // own chat
+      allow update: if canManageUser(userId) || isSignedIn();
+      allow delete: if isOwner(userId) || (isSignedIn() && resource.data.createdBy == request.auth.uid);
     }
 
-    // ── Activity logs & stats — agent writes via JS SDK (no auth) ────────────
+    // ── Activity logs & stats — agent writes via authenticated anonymous session ──
     match /users/{userId}/devices/{deviceId}/activityLogs/{logId} {
       allow read: if canManageUser(userId);
-      allow write: if true;  // agent writes without auth
+      allow write: if isDeviceAgent(userId, deviceId);
     }
 
     match /users/{userId}/devices/{deviceId}/activityStats/{date} {
       allow read: if canManageUser(userId);
-      allow write: if true;  // agent writes without auth
+      allow write: if isDeviceAgent(userId, deviceId);
     }
 
     match /users/{userId}/chats/{chatId}/messages/{msgId} {
-      allow read: if canManageUser(userId) || true;  // agent reads without auth
-      allow create: if canManageUser(userId) || true; // agent writes without auth
-      allow update: if canManageUser(userId) || true; // agent marks readBy
+      allow read: if canManageUser(userId) || isSignedIn();
+      allow create: if canManageUser(userId) || isSignedIn();
+      allow update: if canManageUser(userId) || isSignedIn();
       allow delete: if isOwner(userId);
     }
   }

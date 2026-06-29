@@ -7,8 +7,9 @@ import {
   collection, doc, addDoc, updateDoc, deleteDoc, setDoc, getDoc,
   onSnapshot, query, orderBy, serverTimestamp as fsServerTimestamp, writeBatch
 } from 'firebase/firestore'
+import { httpsCallable } from 'firebase/functions'
 import { getStorage, ref as storageRef, deleteObject, getDownloadURL } from 'firebase/storage'
-import { db } from './config'
+import { db, functions } from './config'
 
 export const serverTimestamp = fsServerTimestamp
 
@@ -108,13 +109,12 @@ export async function uploadInstalledApps(uid, deviceId, apps) {
 
 // ─── Commands ─────────────────────────────────────────────────────────────────
 
-export async function sendDeviceCommand(uid, deviceId, commandData) {
+export async function sendDeviceCommand(ownerUid, deviceId, commandData) {
   if (!deviceId) throw new Error('No device selected')
-  return await addDoc(commandsCol(uid, deviceId), {
-    ...commandData,
-    status: 'pending',
-    timestamp: serverTimestamp()
-  })
+  const fn = httpsCallable(functions, 'sendDeviceCommand')
+  const { uploadToken, ...cleanData } = commandData
+  const result = await fn({ ownerUid, deviceId, ...cleanData })
+  return result.data
 }
 
 export async function updateDeviceSettings(uid, deviceId, settings) {
@@ -172,13 +172,10 @@ export async function acknowledgeAllAlerts(uid, alertIds) {
 
 // ─── Pairing codes ────────────────────────────────────────────────────────────
 
-export async function createPairingCode(uid, code) {
-  await setDoc(doc(db, 'pairingCodes', code), {
-    parentUid: uid,
-    createdAt: serverTimestamp(),
-    expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-    used: false
-  })
+export async function createPairingCode() {
+  const fn = httpsCallable(functions, 'createPairingCode')
+  const result = await fn()
+  return result.data  // { code, expiresAt }
 }
 
 // ─── User profile ─────────────────────────────────────────────────────────────

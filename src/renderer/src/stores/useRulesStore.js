@@ -410,14 +410,9 @@ export const useRulesStore = create((set, get) => ({
 
   // ── Commands ──
   sendDeviceCommand: async (commandData) => {
-    const { user, selectedDeviceId, devices } = get()
+    const { user, selectedDeviceId } = get()
     if (!user || !selectedDeviceId) throw new Error('No device selected')
-    const selectedDevice = devices.find(d => d.id === selectedDeviceId)
-    if (!selectedDevice?.screenshotUploadToken) throw new Error('Device command token is not ready')
-    await fsSendDeviceCommand(user.uid, selectedDeviceId, {
-      ...commandData,
-      uploadToken: selectedDevice.screenshotUploadToken
-    })
+    await fsSendDeviceCommand(user.uid, selectedDeviceId, commandData)
   },
 
   updateDeviceSettings: async (settings) => {
@@ -427,13 +422,10 @@ export const useRulesStore = create((set, get) => ({
   },
 
   requestScreenshot: async () => {
-    const { user, selectedDeviceId, devices } = get()
+    const { user, selectedDeviceId } = get()
     if (!user || !selectedDeviceId) throw new Error('No device selected')
-    const selectedDevice = devices.find(d => d.id === selectedDeviceId)
-    if (!selectedDevice?.screenshotUploadToken) throw new Error('Device command token is not ready')
     await fsSendDeviceCommand(user.uid, selectedDeviceId, {
       command: 'screenshot_request',
-      uploadToken: selectedDevice.screenshotUploadToken,
       requestedAtClientMs: Date.now()
     })
   },

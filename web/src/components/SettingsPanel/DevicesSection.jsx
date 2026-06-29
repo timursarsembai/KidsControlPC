@@ -1,18 +1,8 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { db } from '@kidscontrol/shared/firebase/config'
+import { createPairingCode } from '@kidscontrol/shared/firebase/pairing.repo'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import { logger } from '@kidscontrol/shared/utils/logger'
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
-
-function generatePairingCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  let code = ''
-  for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)]
-  }
-  return code
-}
 
 function DeviceCard({ device, onRemove, onRename, deleting }) {
   const [editing, setEditing] = useState(false)
@@ -94,15 +84,9 @@ export default function DevicesSection({ uid }) {
   const generateCode = async () => {
     setGenerating(true)
     try {
-      const newCode = generatePairingCode()
-      await setDoc(doc(db, 'pairingCodes', newCode), {
-        parentUid: uid,
-        createdAt: serverTimestamp(),
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-        used: false
-      })
-      setCode(newCode)
-      logger.info('general', `Сгенерирован код привязки: ${newCode}`)
+      const result = await createPairingCode()
+      setCode(result.code)
+      logger.info('general', `Сгенерирован код привязки: ${result.code}`)
     } catch (err) {
       console.error('Error generating pairing code:', err)
       logger.error('general', 'Ошибка генерации кода привязки: ' + err.message)

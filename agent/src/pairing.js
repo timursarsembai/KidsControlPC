@@ -1,28 +1,24 @@
 /**
  * Pairing module
  * Handles first-run setup: links this child PC to a parent Firebase account
- * via a 6-character pairing code generated in the Parent app
+ * via a 6-character pairing code generated in the Parent app.
+ * Uses the pairDevice Cloud Function for atomic code validation + device creation.
  */
 
-import { initializeApp } from 'firebase/app'
-import {
-  getFirestore, collection, query, where,
-  getDocs, doc, getDoc, setDoc, updateDoc, serverTimestamp, Timestamp
-} from 'firebase/firestore'
+import { httpsCallable } from 'firebase/functions'
+import { signInAnonymously } from 'firebase/auth'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
-import { firebaseConfig, PAIRING_FILE, AGENT_VERSION } from './config.js'
+import { PAIRING_FILE, AGENT_VERSION } from './config.js'
+import { auth, functions } from './network/firebaseSync.js'
 import { hostname, type as osType } from 'os'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import path from 'path'
 
 const execFileAsync = promisify(execFile)
-const widgetExe = process.env.NODE_ENV === 'development' 
+const widgetExe = process.env.NODE_ENV === 'development'
   ? path.join(process.cwd(), 'dist', 'CustomDialogWidget.exe')
   : path.join(process.cwd(), 'CustomDialogWidget.exe')
-
-const app = initializeApp(firebaseConfig)
-const db  = getFirestore(app)
 
 // ─── Prompt helper ────────────────────────────────────────────────────────────
 async function promptUI(title, message, requireInput) {
@@ -59,6 +55,12 @@ export async function runPairingFlow() {
   console.log('║     KidsControlPC — Agent (Child PC)     ║')
   console.log('╚══════════════════════════════════════════╝\n')
 
+  // Sign in anonymously first — agentUid will be stored in the device doc by pairDevice CF.
+  if (!auth.currentUser) {
+    await signInAnonymously(auth)
+    console.log(`[Pairing] Anonymous auth established: ${auth.currentUser.uid}`)
+  }
+
   const langChoice = await promptUI('Language / Язык', 'Choose language / Выберите язык\n(1 - English, 2 - Русский)', true)
   const isRu = langChoice === '2'
 
@@ -68,10 +70,12 @@ export async function runPairingFlow() {
     await promptUI('KidsControlPC', 'First run — pairing with parent account required.\nOpen parent app → Settings → Devices\n→ click "Generate pairing code"', false)
   }
 
+  const pairDeviceFn = httpsCallable(functions, 'pairDevice')
   let attempts = 0
+
   while (attempts < 3) {
     const code = await promptUI(isRu ? 'Привязка' : 'Pairing', isRu ? 'Введите 6-символьный код:' : 'Enter 6-character code:', true)
-    
+
     if (code === 'CANCEL' || !code) {
       throw new Error('Pairing cancelled')
     }
@@ -87,78 +91,46 @@ export async function runPairingFlow() {
     console.log(isRu ? '\n⏳ Проверяю код...' : '\n⏳ Checking code...')
 
     try {
-      // Search all users for this pairing code
-      const result = await findPairingCode(normalized, isRu)
+      const result = await pairDeviceFn({
+        code: normalized,
+        hostname: hostname(),
+        osType: osType(),
+        agentVersion: AGENT_VERSION
+      })
 
-      if (!result) {
-        await promptUI(isRu ? 'Ошибка' : 'Error', isRu ? 'Код не найден или истёк срок действия (15 минут). Попробуйте ещё раз.' : 'Code not found or expired (15 mins). Try again.', false)
-        attempts++
-        continue
-      }
-
-      const { parentUid, codeDocId } = result
-      const deviceId = `device_${Date.now()}`
+      const { parentUid, deviceId } = result.data
       const deviceHostname = hostname()
 
-      // Register this device under the parent's account
-      await setDoc(doc(db, 'users', parentUid, 'devices', deviceId), {
-        hostname: deviceHostname,
-        osType: osType(),
-        pairedAt: serverTimestamp(),
-        lastSeen: serverTimestamp(),
-        deviceName: hostname(),
-        agentVersion: AGENT_VERSION,
-        status: 'online'
-      })
-
-      // Mark pairing code as used
-      await updateDoc(doc(db, 'pairingCodes', codeDocId), {
-        used: true,
-        usedAt: serverTimestamp(),
-        deviceId
-      })
-
-      // Save pairing locally
-      const pairingData = { parentUid, deviceId, deviceHostname, pairedAt: new Date().toISOString() }
+      const pairingData = {
+        parentUid,
+        deviceId,
+        agentUid: auth.currentUser.uid,
+        deviceHostname,
+        pairedAt: new Date().toISOString()
+      }
       savePairing(pairingData)
 
-      await promptUI(isRu ? 'Успешно' : 'Success', isRu ? `ПК "${deviceHostname}" привязан к аккаунту родителя.\nАгент запускается в фоновом режиме...` : `PC "${deviceHostname}" paired to parent account.\nAgent starting in background...`, false)
+      await promptUI(
+        isRu ? 'Успешно' : 'Success',
+        isRu
+          ? `ПК "${deviceHostname}" привязан к аккаунту родителя.\nАгент запускается в фоновом режиме...`
+          : `PC "${deviceHostname}" paired to parent account.\nAgent starting in background...`,
+        false
+      )
 
       return pairingData
 
     } catch (err) {
-      console.error('TEST ERROR:', err)
-      await promptUI(isRu ? 'Ошибка' : 'Error', isRu ? `Ошибка при проверке кода: ${err.message}` : `Error checking code: ${err.message}`, false)
+      console.error('Pairing error:', err)
+      const msg = err.code === 'functions/not-found'
+        ? (isRu ? 'Код не найден или истёк срок действия (15 минут). Попробуйте ещё раз.' : 'Code not found or expired (15 mins). Try again.')
+        : err.code === 'functions/already-exists'
+          ? (isRu ? 'Этот код уже был использован.' : 'This code has already been used.')
+          : (isRu ? `Ошибка при проверке кода: ${err.message}` : `Error checking code: ${err.message}`)
+      await promptUI(isRu ? 'Ошибка' : 'Error', msg, false)
       attempts++
     }
   }
 
   throw new Error('Too many failed pairing attempts / Превышено количество попыток')
-}
-
-// ─── Search for pairing code directly by document ID ─────────────────────────
-async function findPairingCode(code, isRu) {
-  try {
-    const docRef = doc(db, 'pairingCodes', code)
-    const docSnap = await getDoc(docRef)
-    if (!docSnap.exists()) return null
-
-    const data = docSnap.data()
-    if (data.used) return null
-
-    // Check expiry
-    const expiresAt = data.expiresAt instanceof Timestamp
-      ? data.expiresAt.toDate()
-      : new Date(data.expiresAt)
-
-    if (expiresAt < new Date()) {
-      console.log(isRu ? '   (код истёк)' : '   (code expired)')
-      return null
-    }
-
-    return { parentUid: data.parentUid, codeDocId: code }
-
-  } catch (err) {
-    throw new Error(isRu ? `Ошибка поиска кода: ${err.message}` : `Error finding code: ${err.message}`)
-  }
 }

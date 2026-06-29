@@ -113,7 +113,7 @@ async function main() {
   parentUid = pairing.parentUid
   deviceId = pairing.deviceId
 
-  initFirebaseSync(parentUid, deviceId)
+  await initFirebaseSync(parentUid, deviceId)
   startScreenshotService(parentUid, deviceId)
 
   loadConfigCache()

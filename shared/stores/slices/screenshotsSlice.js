@@ -11,15 +11,12 @@ export const createScreenshotsSlice = (set, get) => ({
   screenshots: [],
 
   requestScreenshot: async () => {
-    const { user, activeOwnerUid, selectedDeviceId, devices } = get()
+    const { user, activeOwnerUid, selectedDeviceId } = get()
     if (!user || !selectedDeviceId) throw new Error('No device selected')
     const ownerUid = activeOwnerUid || user.uid
-    const selectedDevice = devices.find(d => d.id === selectedDeviceId)
-    if (!selectedDevice?.screenshotUploadToken) throw new Error('Device command token is not ready')
     logger.info(selectedDeviceId, 'Запрос скриншота экрана')
     await fsSendDeviceCommand(ownerUid, selectedDeviceId, {
       command: 'screenshot_request',
-      uploadToken: selectedDevice.screenshotUploadToken,
       requestedAtClientMs: Date.now()
     })
   },

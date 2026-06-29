@@ -1,12 +1,8 @@
-import { setDoc } from 'firebase/firestore'
-import { pairingCodeDoc } from './paths.js'
-import { serverTimestamp } from './timestamps.js'
+import { httpsCallable } from 'firebase/functions'
+import { functions } from './config.js'
 
-export async function createPairingCode(uid, code) {
-  await setDoc(pairingCodeDoc(code), {
-    parentUid: uid,
-    createdAt: serverTimestamp(),
-    expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-    used: false
-  })
+export async function createPairingCode() {
+  const fn = httpsCallable(functions, 'createPairingCode')
+  const result = await fn()
+  return result.data  // { code, expiresAt }
 }

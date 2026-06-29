@@ -4,16 +4,12 @@ import { logger } from '../../utils/logger.js'
 
 export const createCommandsSlice = (set, get) => ({
   sendDeviceCommand: async (commandData) => {
-    const { user, activeOwnerUid, selectedDeviceId, devices } = get()
+    const { user, activeOwnerUid, selectedDeviceId } = get()
     if (!user || !selectedDeviceId) throw new Error('No device selected')
     const ownerUid = activeOwnerUid || user.uid
-    const selectedDevice = devices.find(d => d.id === selectedDeviceId)
-    if (!selectedDevice?.screenshotUploadToken) throw new Error('Device command token is not ready')
-    logger.info(selectedDeviceId, `Отправка команды: ${commandData.command}`)
-    await fsSendDeviceCommand(ownerUid, selectedDeviceId, {
-      ...commandData,
-      uploadToken: selectedDevice.screenshotUploadToken
-    })
+    const action = commandData.action || commandData.command || commandData.type
+    logger.info(selectedDeviceId, `Отправка команды: ${action}`)
+    return await fsSendDeviceCommand(ownerUid, selectedDeviceId, commandData)
   },
 
   updateDeviceSettings: async (settings) => {

@@ -1,17 +1,7 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { db } from '@kidscontrol/shared/firebase/config'
+import { createPairingCode } from '@kidscontrol/shared/firebase/pairing.repo'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
-
-function generatePairingCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  let code = ''
-  for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)]
-  }
-  return code
-}
 
 function DeviceCard({ device, onRemove, onRename, onForceUpdate, deleting }) {
   const [editing, setEditing] = useState(false)
@@ -110,14 +100,8 @@ export default function DevicesSection({ uid }) {
   const generateCode = async () => {
     setGenerating(true)
     try {
-      const newCode = generatePairingCode()
-      await setDoc(doc(db, 'pairingCodes', newCode), {
-        parentUid: uid,
-        createdAt: serverTimestamp(),
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-        used: false
-      })
-      setCode(newCode)
+      const result = await createPairingCode()
+      setCode(result.code)
     } catch (err) {
       console.error('Error generating pairing code:', err)
     } finally {
@@ -136,9 +120,9 @@ export default function DevicesSection({ uid }) {
     }
   }
 
-  const forceUpdateDevice = async (deviceId) => {
+  const forceUpdateDevice = async () => {
     try {
-      await useRulesStore.getState().sendDeviceCommand(deviceId, 'force_update')
+      await useRulesStore.getState().sendDeviceCommand({ action: 'force_update' })
     } catch (err) {
       console.error('Error forcing update:', err)
     }

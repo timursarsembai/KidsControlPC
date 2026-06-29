@@ -17,7 +17,6 @@ export const screenshotDoc = (uid, devId, screenshotId) =>
 export const alertsCol = (uid) => collection(db, 'users', uid, 'alerts')
 export const alertDoc = (uid, alertId) => doc(db, 'users', uid, 'alerts', alertId)
 
-export const pairingCodeDoc = (code) => doc(db, 'pairingCodes', code)
 export const profileDoc = (uid) => doc(db, 'users', uid, 'profile', 'data')
 
 export const chatsCol = (ownerUid) => collection(db, 'users', ownerUid, 'chats')

@@ -35,6 +35,12 @@ export const firebaseConfig = firebaseConfigs[APP_ENV] || firebaseConfigs.produc
 // Stores linked parentUid + deviceId after first setup.
 export const PAIRING_FILE = join(process.cwd(), APP_ENV === 'production' ? 'pairing.json' : `pairing.${APP_ENV}.json`)
 
+// Stores Firebase Auth anonymous session (persists agent UID across restarts).
+export const AGENT_AUTH_FILE = join(process.cwd(), APP_ENV === 'production' ? 'agent_auth.json' : `agent_auth.${APP_ENV}.json`)
+
+// Firebase Cloud Functions region.
+export const FUNCTIONS_REGION = 'us-central1'
+
 // Shared, user-writable folder for IPC files between the SYSTEM service and the
 // interactive ChatTrayApp (which runs as a limited user and cannot write to
 // Program Files). Keep this path in sync with ChatTrayApp.cs default.
