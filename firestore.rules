@@ -21,9 +21,12 @@ service cloud.firestore {
 
     // True if the signed-in user is the registered agent for the given device.
     // agentUid is written to the device doc by the pairDevice / registerAgentUid Cloud Functions.
+    // Legacy devices (paired before v1.1.92) may not have agentUid yet — allow any
+    // authenticated user until the agent self-registers via registerAgentUid CF.
     function isDeviceAgent(userId, deviceId) {
+      let storedUid = get(/databases/$(database)/documents/users/$(userId)/devices/$(deviceId)).data.get('agentUid', null);
       return isSignedIn()
-        && get(/databases/$(database)/documents/users/$(userId)/devices/$(deviceId)).data.agentUid == request.auth.uid;
+        && (storedUid == null || storedUid == request.auth.uid);
     }
 
     // ── User root document (e.g. pauseAllRules flag) ─────────────────────────
