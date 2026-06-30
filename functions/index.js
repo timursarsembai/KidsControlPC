@@ -662,8 +662,9 @@ exports.createPairingCode = onCall({ region: REGION }, async (request) => {
 })
 
 exports.pairDevice = onCall({ region: REGION }, async (request) => {
-  const agentUid = request.auth?.uid
-  if (!agentUid) throw new HttpsError('unauthenticated', 'Sign in first.')
+  // agentUid may be null when the agent runs in pkg/Node.js (Firebase Auth HTTP fails).
+  // registerAgentUid will update it once auth is established on a subsequent start.
+  const agentUid = request.auth?.uid ?? null
 
   const code = String(request.data?.code || '').toUpperCase().replace(/\s/g, '')
   if (code.length !== 6) throw new HttpsError('invalid-argument', 'Code must be exactly 6 characters.')
@@ -720,6 +721,31 @@ exports.registerAgentUid = onCall({ region: REGION }, async (request) => {
   }
 
   return { ok: true }
+})
+
+// ── Agent custom-token auth ───────────────────────────────────────────────────
+// Issues a Firebase custom token to an agent that proves device ownership via
+// screenshotUploadToken (stored in pairing.json and the device doc).
+// httpsCallable works over gRPC — no browser fetch needed, works in pkg/Node.js.
+exports.getAgentToken = onCall({ region: REGION }, async (request) => {
+  const parentUid = String(request.data?.parentUid || '').trim()
+  const deviceId  = String(request.data?.deviceId  || '').trim()
+  const uploadToken = String(request.data?.uploadToken || '').trim()
+  if (!parentUid || !deviceId || !uploadToken) {
+    throw new HttpsError('invalid-argument', 'parentUid, deviceId, uploadToken are required.')
+  }
+
+  const snap = await db.doc(`users/${parentUid}/devices/${deviceId}`).get()
+  if (!snap.exists) throw new HttpsError('not-found', 'Device not found.')
+
+  const stored = snap.data().screenshotUploadToken
+  if (!stored || stored !== uploadToken) {
+    throw new HttpsError('permission-denied', 'Invalid upload token.')
+  }
+
+  const uid = `agent_${deviceId}`
+  const token = await admin.auth().createCustomToken(uid, { deviceId, parentUid })
+  return { token }
 })
 
 // ── Commands ──────────────────────────────────────────────────────────────────

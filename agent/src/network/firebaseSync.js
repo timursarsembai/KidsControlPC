@@ -1,6 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { initializeAuth, signInAnonymously } from 'firebase/auth'
-import { getFunctions, httpsCallable } from 'firebase/functions'
+import { initializeAuth, signInWithCustomToken } from 'firebase/auth'
 import {
   getFirestore, collection, doc,
   query, where, onSnapshot,
@@ -8,8 +7,9 @@ import {
   writeBatch
 } from 'firebase/firestore'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
+import https from 'https'
 import { hostname } from 'os'
-import { firebaseConfig, AGENT_AUTH_FILE, FUNCTIONS_REGION, AGENT_VERSION } from '../config.js'
+import { firebaseConfig, AGENT_AUTH_FILE, PAIRING_FILE, FUNCTIONS_REGION, AGENT_VERSION } from '../config.js'
 import { eventBus, EVENTS } from '../core/eventBus.js'
 import { setDeviceConfig, setActiveRules, setParentConfig } from '../core/configManager.js'
 import { getRecentLogs } from '../core/logBuffer.js'
@@ -41,7 +41,39 @@ function makeFilePersistence(filePath) {
 }
 
 export const auth = initializeAuth(app, { persistence: [makeFilePersistence(AGENT_AUTH_FILE)] })
-export const functions = getFunctions(app, FUNCTIONS_REGION)
+// (No getFunctions/httpsCallable — CF calls use callCF() with Node.js https module)
+
+// Direct HTTPS call to a Firebase Callable Function — bypasses Firebase Functions SDK
+// (which requires a working fetch implementation). Uses Node.js built-in https module
+// that reliably works inside pkg/Node.js executables.
+export function callCF(fnName, data) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify({ data })
+    const options = {
+      hostname: `${FUNCTIONS_REGION}-${firebaseConfig.projectId}.cloudfunctions.net`,
+      path: `/${fnName}`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body)
+      }
+    }
+    const req = https.request(options, (res) => {
+      let raw = ''
+      res.on('data', chunk => { raw += chunk })
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(raw)
+          if (json.result !== undefined) resolve(json.result)
+          else reject(new Error(json.error?.message || `CF ${fnName} error`))
+        } catch { reject(new Error(`CF ${fnName}: invalid JSON response`)) }
+      })
+    })
+    req.on('error', reject)
+    req.write(body)
+    req.end()
+  })
+}
 
 let parentUid = null
 let deviceId = null
@@ -84,26 +116,42 @@ export async function initFirebaseSync(pUid, dId) {
   parentUid = pUid
   deviceId = dId
 
-  // Best-effort anonymous auth. If it fails (network, provider disabled, pkg
-  // environment), fall back to legacy unauthenticated mode — Firestore rules still
-  // allow writes while the device doc has no agentUid set. MUST NOT be fatal.
-  try {
-    if (!auth.currentUser) {
-      await signInAnonymously(auth)
-      log(`Signed in anonymously: ${auth.currentUser.uid}`)
-    } else {
-      log(`Using persisted auth session: ${auth.currentUser.uid}`)
+  // Best-effort auth. Primary: custom token via getAgentToken CF called with plain
+  // https.request (Node.js built-in, works in pkg). Fallback: legacy unauthenticated
+  // mode (Firestore rules allow writes when agentUid == null). MUST NOT be fatal.
+  if (!auth.currentUser) {
+    let signedIn = false
+
+    // Primary: custom token (proves device ownership via screenshotUploadToken)
+    try {
+      const pairing = existsSync(PAIRING_FILE)
+        ? JSON.parse(readFileSync(PAIRING_FILE, 'utf8'))
+        : null
+      if (pairing?.screenshotUploadToken) {
+        const result = await callCF('getAgentToken', {
+          parentUid, deviceId,
+          uploadToken: pairing.screenshotUploadToken
+        })
+        await signInWithCustomToken(auth, result.token)
+        log(`Signed in with custom token: ${auth.currentUser.uid}`)
+        signedIn = true
+      }
+    } catch (err) {
+      log(`Custom token auth failed: ${err.message}`)
     }
-  } catch (err) {
-    log(`Anonymous auth failed: ${err.message} — continuing in legacy unauthenticated mode`)
+
+    if (!signedIn) {
+      log('Continuing in legacy unauthenticated mode')
+    }
+  } else {
+    log(`Using persisted auth session: ${auth.currentUser.uid}`)
   }
 
   // Register this agent's UID in the device doc so Firestore rules can verify it.
   // Only when authenticated; otherwise stay in legacy (agentUid == null) mode.
   if (auth.currentUser) {
     try {
-      const registerFn = httpsCallable(functions, 'registerAgentUid')
-      await registerFn({ parentUid, deviceId })
+      await callCF('registerAgentUid', { parentUid, deviceId })
       log(`Agent UID registered in device doc`)
     } catch (err) {
       log(`Warning: registerAgentUid failed: ${err.message} — continuing with legacy open rules`)

@@ -5,11 +5,10 @@
  * Uses the pairDevice Cloud Function for atomic code validation + device creation.
  */
 
-import { httpsCallable } from 'firebase/functions'
 import { signInAnonymously } from 'firebase/auth'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { PAIRING_FILE, AGENT_VERSION } from './config.js'
-import { auth, functions } from './network/firebaseSync.js'
+import { auth, callCF } from './network/firebaseSync.js'
 import { hostname, type as osType } from 'os'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
@@ -55,10 +54,12 @@ export async function runPairingFlow() {
   console.log('║     KidsControlPC — Agent (Child PC)     ║')
   console.log('╚══════════════════════════════════════════╝\n')
 
-  // Sign in anonymously first — agentUid will be stored in the device doc by pairDevice CF.
+  // Best-effort sign-in — agentUid may not be available during first pairing in pkg.
   if (!auth.currentUser) {
-    await signInAnonymously(auth)
-    console.log(`[Pairing] Anonymous auth established: ${auth.currentUser.uid}`)
+    try {
+      await signInAnonymously(auth)
+      console.log(`[Pairing] Anonymous auth established: ${auth.currentUser.uid}`)
+    } catch { /* fails in pkg/Node.js — pairing continues without auth */ }
   }
 
   const langChoice = await promptUI('Language / Язык', 'Choose language / Выберите язык\n(1 - English, 2 - Русский)', true)
@@ -70,7 +71,6 @@ export async function runPairingFlow() {
     await promptUI('KidsControlPC', 'First run — pairing with parent account required.\nOpen parent app → Settings → Devices\n→ click "Generate pairing code"', false)
   }
 
-  const pairDeviceFn = httpsCallable(functions, 'pairDevice')
   let attempts = 0
 
   while (attempts < 3) {
@@ -91,20 +91,20 @@ export async function runPairingFlow() {
     console.log(isRu ? '\n⏳ Проверяю код...' : '\n⏳ Checking code...')
 
     try {
-      const result = await pairDeviceFn({
+      const result = await callCF('pairDevice', {
         code: normalized,
         hostname: hostname(),
         osType: osType(),
         agentVersion: AGENT_VERSION
       })
 
-      const { parentUid, deviceId } = result.data
+      const { parentUid, deviceId } = result
       const deviceHostname = hostname()
 
       const pairingData = {
         parentUid,
         deviceId,
-        agentUid: auth.currentUser.uid,
+        agentUid: auth.currentUser?.uid ?? null,
         deviceHostname,
         pairedAt: new Date().toISOString()
       }
@@ -122,9 +122,9 @@ export async function runPairingFlow() {
 
     } catch (err) {
       console.error('Pairing error:', err)
-      const msg = err.code === 'functions/not-found'
+      const msg = /not.found|not found/i.test(err.message)
         ? (isRu ? 'Код не найден или истёк срок действия (15 минут). Попробуйте ещё раз.' : 'Code not found or expired (15 mins). Try again.')
-        : err.code === 'functions/already-exists'
+        : /already.exists|already exists/i.test(err.message)
           ? (isRu ? 'Этот код уже был использован.' : 'This code has already been used.')
           : (isRu ? `Ошибка при проверке кода: ${err.message}` : `Error checking code: ${err.message}`)
       await promptUI(isRu ? 'Ошибка' : 'Error', msg, false)
