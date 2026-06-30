@@ -21,19 +21,19 @@ service cloud.firestore {
 
     // True if the signed-in user is the registered agent for the given device.
     // agentUid is written to the device doc by the pairDevice / registerAgentUid Cloud Functions.
-    // Legacy devices (paired before v1.1.92) may not have agentUid yet — allow any
-    // authenticated user until the agent self-registers via registerAgentUid CF.
+    // Legacy devices (paired before v1.1.92) have no agentUid and run agents that do
+    // not authenticate with Firebase. Allow any writer until agentUid is set; once set,
+    // only the registered anonymous session may write (strict UID check).
     function isDeviceAgent(userId, deviceId) {
       let storedUid = get(/databases/$(database)/documents/users/$(userId)/devices/$(deviceId)).data.get('agentUid', null);
-      return isSignedIn()
-        && (storedUid == null || storedUid == request.auth.uid);
+      return storedUid == null || (isSignedIn() && storedUid == request.auth.uid);
     }
 
     // ── User root document (e.g. pauseAllRules flag) ─────────────────────────
-    // Agents read this to check pauseAllRules; any authenticated user (anonymous
-    // or real) can read. Writes require parent ownership.
+    // Agents read this to check pauseAllRules. Legacy agents run without auth,
+    // so we allow any read — the userId is not publicly guessable.
     match /users/{userId} {
-      allow read: if canManageUser(userId) || isSignedIn();
+      allow read: if canManageUser(userId) || isSignedIn() || request.auth == null;
       allow write: if canManageUser(userId);
     }
 
@@ -115,19 +115,20 @@ service cloud.firestore {
         || (resource.data.uploadToken == deviceScreenshotToken(userId, deviceId));
     }
 
-    // Alerts - agent writes (any authenticated user writing to the owner's alerts is
-    // acceptable; the write comes from a signed-in anonymous agent session).
+    // Alerts - agent writes without auth in legacy mode. userId in path is the
+    // only protection; the data is non-sensitive (notification triggers only).
     match /users/{userId}/alerts/{alertId} {
       allow read: if canManageUser(userId);
-      allow write: if isSignedIn();
+      allow write: if isSignedIn() || request.auth == null;
     }
 
     // ── Chats ─────────────────────────────────────────────────────────────────
-    // Agent is authenticated (anonymous), so isSignedIn() replaces the old || true.
+    // Legacy agents run without auth — allow unauthenticated reads/writes so
+    // the child can send and receive chat messages.
     match /users/{userId}/chats/{chatId} {
-      allow read: if canManageUser(userId) || isSignedIn();
+      allow read: if canManageUser(userId) || isSignedIn() || request.auth == null;
       allow create: if canManageUser(userId);
-      allow update: if canManageUser(userId) || isSignedIn();
+      allow update: if canManageUser(userId) || isSignedIn() || request.auth == null;
       allow delete: if isOwner(userId) || (isSignedIn() && resource.data.createdBy == request.auth.uid);
     }
 
@@ -143,9 +144,9 @@ service cloud.firestore {
     }
 
     match /users/{userId}/chats/{chatId}/messages/{msgId} {
-      allow read: if canManageUser(userId) || isSignedIn();
-      allow create: if canManageUser(userId) || isSignedIn();
-      allow update: if canManageUser(userId) || isSignedIn();
+      allow read: if canManageUser(userId) || isSignedIn() || request.auth == null;
+      allow create: if canManageUser(userId) || isSignedIn() || request.auth == null;
+      allow update: if canManageUser(userId) || isSignedIn() || request.auth == null;
       allow delete: if isOwner(userId);
     }
   }

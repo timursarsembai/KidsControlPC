@@ -22,7 +22,8 @@ const processCleanupCommands = isStaging
   nsExec::ExecToLog 'schtasks /Delete /TN "${widgetTaskName}" /F'
   nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\\${processCleanupScriptName}" -InstallDir "$INSTDIR"'
 `
-  : `  nsExec::ExecToLog 'taskkill /F /IM TimerWidget.exe'
+  : `  nsExec::ExecToLog 'taskkill /F /IM agent.exe'
+  nsExec::ExecToLog 'taskkill /F /IM TimerWidget.exe'
   nsExec::ExecToLog 'taskkill /F /IM ReminderWidget.exe'
   nsExec::ExecToLog 'taskkill /F /IM ChatTrayApp.exe'
   nsExec::ExecToLog 'taskkill /F /IM node.exe'

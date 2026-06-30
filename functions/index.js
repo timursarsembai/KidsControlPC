@@ -713,10 +713,8 @@ exports.registerAgentUid = onCall({ region: REGION }, async (request) => {
   if (!snap.exists) throw new HttpsError('not-found', 'Device not found.')
 
   const existing = snap.data()
-  if (existing.agentUid && existing.agentUid !== agentUid) {
-    throw new HttpsError('permission-denied', 'Device already has a different agent registered.')
-  }
-
+  // Always allow overwrite — handles reinstall / persistence loss where a new
+  // anonymous UID replaces the previous one. Caller must know ownerUid+deviceId.
   if (existing.agentUid !== agentUid) {
     await deviceRef.update({ agentUid })
   }

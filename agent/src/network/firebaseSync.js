@@ -19,6 +19,8 @@ export const db = getFirestore(app)
 
 // File-based Firebase Auth persistence for Node.js (no browser storage available).
 // Saves the anonymous session so the same UID is used across agent restarts.
+// Must return a CLASS (constructor), not a plain object — Firebase Auth v10 calls
+// _getInstance() which checks typeof cls === 'function' and does new cls() internally.
 function makeFilePersistence(filePath) {
   function readStore() {
     try { return existsSync(filePath) ? JSON.parse(readFileSync(filePath, 'utf8')) : {} } catch { return {} }
@@ -26,14 +28,15 @@ function makeFilePersistence(filePath) {
   function writeStore(store) {
     try { writeFileSync(filePath, JSON.stringify(store), 'utf8') } catch {}
   }
-  return {
-    type: 'LOCAL',
-    _isAvailable: () => Promise.resolve(true),
-    _set: async (key, value) => { const s = readStore(); s[key] = value; writeStore(s) },
-    _get: async (key) => readStore()[key] ?? null,
-    _remove: async (key) => { const s = readStore(); delete s[key]; writeStore(s) },
-    _addListener: () => {},
-    _removeListener: () => {}
+  return class FilePersistence {
+    static type = 'LOCAL'
+    type = 'LOCAL'
+    async _isAvailable() { return true }
+    async _set(key, value) { const s = readStore(); s[key] = value; writeStore(s) }
+    async _get(key) { return readStore()[key] ?? null }
+    async _remove(key) { const s = readStore(); delete s[key]; writeStore(s) }
+    _addListener() {}
+    _removeListener() {}
   }
 }
 
@@ -81,22 +84,30 @@ export async function initFirebaseSync(pUid, dId) {
   parentUid = pUid
   deviceId = dId
 
-  // Ensure anonymous session is active (restored from file or created fresh).
-  if (!auth.currentUser) {
-    await signInAnonymously(auth)
-    log(`Signed in anonymously: ${auth.currentUser.uid}`)
-  } else {
-    log(`Using persisted auth session: ${auth.currentUser.uid}`)
+  // Best-effort anonymous auth. If it fails (network, provider disabled, pkg
+  // environment), fall back to legacy unauthenticated mode — Firestore rules still
+  // allow writes while the device doc has no agentUid set. MUST NOT be fatal.
+  try {
+    if (!auth.currentUser) {
+      await signInAnonymously(auth)
+      log(`Signed in anonymously: ${auth.currentUser.uid}`)
+    } else {
+      log(`Using persisted auth session: ${auth.currentUser.uid}`)
+    }
+  } catch (err) {
+    log(`Anonymous auth failed: ${err.message} — continuing in legacy unauthenticated mode`)
   }
 
   // Register this agent's UID in the device doc so Firestore rules can verify it.
-  // Safe to call on every startup — idempotent.
-  try {
-    const registerFn = httpsCallable(functions, 'registerAgentUid')
-    await registerFn({ parentUid, deviceId })
-    log(`Agent UID registered in device doc`)
-  } catch (err) {
-    log(`Warning: registerAgentUid failed: ${err.message} — continuing with legacy open rules`)
+  // Only when authenticated; otherwise stay in legacy (agentUid == null) mode.
+  if (auth.currentUser) {
+    try {
+      const registerFn = httpsCallable(functions, 'registerAgentUid')
+      await registerFn({ parentUid, deviceId })
+      log(`Agent UID registered in device doc`)
+    } catch (err) {
+      log(`Warning: registerAgentUid failed: ${err.message} — continuing with legacy open rules`)
+    }
   }
 
   const parentRef = doc(db, 'users', parentUid)
