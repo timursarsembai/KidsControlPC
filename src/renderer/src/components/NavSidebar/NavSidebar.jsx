@@ -26,7 +26,7 @@ const MODES = [
 ]
 
 const MODE_TAB_IDS = new Set(MODES.map((m) => m.id))
-const DEVICE_TAB_IDS = new Set(['power', 'lock_screen', 'reminders', 'screenshots'])
+const DEVICE_TAB_IDS = new Set(['power', 'lock_screen', 'reminders', 'screenshots', 'agent_logs'])
 
 export default function Sidebar() {
   const { t } = useTranslation()
@@ -64,6 +64,24 @@ export default function Sidebar() {
 
   return (
     <aside className="nav-sidebar">
+      {!showSettings && (
+        <button
+          className={`nav-sidebar-item nav-sidebar-chat-btn ${activeTab === 'chat' ? 'active' : ''}`}
+          onClick={() => handleMode('chat')}
+        >
+          <span className="nav-sidebar-icon">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+              <path d="M2 2.5h11a.5.5 0 01.5.5v7a.5.5 0 01-.5.5H5l-3 2.5V3a.5.5 0 01.5-.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+            </svg>
+          </span>
+          <span className="nav-sidebar-labels">
+            <span className="nav-sidebar-label">Чат</span>
+            <span className="nav-sidebar-sub">Сообщения с детьми</span>
+          </span>
+          {activeTab === 'chat' && <span className="nav-sidebar-active-bar" />}
+        </button>
+      )}
+
       {selectedDeviceId && !showSettings && (
         <>
           <ProfileSection
@@ -163,6 +181,23 @@ export default function Sidebar() {
                     <span className="nav-sidebar-sub">{'\u041F\u043E \u0437\u0430\u043F\u0440\u043E\u0441\u0443 \u0438 \u0440\u0430\u0441\u043F\u0438\u0441\u0430\u043D\u0438\u044E'}</span>
                   </span>
                   {activeTab === 'screenshots' && <span className="nav-sidebar-active-bar" />}
+                </button>
+
+                <button
+                  className={`nav-sidebar-item ${activeTab === 'agent_logs' ? 'active' : ''}`}
+                  onClick={() => handleMode('agent_logs', null, 'device')}
+                >
+                  <span className="nav-sidebar-icon">
+                    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                      <rect x="2" y="1.5" width="11" height="12" rx="1.3" stroke="currentColor" strokeWidth="1.2"/>
+                      <path d="M4.5 5h6M4.5 7.5h6M4.5 10h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                    </svg>
+                  </span>
+                  <span className="nav-sidebar-labels">
+                    <span className="nav-sidebar-label">\u041B\u043E\u0433\u0438 \u0430\u0433\u0435\u043D\u0442\u0430</span>
+                    <span className="nav-sidebar-sub">\u0414\u0438\u0430\u0433\u043D\u043E\u0441\u0442\u0438\u043A\u0430 \u0438 \u043C\u043E\u043D\u0438\u0442\u043E\u0440\u0438\u043D\u0433</span>
+                  </span>
+                  {activeTab === 'agent_logs' && <span className="nav-sidebar-active-bar" />}
                 </button>
               </nav>
             )}

@@ -9,6 +9,7 @@ import {
 } from 'firebase/auth'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import Dashboard from './components/Dashboard/Dashboard'
+import InviteAcceptance from './components/InviteAcceptance'
 import { useTranslation } from 'react-i18next'
 import './App.css'
 
@@ -86,6 +87,11 @@ export default function App() {
         <div className="splash-spinner" />
       </div>
     )
+  }
+
+  // ── Invite acceptance (deep link: ?invitationId=...&token=...) ──
+  if (new URLSearchParams(window.location.search).get('invitationId')) {
+    return <InviteAcceptance user={user} />
   }
 
   // ── Dashboard (logged in) ──

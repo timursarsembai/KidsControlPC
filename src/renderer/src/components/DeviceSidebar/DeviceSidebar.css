@@ -156,3 +156,47 @@
 }
 .device-sidebar-settings-btn:hover  { background: var(--bg-hover); color: var(--text-primary); }
 .device-sidebar-settings-btn.active { background: var(--accent-dim); color: var(--accent); }
+
+/* ── Storage bar ── */
+.device-storage-bar {
+  padding: 10px 14px 6px;
+  border-top: 1px solid var(--border);
+}
+.device-storage-bar-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+.device-storage-bar-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-tertiary);
+}
+.device-storage-bar-nums {
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+.device-storage-bar-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+.device-storage-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s, background 0.4s;
+}
+.device-storage-bar--clickable {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.device-storage-bar--clickable:hover {
+  background: var(--bg-hover, rgba(255,255,255,0.05));
+}

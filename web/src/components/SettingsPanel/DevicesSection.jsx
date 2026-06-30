@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { createPairingCode } from '@kidscontrol/shared/firebase/pairing.repo'
+import { createPairingCode } from '@kidscontrol/shared/firebase/pairing'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import { logger } from '@kidscontrol/shared/utils/logger'
 

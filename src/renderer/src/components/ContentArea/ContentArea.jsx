@@ -9,6 +9,10 @@ import NotificationsPanel from '../NotificationsPanel/NotificationsPanel'
 import PowerPanel from '../PowerPanel/PowerPanel'
 import RemindersPanel from '../RemindersPanel/RemindersPanel'
 import ScreenshotsPanel from '../ScreenshotsPanel/ScreenshotsPanel'
+import LogsPanel from '../LogsPanel/LogsPanel'
+import ActivityPanel from '../ActivityPanel/ActivityPanel'
+import StoragePanel from '../StoragePanel/StoragePanel'
+import ChatPanel from '../ChatPanel/ChatPanel'
 import './ContentArea.css'
 
 // ── Empty state: no devices ───────────────────────────────────────────────────
@@ -49,14 +53,59 @@ export default function ContentArea() {
   const { t } = useTranslation()
   const {
     activeTab, activeSubTab, setActiveSubTab,
-    selectedDeviceId, devices, setShowSettings, rules
+    selectedDeviceId, devices, setShowSettings, rules,
+    toggleProfileMode, updateDeviceSettings
   } = useRulesStore()
+
+  const [updatingDeviceId, setUpdatingDeviceId] = React.useState(null)
+  const [noUpdateFound, setNoUpdateFound] = React.useState(false)
+  const versionBeforeUpdate = React.useRef(null)
+  const updateTimeoutRef = React.useRef(null)
+
+  const selectedDevice = devices.find(d => d.id === selectedDeviceId)
+  const lastSeen = selectedDevice?.lastSeen?.toDate?.() || (selectedDevice?.lastSeen ? new Date(selectedDevice.lastSeen.seconds ? selectedDevice.lastSeen.seconds * 1000 : selectedDevice.lastSeen) : null)
+  const isAgentOnline = selectedDevice?.status !== 'offline' && lastSeen && (Date.now() - lastSeen.getTime()) < 2 * 60 * 1000
+  const updatingAgent = updatingDeviceId === selectedDeviceId
+
+  const resetUpdateState = (showNoUpdate = false) => {
+    setUpdatingDeviceId(null)
+    versionBeforeUpdate.current = null
+    if (updateTimeoutRef.current) { clearTimeout(updateTimeoutRef.current); updateTimeoutRef.current = null }
+    if (showNoUpdate) {
+      setNoUpdateFound(true)
+      setTimeout(() => setNoUpdateFound(false), 3000)
+    }
+  }
+
+  const updatingDevice = devices.find(d => d.id === updatingDeviceId)
+  React.useEffect(() => {
+    if (!updatingDeviceId || !versionBeforeUpdate.current) return
+    const currentVersion = updatingDevice?.agentVersion
+    if (currentVersion && currentVersion !== versionBeforeUpdate.current) {
+      resetUpdateState(false)
+    }
+  }, [updatingDevice?.agentVersion, updatingDeviceId])
+
+  const handleUpdateAgent = async () => {
+    versionBeforeUpdate.current = selectedDevice?.agentVersion || null
+    setUpdatingDeviceId(selectedDeviceId)
+    setNoUpdateFound(false)
+    try {
+      await updateDeviceSettings({ forceUpdateRequestedAtMs: Date.now() })
+    } catch (e) {
+      alert('Ошибка: ' + e.message)
+      resetUpdateState(false)
+      return
+    }
+    updateTimeoutRef.current = setTimeout(() => resetUpdateState(true), 5 * 60 * 1000)
+  }
 
   const isProfileTab = activeTab?.startsWith('profile_')
   const profileRule = isProfileTab
     ? rules.find(rule => rule.mode === 'profile' && rule.profileId === activeTab && rule.type === 'profile_config')
       || rules.find(rule => rule.mode === 'profile' && rule.profileId === activeTab)
     : null
+  const profileDisabled = !!profileRule?.disabled
 
   const baseMeta = {
     permanent: { label: t('sidebar.modes.permanent'), icon: '🔒', desc: t('sidebar.modes.permanent_sub') },
@@ -70,27 +119,33 @@ export default function ContentArea() {
     notifications: { label: t('sidebar.notifications', 'Уведомления'), icon: '🔔', desc: t('sidebar.notifications_sub', 'История системных событий') },
     reminders: { label: 'Напоминания', icon: '🔔', desc: 'Будильники и сообщения' },
     screenshots: { label: '\u0421\u043A\u0440\u0438\u043D\u0448\u043E\u0442\u044B', icon: '\uD83D\uDCF8', desc: '\u0421\u043A\u0440\u0438\u043D \u044D\u043A\u0440\u0430\u043D\u0430 \u043F\u043E \u0437\u0430\u043F\u0440\u043E\u0441\u0443 \u0438 \u0440\u0430\u0441\u043F\u0438\u0441\u0430\u043D\u0438\u044E' },
+    agent_logs: { label: '\u041B\u043E\u0433\u0438 \u0430\u0433\u0435\u043D\u0442\u0430', icon: '\uD83D\uDCCB', desc: '\u0414\u0438\u0430\u0433\u043D\u043E\u0441\u0442\u0438\u043A\u0430 \u0438 \u043C\u043E\u043D\u0438\u0442\u043E\u0440\u0438\u043D\u0433 \u0440\u0430\u0431\u043E\u0442\u044B \u0430\u0433\u0435\u043D\u0442\u0430' },
+    activity:  { label: '\u0410\u043A\u0442\u0438\u0432\u043D\u043E\u0441\u0442\u044C', icon: '\uD83D\uDCCA', desc: '\u041F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u044F, \u0441\u0430\u0439\u0442\u044B \u0438 \u044D\u043A\u0440\u0430\u043D\u043D\u043E\u0435 \u0432\u0440\u0435\u043C\u044F' },
+    storage:   { label: '\u0425\u0440\u0430\u043D\u0438\u043B\u0438\u0449\u0435', icon: '\uD83D\uDCBE', desc: '\u0421\u043A\u0440\u0438\u043D\u0448\u043E\u0442\u044B \u0438 \u0432\u043B\u043E\u0436\u0435\u043D\u0438\u044F \u0447\u0430\u0442\u043E\u0432' },
+    chat:      { label: '\u0427\u0430\u0442', icon: '\uD83D\uDCAC', desc: '\u0421\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044F \u0441 \u0440\u0435\u0431\u0451\u043D\u043A\u043E\u043C' },
   }[activeTab]
   const meta = isProfileTab
     ? { label: profileRule?.profileName || 'Новый режим', icon: profileRule?.profileIcon || '🧩', desc: 'Свои списки программ, сайтов и расписание' }
     : baseMeta
-  const selectedDevice = devices.find(d => d.id === selectedDeviceId)
 
   if (!selectedDeviceId || !selectedDevice) {
-    if (activeTab === 'notifications') {
+    if (activeTab === 'notifications' || activeTab === 'chat') {
+      const Panel = activeTab === 'chat' ? ChatPanel : NotificationsPanel
       return (
         <div className="content-area">
-          <div className="content-header">
-            <div className="content-title-row">
-              <span className="content-mode-icon">{meta.icon}</span>
-              <div>
-                <h1 className="content-title">{meta.label}</h1>
-                <p className="content-desc">{meta.desc}</p>
+          {activeTab !== 'chat' && (
+            <div className="content-header">
+              <div className="content-title-row">
+                <span className="content-mode-icon">{meta.icon}</span>
+                <div>
+                  <h1 className="content-title">{meta.label}</h1>
+                  <p className="content-desc">{meta.desc}</p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
           <div className="content-body">
-            <NotificationsPanel />
+            <Panel />
           </div>
         </div>
       )
@@ -108,6 +163,19 @@ export default function ContentArea() {
       {/* ── Header ── */}
       <div className="content-header">
         <div className="content-title-row">
+          {isProfileTab && (
+            <button
+              className={`profile-mode-toggle-btn ${profileDisabled ? 'off' : 'on'}`}
+              onClick={() => toggleProfileMode(activeTab)}
+              title={profileDisabled ? 'Режим отключён — нажмите, чтобы включить' : 'Режим включён — нажмите, чтобы отключить'}
+              type="button"
+              aria-pressed={!profileDisabled}
+            >
+              <span className="profile-mode-toggle-track">
+                <span className="profile-mode-toggle-thumb" />
+              </span>
+            </button>
+          )}
           <span className="content-mode-icon">{meta.icon}</span>
           <div>
             <h1 className="content-title">{meta.label}</h1>
@@ -120,8 +188,33 @@ export default function ContentArea() {
           </div>
         </div>
 
+        {/* Update agent button — only on agent_logs tab */}
+        {activeTab === 'agent_logs' && (
+          <button
+            className={`content-update-agent-btn ${updatingAgent ? 'updating' : ''} ${noUpdateFound ? 'no-update' : ''} ${!isAgentOnline && !updatingAgent ? 'offline' : ''}`}
+            onClick={handleUpdateAgent}
+            disabled={updatingAgent || !isAgentOnline}
+            type="button"
+          >
+            {updatingAgent ? (
+              <svg className="content-update-agent-spin" width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+                <circle cx="7.5" cy="7.5" r="6" stroke="currentColor" strokeWidth="1.5" strokeDasharray="28" strokeDashoffset="10" strokeLinecap="round"/>
+              </svg>
+            ) : noUpdateFound ? (
+              <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+                <path d="M3 8l3 3 6-7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            ) : (
+              <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+                <path d="M12.5 7.5a5 5 0 1 1-1.46-3.54M12.5 2v2.5H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
+            {updatingAgent ? 'Обновляется...' : noUpdateFound ? 'Уже актуальная версия' : 'Обновить агента'}
+          </button>
+        )}
+
         {/* Sub-tabs */}
-        {activeTab !== 'notifications' && activeTab !== 'power' && activeTab !== 'lock_screen' && activeTab !== 'reminders' && activeTab !== 'screenshots' && (
+        {activeTab !== 'notifications' && activeTab !== 'power' && activeTab !== 'lock_screen' && activeTab !== 'reminders' && activeTab !== 'screenshots' && activeTab !== 'agent_logs' && activeTab !== 'activity' && activeTab !== 'storage' && activeTab !== 'chat' && (
           <div className="subtab-bar">
             <button
               id="subtab-programs"
@@ -164,6 +257,14 @@ export default function ContentArea() {
           <ProfilePanel key={`${selectedDeviceId}-${activeTab}`} profileId={activeTab} />
         ) : activeTab === 'reminders' ? (
           <RemindersPanel key={`${selectedDeviceId}-reminders`} />
+        ) : activeTab === 'agent_logs' ? (
+          <LogsPanel key={`${selectedDeviceId}-agent_logs`} />
+        ) : activeTab === 'activity' ? (
+          <ActivityPanel key={`${selectedDeviceId}-activity`} />
+        ) : activeTab === 'storage' ? (
+          <StoragePanel key={`${selectedDeviceId}-storage`} />
+        ) : activeTab === 'chat' ? (
+          <ChatPanel key="chat" />
         ) : activeTab === 'screenshots' ? (
           <ScreenshotsPanel key={`${selectedDeviceId}-screenshots`} />
         ) : activeSubTab === 'programs' ? (

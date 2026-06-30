@@ -3,6 +3,12 @@ import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import './DeviceSidebar.css'
 
+function formatStorageBytes(bytes) {
+  if (bytes >= 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' ГБ'
+  if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(0) + ' МБ'
+  return (bytes / 1024).toFixed(0) + ' КБ'
+}
+
 function DeviceItem({ device, isSelected, onClick }) {
   const { t } = useTranslation()
   const [now, setNow] = React.useState(Date.now())
@@ -36,7 +42,7 @@ function DeviceItem({ device, isSelected, onClick }) {
 }
 
 export default function DeviceSidebar() {
-  const { devices, selectedDeviceId, selectDevice, showSettings, setShowSettings, activeTab, setActiveTab, alerts } = useRulesStore()
+  const { devices, selectedDeviceId, selectDevice, showSettings, setShowSettings, activeTab, setActiveTab, alerts, storageUsedBytes, storageQuotaBytes } = useRulesStore()
 
   const handleAddDevice = () => {
     setShowSettings(true)
@@ -93,6 +99,30 @@ export default function DeviceSidebar() {
       {/* ── Spacer ── */}
       <div style={{ flex: 1 }} />
 
+      {/* ── Activity button ── */}
+      <button
+        className={`device-sidebar-settings-btn ${activeTab === 'activity' && !showSettings ? 'active' : ''}`}
+        onClick={() => { setActiveTab('activity'); setShowSettings(false); }}
+      >
+        <svg width="14" height="14" viewBox="0 0 15 15" fill="none">
+          <path d="M1 11l3.5-4 3 3 3.5-5 3 2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        Активность
+      </button>
+
+      {/* ── Storage button ── */}
+      <button
+        className={`device-sidebar-settings-btn ${activeTab === 'storage' && !showSettings ? 'active' : ''}`}
+        onClick={() => { setActiveTab('storage'); setShowSettings(false); }}
+      >
+        <svg width="14" height="14" viewBox="0 0 15 15" fill="none">
+          <rect x="1.5" y="2.5" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+          <path d="M1.5 6.5h12" stroke="currentColor" strokeWidth="1.2"/>
+          <path d="M5 9.5h5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+        </svg>
+        Хранилище
+      </button>
+
       {/* ── Notifications button ── */}
       <button
         className={`device-sidebar-settings-btn ${activeTab === 'notifications' && !showSettings ? 'active' : ''}`}
@@ -123,6 +153,28 @@ export default function DeviceSidebar() {
         </svg>
         Настройки
       </button>
+
+      {/* ── Storage bar ── */}
+      {(() => {
+        const pct = storageQuotaBytes > 0 ? Math.min(100, (storageUsedBytes / storageQuotaBytes) * 100) : 0
+        const color = pct >= 90 ? 'var(--danger, #ef4444)' : pct >= 70 ? '#f59e0b' : 'var(--accent)'
+        return (
+          <button
+            className="device-storage-bar device-storage-bar--clickable"
+            onClick={() => { setActiveTab('storage'); setShowSettings(false); }}
+            title="Открыть хранилище"
+            type="button"
+          >
+            <div className="device-storage-bar-row">
+              <span className="device-storage-bar-label">Хранилище</span>
+              <span className="device-storage-bar-nums">{formatStorageBytes(storageUsedBytes)} / {formatStorageBytes(storageQuotaBytes)}</span>
+            </div>
+            <div className="device-storage-bar-track">
+              <div className="device-storage-bar-fill" style={{ width: pct + '%', background: color }} />
+            </div>
+          </button>
+        )
+      })()}
     </aside>
   )
 }
