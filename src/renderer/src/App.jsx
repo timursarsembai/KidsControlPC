@@ -4,6 +4,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
+  sendEmailVerification,
   onAuthStateChanged,
   signOut
 } from 'firebase/auth'
@@ -22,7 +23,9 @@ export default function App() {
   const [confirmPwd, setConfirmPwd]   = useState('')
   const [error, setError]             = useState('')
   const [resetMsg, setResetMsg]       = useState('')
-  const [loading, setLoading]         = useState(false)
+  const [loading, setLoading]           = useState(false)
+  const [verifyPending, setVerifyPending] = useState(false)
+  const [resendMsg, setResendMsg]         = useState('')
 
   const { user, initFirebase, cleanup } = useRulesStore()
 
@@ -30,8 +33,14 @@ export default function App() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        await initFirebase(firebaseUser)
+        if (firebaseUser.emailVerified) {
+          setVerifyPending(false)
+          await initFirebase(firebaseUser)
+        } else {
+          setVerifyPending(true)
+        }
       } else {
+        setVerifyPending(false)
         cleanup()
       }
       setAuthLoading(false)
@@ -55,7 +64,8 @@ export default function App() {
       if (mode === 'login') {
         await signInWithEmailAndPassword(auth, email, password)
       } else if (mode === 'register') {
-        await createUserWithEmailAndPassword(auth, email, password)
+        const cred = await createUserWithEmailAndPassword(auth, email, password)
+        await sendEmailVerification(cred.user)
       } else if (mode === 'reset') {
         await sendPasswordResetEmail(auth, email)
         setResetMsg(`Письмо отправлено на ${email}. Обязательно проверьте папку «Спам»!`)
@@ -78,6 +88,31 @@ export default function App() {
     await signOut(auth)
   }
 
+  const handleResendVerification = async () => {
+    setResendMsg('')
+    try {
+      await sendEmailVerification(auth.currentUser)
+      setResendMsg(`Письмо отправлено на ${auth.currentUser.email}. Проверьте папку «Спам»!`)
+    } catch {
+      setResendMsg('Не удалось отправить письмо. Попробуйте позже.')
+    }
+  }
+
+  const handleCheckVerified = async () => {
+    setResendMsg('')
+    try {
+      await auth.currentUser.reload()
+      if (auth.currentUser.emailVerified) {
+        setVerifyPending(false)
+        await initFirebase(auth.currentUser)
+      } else {
+        setResendMsg('Email ещё не подтверждён. Проверьте почту.')
+      }
+    } catch {
+      setResendMsg('Не удалось проверить статус. Попробуйте ещё раз.')
+    }
+  }
+
   // ── Splash screen ──
   if (authLoading) {
     return (
@@ -92,6 +127,46 @@ export default function App() {
   // ── Invite acceptance (deep link: ?invitationId=...&token=...) ──
   if (new URLSearchParams(window.location.search).get('invitationId')) {
     return <InviteAcceptance user={user} />
+  }
+
+  // ── Email verification pending ──
+  if (verifyPending) {
+    return (
+      <div className="auth-screen">
+        <div className="auth-drag-region" />
+        <div className="auth-card">
+          <div className="auth-logo">
+            <span className="auth-logo-icon">✉️</span>
+            <div>
+              <div className="auth-logo-name">Подтвердите email</div>
+              <div className="auth-logo-sub">KidsControlPC</div>
+            </div>
+          </div>
+          <div className="auth-note" style={{ marginBottom: 16 }}>
+            Мы отправили письмо на <strong>{auth.currentUser?.email}</strong>. Перейдите по ссылке в письме, затем нажмите кнопку ниже.
+          </div>
+          {resendMsg && (
+            <div className="auth-note" style={{ color: 'var(--success, #20c997)', backgroundColor: 'rgba(32,201,151,0.1)', borderColor: 'rgba(32,201,151,0.2)', marginBottom: 12 }}>
+              {resendMsg}
+            </div>
+          )}
+          <button className="btn btn-primary auth-submit" onClick={handleCheckVerified}>
+            ✓ Я подтвердил email
+          </button>
+          <button className="btn auth-submit" style={{ marginTop: 8, background: 'var(--surface-2)', color: 'var(--text-secondary)' }} onClick={handleResendVerification}>
+            Отправить письмо повторно
+          </button>
+          <button className="btn auth-submit" style={{ marginTop: 8, background: 'transparent', color: 'var(--text-tertiary)', fontSize: 13 }} onClick={handleSignOut}>
+            Выйти
+          </button>
+        </div>
+        <div className="auth-bg-orbs">
+          <div className="orb orb-1" />
+          <div className="orb orb-2" />
+          <div className="orb orb-3" />
+        </div>
+      </div>
+    )
   }
 
   // ── Dashboard (logged in) ──

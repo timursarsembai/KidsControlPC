@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { signOut } from 'firebase/auth'
+import { signOut, deleteUser } from 'firebase/auth'
 import { auth } from '@kidscontrol/shared/firebase/config'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 
@@ -9,11 +9,31 @@ export default function AccountSection({ user }) {
   const { accountRole, userProfile, setChatDisplayName } = useRulesStore()
   const [chatName, setChatName] = useState(userProfile?.chatName || '')
   const [saved, setSaved] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+  const [deleting, setDeleting] = useState(false)
 
   const handleSaveChatName = async () => {
     await setChatDisplayName(chatName.trim())
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleDeleteAccount = async () => {
+    setDeleteError('')
+    setDeleting(true)
+    try {
+      await deleteUser(auth.currentUser)
+    } catch (err) {
+      if (err.code === 'auth/requires-recent-login') {
+        setDeleteError('Для удаления аккаунта выйдите и войдите снова, затем повторите.')
+      } else {
+        setDeleteError(`Ошибка: ${err.message}`)
+      }
+      setConfirmDelete(false)
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -70,6 +90,45 @@ export default function AccountSection({ user }) {
       >
         {t('settings.account.logout', 'Выйти из аккаунта')}
       </button>
+
+      <div style={{ marginTop: 24, borderTop: '1px solid var(--border)', paddingTop: 24 }}>
+        <p className="settings-section-desc" style={{ marginBottom: 12 }}>
+          Удаление аккаунта необратимо. Все данные будут потеряны.
+        </p>
+        {deleteError && (
+          <div style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 10 }}>{deleteError}</div>
+        )}
+        {!confirmDelete ? (
+          <button
+            className="btn"
+            onClick={() => { setDeleteError(''); setConfirmDelete(true) }}
+            style={{ width: '100%', background: 'transparent', border: '1px solid var(--danger)', color: 'var(--danger)' }}
+            type="button"
+          >
+            Удалить аккаунт
+          </button>
+        ) : (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              className="btn btn-danger"
+              onClick={handleDeleteAccount}
+              disabled={deleting}
+              style={{ flex: 1 }}
+              type="button"
+            >
+              {deleting ? 'Удаление...' : 'Да, удалить'}
+            </button>
+            <button
+              className="btn"
+              onClick={() => setConfirmDelete(false)}
+              style={{ flex: 1, background: 'var(--surface-2)', color: 'var(--text-secondary)' }}
+              type="button"
+            >
+              Отмена
+            </button>
+          </div>
+        )}
+      </div>
     </section>
   )
 }

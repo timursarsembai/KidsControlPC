@@ -115,20 +115,20 @@ service cloud.firestore {
         || (resource.data.uploadToken == deviceScreenshotToken(userId, deviceId));
     }
 
-    // Alerts - agent writes without auth in legacy mode. userId in path is the
-    // only protection; the data is non-sensitive (notification triggers only).
+    // Alerts - agent writes without auth in legacy mode (request.auth == null).
+    // Restrict to owners/parents; exclude bare isSignedIn() to block revoked invitees.
     match /users/{userId}/alerts/{alertId} {
       allow read: if canManageUser(userId);
-      allow write: if isSignedIn() || request.auth == null;
+      allow write: if canManageUser(userId) || request.auth == null;
     }
 
     // ── Chats ─────────────────────────────────────────────────────────────────
     // Legacy agents run without auth — allow unauthenticated reads/writes so
     // the child can send and receive chat messages.
     match /users/{userId}/chats/{chatId} {
-      allow read: if canManageUser(userId) || isSignedIn() || request.auth == null;
+      allow read: if canManageUser(userId) || request.auth == null;
       allow create: if canManageUser(userId);
-      allow update: if canManageUser(userId) || isSignedIn() || request.auth == null;
+      allow update: if canManageUser(userId) || request.auth == null;
       allow delete: if isOwner(userId) || (isSignedIn() && resource.data.createdBy == request.auth.uid);
     }
 
@@ -144,9 +144,9 @@ service cloud.firestore {
     }
 
     match /users/{userId}/chats/{chatId}/messages/{msgId} {
-      allow read: if canManageUser(userId) || isSignedIn() || request.auth == null;
-      allow create: if canManageUser(userId) || isSignedIn() || request.auth == null;
-      allow update: if canManageUser(userId) || isSignedIn() || request.auth == null;
+      allow read: if canManageUser(userId) || request.auth == null;
+      allow create: if canManageUser(userId) || request.auth == null;
+      allow update: if canManageUser(userId) || request.auth == null;
       allow delete: if isOwner(userId);
     }
   }
