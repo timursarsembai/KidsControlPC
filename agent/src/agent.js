@@ -1,6 +1,8 @@
 import { createInterface } from 'readline'
 import { hostname } from 'os'
 import { initLogCapture } from './core/logBuffer.js'
+import { initErrorTracking, captureError, setAgentContext } from './core/errorTracking.js'
+initErrorTracking()
 initLogCapture()
 
 import { loadConfigCache, getDeviceConfig } from './core/configManager.js'
@@ -112,6 +114,7 @@ async function main() {
 
   parentUid = pairing.parentUid
   deviceId = pairing.deviceId
+  setAgentContext(parentUid, deviceId)
 
   await initFirebaseSync(parentUid, deviceId)
   startScreenshotService(parentUid, deviceId)
@@ -170,12 +173,14 @@ async function main() {
 
 process.on('uncaughtException', async (err) => {
   console.log(`💥 Uncaught exception: ${err.message}`)
+  captureError(err, { phase: 'uncaughtException' })
   await sendAlert('agent_error', err.message).catch(() => {})
   process.exit(1)
 })
 
 main().catch(async err => {
   console.error('❌ Fatal:', err.message)
+  captureError(err, { phase: 'main' })
   await sendAlert('agent_error', err.message).catch(() => {})
   process.exit(1)
 })

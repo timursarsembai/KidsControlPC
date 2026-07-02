@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@kidscontrol/shared": "file:../shared",
+    "@sentry/node": "^10.63.0",
     "firebase": "^10.12.2",
     "node-fetch": "^2.7.0",
     "node-windows": "^1.0.0-beta.8"

@@ -9,6 +9,10 @@ const buildEnvironment = typeof __KIDSCONTROL_ENV__ !== 'undefined' ? __KIDSCONT
 
 export const APP_ENV = buildEnvironment || process.env.KIDSCONTROL_ENV || 'production'
 
+// Sentry DSN is public by design (rate-limited server-side, not a secret) — safe to
+// bake into the distributed exe. Empty string disables error tracking.
+export const SENTRY_DSN = process.env.SENTRY_DSN || 'https://a6ac288a4027eb7722275fbdc49d8abd@o4511666089951232.ingest.de.sentry.io/4511666124423248'
+
 const firebaseConfigs = {
   production: {
     apiKey: "AIzaSyA" + "FYWqbatuvU0qQOpe7cphvVwN7_hSeui0",
