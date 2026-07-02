@@ -165,3 +165,5 @@ export async function tickDnsTracking(parentUid, deviceId) {
 
   log(`Logged ${newDomains.length} new domains: ${newDomains.slice(0, 5).join(', ')}`)
 }
+
+export { normalizeDomain, isSystemDomain } // @internal — for testing only

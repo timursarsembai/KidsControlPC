@@ -284,3 +284,5 @@ export async function trackBlockedDomains(domains, parentUid, deviceId) {
     }
   }
 }
+
+export { isSystemByPattern } // @internal — for testing only
