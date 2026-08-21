@@ -1,12 +1,14 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { createPairingCode } from '@kidscontrol/shared/firebase/pairing'
+import { createPairingCode, createRepairPairingCode } from '@kidscontrol/shared/firebase/pairing'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 
-function DeviceCard({ device, onRemove, onRename, onForceUpdate, deleting }) {
+function DeviceCard({ device, ownerUid, onRemove, onRename, onForceUpdate, deleting }) {
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(device.alias || device.hostname || device.id)
   const [forcing, setForcing] = useState(false)
+  const [repairCode, setRepairCode] = useState(null)
+  const [repairing, setRepairing] = useState(false)
 
   const lastSeen = device?.lastSeen?.toDate?.()
   const [now, setNow] = React.useState(Date.now())
@@ -21,8 +23,21 @@ function DeviceCard({ device, onRemove, onRename, onForceUpdate, deleting }) {
     setEditing(false)
   }
 
+  const generateRepairCode = async () => {
+    setRepairing(true)
+    try {
+      const result = await createRepairPairingCode(ownerUid, device.id)
+      setRepairCode(result.code)
+    } catch (err) {
+      console.error('Error generating repair code:', err)
+    } finally {
+      setRepairing(false)
+    }
+  }
+
   return (
     <div className="device-card">
+      <div className="device-card-row">
       <div className="device-status-dot">
         <span className={`status-dot ${isOnline ? 'active' : 'inactive'}`} />
       </div>
@@ -73,6 +88,15 @@ function DeviceCard({ device, onRemove, onRename, onForceUpdate, deleting }) {
           {forcing ? 'Отправлено...' : '🔄 Обновить агент'}
         </button>
         <button
+          className="btn btn-ghost btn-sm"
+          onClick={generateRepairCode}
+          disabled={repairing}
+          title="Получить код для переустановки агента на этом же устройстве — правила и настройки сохранятся"
+          style={{ marginRight: 8, fontSize: '0.8rem', padding: '4px 8px' }}
+        >
+          {repairing ? <span className="btn-spinner-sm" /> : '🔁 Код для переустановки'}
+        </button>
+        <button
           className="btn btn-ghost btn-icon btn-sm device-remove"
           onClick={onRemove}
           disabled={deleting}
@@ -86,11 +110,40 @@ function DeviceCard({ device, onRemove, onRename, onForceUpdate, deleting }) {
           }
         </button>
       </div>
+      </div>
+      {repairCode && (
+        <div className="code-display" style={{ marginTop: 12 }}>
+          <div className="code-label">Код для переустановки (действителен 15 минут)</div>
+          <div className="code-value">
+            {repairCode.split('').map((c, i) => (
+              <span key={i} className="code-char">{c}</span>
+            ))}
+          </div>
+          <div className="code-actions">
+            <button className="btn btn-ghost btn-sm" onClick={() => setRepairCode(null)}>Скрыть</button>
+            <button className="btn btn-ghost btn-sm" onClick={generateRepairCode}>🔄 Новый код</button>
+          </div>
+          <div className="code-steps">
+            <div className="code-step">
+              <span className="step-num">1</span>
+              <span>Установите <strong>KidsControlPC Agent</strong> на этот ПК (переустановка или новый ноутбук вместо старого)</span>
+            </div>
+            <div className="code-step">
+              <span className="step-num">2</span>
+              <span>При запуске агент спросит код привязки — введите код выше</span>
+            </div>
+            <div className="code-step">
+              <span className="step-num">3</span>
+              <span>Правила и настройки этого устройства сохранятся, программы пересканируются заново</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-export default function DevicesSection({ uid: _uid }) {
+export default function DevicesSection({ uid: ownerUid }) {
   const { t } = useTranslation()
   const { devices, renameDevice, deleteDevice } = useRulesStore()
   const [code, setCode] = useState('')
@@ -151,6 +204,7 @@ export default function DevicesSection({ uid: _uid }) {
             <DeviceCard
               key={device.id}
               device={device}
+              ownerUid={ownerUid}
               onRemove={() => removeDevice(device.id)}
               onRename={(name) => renameDevice(device.id, name)}
               onForceUpdate={() => forceUpdateDevice(device.id)}

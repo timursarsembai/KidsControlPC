@@ -24,6 +24,44 @@ const createPairingCode = onCall({ region: REGION }, async (request) => {
   return { code, expiresAt: expiresAt.toDate().toISOString() }
 })
 
+// Generates a pairing code scoped to an already-existing device (identified by
+// targetDeviceId in the pairingCodes doc). Lets a parent reinstall/replace a
+// child PC without losing that device's rules — pairDevice below writes into
+// the existing device doc instead of creating a new one, so anything keyed by
+// deviceId (rules, activity history, screenshots, ...) survives untouched.
+const createRepairPairingCode = onCall({ region: REGION }, async (request) => {
+  const callerUid = requireAuth(request)
+  const { ownerUid: rawOwnerUid, deviceId } = request.data || {}
+  if (!deviceId) throw new HttpsError('invalid-argument', 'deviceId is required.')
+
+  const ownerUid = rawOwnerUid || callerUid
+
+  if (callerUid !== ownerUid) {
+    const accessSnap = await db.doc(`users/${ownerUid}/parentAccess/${callerUid}`).get()
+    if (!accessSnap.exists || accessSnap.data().status !== 'active') {
+      throw new HttpsError('permission-denied', 'You do not have access to this device.')
+    }
+  }
+
+  const deviceSnap = await db.doc(`users/${ownerUid}/devices/${deviceId}`).get()
+  if (!deviceSnap.exists) throw new HttpsError('not-found', 'Device not found.')
+
+  let code = ''
+  for (let i = 0; i < 6; i++) code += PAIRING_CODE_CHARS[crypto.randomInt(0, PAIRING_CODE_CHARS.length)]
+
+  const now = admin.firestore.Timestamp.now()
+  const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + PAIRING_CODE_TTL_MS)
+  await db.collection('pairingCodes').doc(code).set({
+    parentUid: ownerUid,
+    targetDeviceId: deviceId,
+    createdAt: now,
+    expiresAt,
+    used: false
+  })
+
+  return { code, expiresAt: expiresAt.toDate().toISOString() }
+})
+
 const pairDevice = onCall({ region: REGION }, async (request) => {
   // agentUid may be null when the agent runs in pkg/Node.js (Firebase Auth HTTP fails).
   // registerAgentUid will update it once auth is established on a subsequent start.
@@ -37,9 +75,9 @@ const pairDevice = onCall({ region: REGION }, async (request) => {
   const agentVersion = String(request.data?.agentVersion || '').slice(0, 20)
 
   const codeRef = db.collection('pairingCodes').doc(code)
-  const deviceId = crypto.randomUUID()
+  const newDeviceId = crypto.randomUUID()
 
-  const parentUid = await db.runTransaction(async (tx) => {
+  const { parentUid, deviceId } = await db.runTransaction(async (tx) => {
     const snap = await tx.get(codeRef)
     if (!snap.exists) throw new HttpsError('not-found', 'Code not found or expired.')
     const data = snap.data()
@@ -47,8 +85,29 @@ const pairDevice = onCall({ region: REGION }, async (request) => {
     if (data.expiresAt.toMillis() <= Date.now()) throw new HttpsError('deadline-exceeded', 'Code has expired.')
 
     const now = admin.firestore.Timestamp.now()
-    tx.update(codeRef, { used: true, usedAt: now, deviceId })
-    tx.set(db.doc(`users/${data.parentUid}/devices/${deviceId}`), {
+
+    if (data.targetDeviceId) {
+      const deviceRef = db.doc(`users/${data.parentUid}/devices/${data.targetDeviceId}`)
+      const deviceSnap = await tx.get(deviceRef)
+      if (!deviceSnap.exists) throw new HttpsError('not-found', 'Target device no longer exists.')
+
+      tx.update(codeRef, { used: true, usedAt: now, deviceId: data.targetDeviceId })
+      // merge: true — deliberately omits deviceName/alias so a parent's custom
+      // device name survives a repair pairing; only connection metadata refreshes.
+      tx.set(deviceRef, {
+        hostname,
+        osType,
+        pairedAt: now,
+        lastSeen: now,
+        agentVersion,
+        agentUid,
+        status: 'online'
+      }, { merge: true })
+      return { parentUid: data.parentUid, deviceId: data.targetDeviceId }
+    }
+
+    tx.update(codeRef, { used: true, usedAt: now, deviceId: newDeviceId })
+    tx.set(db.doc(`users/${data.parentUid}/devices/${newDeviceId}`), {
       hostname,
       osType,
       pairedAt: now,
@@ -58,7 +117,7 @@ const pairDevice = onCall({ region: REGION }, async (request) => {
       agentUid,
       status: 'online'
     })
-    return data.parentUid
+    return { parentUid: data.parentUid, deviceId: newDeviceId }
   })
 
   return { parentUid, deviceId }
@@ -110,4 +169,4 @@ const getAgentToken = onCall({ region: REGION }, async (request) => {
   return { token }
 })
 
-module.exports = { createPairingCode, pairDevice, registerAgentUid, getAgentToken }
+module.exports = { createPairingCode, createRepairPairingCode, pairDevice, registerAgentUid, getAgentToken }

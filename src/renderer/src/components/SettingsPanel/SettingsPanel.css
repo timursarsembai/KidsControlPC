@@ -119,8 +119,7 @@
 
 .device-card {
   display: flex;
-  align-items: center;
-  gap: var(--space-4);
+  flex-direction: column;
   padding: var(--space-4) var(--space-5);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
@@ -128,6 +127,12 @@
   transition: border-color var(--dur-base) var(--ease);
 }
 .device-card:hover { border-color: var(--border-strong); }
+
+.device-card-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
 
 .device-status-dot { flex-shrink: 0; }
 
@@ -449,5 +454,4 @@
   animation: spin 0.7s linear infinite;
   display: inline-block;
 }
-. d e v i c e - a c t i o n s - r o w   {   d i s p l a y :   f l e x ;   a l i g n - i t e m s :   c e n t e r ;   }  
- 
+.device-actions-row { display: flex; align-items: center; }
