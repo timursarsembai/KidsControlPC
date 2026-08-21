@@ -39,7 +39,8 @@
     "./ui/ChatPanel": "./ui/ChatPanel/ChatPanel.jsx",
     "./ui/ActivityPanel": "./ui/ActivityPanel/ActivityPanel.jsx",
     "./ui/LogsPanel": "./ui/LogsPanel/LogsPanel.jsx",
-    "./ui/StoragePanel": "./ui/StoragePanel/StoragePanel.jsx"
+    "./ui/StoragePanel": "./ui/StoragePanel/StoragePanel.jsx",
+    "./ui/ConfirmModal": "./ui/ConfirmModal/ConfirmModal.jsx"
   },
   "peerDependencies": {
     "firebase": ">=10.0.0",

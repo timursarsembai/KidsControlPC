@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
-import ConfirmModal from '../ConfirmModal'
+import ConfirmModal from '@kidscontrol/shared/ui/ConfirmModal'
 import TimeInput from '@kidscontrol/shared/ui/TimeInput'
 import './PowerPanel.css'
 

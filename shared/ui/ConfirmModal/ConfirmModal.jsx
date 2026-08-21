@@ -1,6 +1,7 @@
 import React from 'react'
+import './ConfirmModal.css'
 
-export default function ConfirmModal({ 
+export default function ConfirmModal({
   isOpen, 
   title, 
   message, 

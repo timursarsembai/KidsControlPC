@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react'
-import ConfirmModal from '../ConfirmModal'
+import ConfirmModal from '@kidscontrol/shared/ui/ConfirmModal'
 import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import { evaluateRule } from '@kidscontrol/shared/utils/timeHelpers'
