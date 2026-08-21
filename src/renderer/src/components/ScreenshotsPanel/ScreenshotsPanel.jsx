@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
-import TimeInput from '../TimeInput/TimeInput'
+import TimeInput from '@kidscontrol/shared/ui/TimeInput'
 import './ScreenshotsPanel.css'
 
 const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']

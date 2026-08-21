@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
-import TimeInput from '../TimeInput/TimeInput'
+import TimeInput from '@kidscontrol/shared/ui/TimeInput'
 import './RemindersPanel.css'
 
 const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']

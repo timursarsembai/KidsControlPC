@@ -10,7 +10,7 @@ import {
 import { httpsCallable } from 'firebase/functions'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import Dashboard from './components/Dashboard/Dashboard'
-import InviteAcceptance from './components/InviteAcceptance'
+import InviteAcceptance from '@kidscontrol/shared/ui/InviteAcceptance'
 import EmailActionPage from './components/EmailActionPage'
 import { useTranslation } from 'react-i18next'
 import './App.css'

@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import { evaluateRule } from '@kidscontrol/shared/utils/timeHelpers'
-import Select from '../Select/Select'
+import Select from '@kidscontrol/shared/ui/Select'
 import ProgramRow from './ProgramRow'
 import './ProgramsPanel.css'
 

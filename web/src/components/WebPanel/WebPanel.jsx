@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import { evaluateRule } from '@kidscontrol/shared/utils/timeHelpers'
-import Select from '../Select/Select'
-import TimeInput from '../TimeInput/TimeInput'
+import Select from '@kidscontrol/shared/ui/Select'
+import TimeInput from '@kidscontrol/shared/ui/TimeInput'
 
 import './WebPanel.css'
 

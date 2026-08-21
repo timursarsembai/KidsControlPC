@@ -32,11 +32,19 @@
     "./utils/timeHelpers": "./utils/timeHelpers.js",
     "./i18n": "./i18n.js",
     "./locales/ru": "./locales/ru.json",
-    "./locales/en": "./locales/en.json"
+    "./locales/en": "./locales/en.json",
+    "./ui/InviteAcceptance": "./ui/InviteAcceptance.jsx",
+    "./ui/TimeInput": "./ui/TimeInput/TimeInput.jsx",
+    "./ui/Select": "./ui/Select/Select.jsx",
+    "./ui/ChatPanel": "./ui/ChatPanel/ChatPanel.jsx",
+    "./ui/ActivityPanel": "./ui/ActivityPanel/ActivityPanel.jsx",
+    "./ui/LogsPanel": "./ui/LogsPanel/LogsPanel.jsx",
+    "./ui/StoragePanel": "./ui/StoragePanel/StoragePanel.jsx"
   },
   "peerDependencies": {
     "firebase": ">=10.0.0",
     "i18next": ">=23.0.0",
+    "react": ">=18.0.0",
     "react-i18next": ">=14.0.0",
     "zustand": ">=4.0.0"
   }

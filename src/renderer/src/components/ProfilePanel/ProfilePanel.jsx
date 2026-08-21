@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
-import Select from '../Select/Select'
+import Select from '@kidscontrol/shared/ui/Select'
 import ProfileTargetTable from './ProfileTargetTable'
 import ScheduleEditor from './ScheduleEditor'
 import './ProfilePanel.css'

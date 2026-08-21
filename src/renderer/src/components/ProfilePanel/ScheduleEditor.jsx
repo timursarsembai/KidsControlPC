@@ -1,5 +1,5 @@
-import Select from '../Select/Select'
-import TimeInput from '../TimeInput/TimeInput'
+import Select from '@kidscontrol/shared/ui/Select'
+import TimeInput from '@kidscontrol/shared/ui/TimeInput'
 
 const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
-import Select from '../Select/Select'
+import Select from '@kidscontrol/shared/ui/Select'
 import './PomodoroPanel.css'
 
 function timestampToDate(value) {

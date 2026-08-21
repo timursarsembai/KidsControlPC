@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import ConfirmModal from '../ConfirmModal'
-import TimeInput from '../TimeInput/TimeInput'
+import TimeInput from '@kidscontrol/shared/ui/TimeInput'
 import './PowerPanel.css'
 
 const COLORS = [
