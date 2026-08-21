@@ -24,6 +24,16 @@ extension available) — CSS-heavy items below need that before merging.
   differs (see below).
 - `ContentArea.jsx`: import order only, cosmetic, aligned so future diffs
   are meaningful.
+- `ConfirmModal.jsx` moved to `shared/ui/ConfirmModal/` with its own
+  co-located CSS (was web-only, styled via global classes in
+  `web/src/index.css` that renderer never had). Fixed a real bug in the
+  process: `.modal-content` referenced the undefined `var(--bg-card)`,
+  silently rendering a transparent modal background — changed to
+  `var(--bg-elevated)`. Ported renderer's `RemindersPanel` delete
+  confirmation from the native `confirm()` dialog to the shared
+  `ConfirmModal`, matching web's implementation exactly (see git history:
+  "move ConfirmModal to shared/ui, port to renderer's RemindersPanel").
+  This was step 1 of the suggested order below — now done.
 
 ## Confirmed intentional platform differences — do NOT merge
 
@@ -70,12 +80,8 @@ guessing at product intent.
   ("Логи"). `AccountSection.jsx` also differs by 137 lines for related
   reasons. Needs a product decision on which of these the desktop app
   should get, not a mechanical copy.
-- **`RemindersPanel.jsx`** (23 diff lines): web uses an in-app `ConfirmModal`
-  for delete confirmation; renderer uses the browser-native `confirm()`.
-  This is a real, safe-looking UX improvement to port, but `ConfirmModal`
-  is currently web-only (`web/src/components/ConfirmModal.jsx`, never moved
-  to `shared/ui/`) — porting this means moving `ConfirmModal` to
-  `shared/ui/` first. Small, contained, good candidate for the next pass.
+- ~~`RemindersPanel.jsx` confirm dialog~~ — done, see "Already fixed this
+  session" above.
 
 ## Same feature, different code structure — safe to reconcile, needs care
 
@@ -103,9 +109,8 @@ this needs an actual side-by-side render in both apps:
 
 ## Suggested order for a follow-up pass
 
-1. Move `ConfirmModal` to `shared/ui/`, port renderer's `RemindersPanel`
-   confirm-dialog UX from web (small, contained, no CSS conflict since
-   `ConfirmModal` doesn't exist in renderer at all yet).
+1. ~~Move `ConfirmModal` to `shared/ui/`, port renderer's `RemindersPanel`
+   confirm-dialog UX from web.~~ Done.
 2. Reconcile `ContentArea.jsx` onto renderer's DRYer structure, with an
    actual click-through test of every tab in both apps afterward.
 3. Decide product-level: does the desktop app get `PowerPanel` scheduling,
@@ -113,5 +118,5 @@ this needs an actual side-by-side render in both apps:
    profile-disable toggle, or do these stay web-only by design? This gates
    whether `PowerPanel`/`SettingsPanel`/`ProfileSection` are ever merged at
    all.
-4. Only after 1–3: tackle the CSS-only diffs, with a browser open to both
+4. Only after 2–3: tackle the CSS-only diffs, with a browser open to both
    apps side by side.
