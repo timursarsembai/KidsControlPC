@@ -191,11 +191,6 @@ export async function sendToWidget(payload, options = {}) {
   })
 }
 
-function safeWidgetField(str) {
-  if (typeof str !== 'string') return ''
-  return str.replace(/\|/g, '-').replace(/\n/g, ' ')
-}
-
 export async function ensureWidgetLocked() {
   const deviceConfig = getDeviceConfig()
   if (!deviceConfig || !deviceConfig.isLocked) return

@@ -3,8 +3,7 @@ import { initializeAuth, signInWithCustomToken } from 'firebase/auth'
 import {
   getFirestore, collection, doc,
   query, where, onSnapshot,
-  updateDoc, addDoc, serverTimestamp,
-  writeBatch
+  updateDoc, addDoc, serverTimestamp
 } from 'firebase/firestore'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import https from 'https'
@@ -240,6 +239,12 @@ export async function sendAlert(type, details = '') {
     return
   }
   lastAlerts[alertKey] = now
+
+  // Prune old entries to prevent unbounded growth (alerts carry variable
+  // `details` text, e.g. per-process kill messages, so keys keep accumulating)
+  for (const key of Object.keys(lastAlerts)) {
+    if (now - lastAlerts[key] > 60000) delete lastAlerts[key]
+  }
 
   try {
     await addDoc(collection(db, 'users', parentUid, 'alerts'), {

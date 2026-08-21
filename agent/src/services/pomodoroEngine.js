@@ -5,10 +5,6 @@ import { publishPomodoroState } from '../network/firebaseSync.js'
 
 let lastPomodoroStateKey = ''
 
-function log(msg) {
-  console.log(`[PomodoroEngine] ${msg}`)
-}
-
 export function evaluatePomodoroState() {
   const deviceConfig = getDeviceConfig()
   if (!deviceConfig) return

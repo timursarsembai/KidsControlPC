@@ -71,7 +71,7 @@ export async function handleInteractiveKillPenalty(killedEvents, uniqueNames, no
 
   if (penaltyAttempts >= 5) {
     await sendAlert('agent_error', 'Слишком много попыток запуска заблокированных программ. Выключение ПК.')
-    execAsync('shutdown /s /t 0')
+    execAsync('shutdown /s /t 0').catch(err => log(`Shutdown command failed: ${err.message}`))
     return true
   }
 

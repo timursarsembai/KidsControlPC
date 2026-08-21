@@ -1,5 +1,4 @@
 import { exec } from 'child_process'
-import net from 'net'
 import path from 'path'
 import fs from 'fs'
 import { tmpdir } from 'os'
@@ -10,8 +9,6 @@ const widgetExe = process.env.NODE_ENV === 'development'
   : path.join(process.cwd(), 'ReminderWidget.exe')
 
 const lastTriggered = {}
-const WIDGET_HOST = '127.0.0.1'
-const WIDGET_PORT = 49152
 const REMINDER_GRACE_MINUTES = 10
 const reminderStateFile = process.env.NODE_ENV === 'test'
   ? path.join(tmpdir(), `kidscontrol-reminder-state-${process.pid}.json`)

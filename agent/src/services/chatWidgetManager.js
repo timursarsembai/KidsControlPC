@@ -1,7 +1,7 @@
 import path from 'path'
 import fs from 'fs'
 import { spawn } from 'child_process'
-import { execAsync, delay, getSessionIdsForProcess, runEncodedPS } from '../core/utils.js'
+import { delay, getSessionIdsForProcess, runEncodedPS } from '../core/utils.js'
 import { CHAT_DATA_DIR } from '../config.js'
 
 const CHAT_APP_EXE = 'ChatTrayApp.exe'
