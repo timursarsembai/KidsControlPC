@@ -36,7 +36,7 @@ function normalizeSchedule(schedule) {
     action: group?.action || schedule?.action || 'allow',
     weekdays: Array.isArray(group?.weekdays) ? group.weekdays : [0, 1, 2, 3, 4, 5, 6],
     ranges: Array.isArray(group?.ranges) && group.ranges.length > 0
-      ? group.ranges.map(range => normalizeRange(range))
+      ? group.ranges.map(range => normalizeRange(range)).sort((a, b) => a.timeFrom.localeCompare(b.timeFrom))
       : [{ timeFrom: '07:00', timeTo: '21:00' }]
   })
 
@@ -229,9 +229,11 @@ export default function ProfilePanel({ profileId }) {
         index === groupIndex
           ? {
               ...group,
-              ranges: group.ranges.map((range, currentRangeIndex) =>
-                currentRangeIndex === rangeIndex ? { ...range, ...patch } : range
-              )
+              ranges: group.ranges
+                .map((range, currentRangeIndex) =>
+                  currentRangeIndex === rangeIndex ? { ...range, ...patch } : range
+                )
+                .sort((a, b) => a.timeFrom.localeCompare(b.timeFrom))
             }
           : group
       )
@@ -243,7 +245,7 @@ export default function ProfilePanel({ profileId }) {
       ...prev,
       groups: prev.groups.map((group, index) =>
         index === groupIndex
-          ? { ...group, ranges: [...group.ranges, { timeFrom: '16:00', timeTo: '19:00' }] }
+          ? { ...group, ranges: [...group.ranges, { timeFrom: '16:00', timeTo: '19:00' }].sort((a, b) => a.timeFrom.localeCompare(b.timeFrom)) }
           : group
       )
     }))
