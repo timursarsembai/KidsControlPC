@@ -526,7 +526,7 @@ export default function ActivityPanel() {
     if (!ownerUid || !selectedDeviceId) return
     const unsub = subscribeToActivityLogs(ownerUid, selectedDeviceId, date, setLogs)
     return unsub
-  }, [ownerUid, selectedDeviceId])
+  }, [ownerUid, selectedDeviceId, date])
 
   React.useEffect(() => {
     if (!ownerUid || !selectedDeviceId) return

@@ -49,7 +49,7 @@ export default function App() {
       setAuthLoading(false)
     })
     return unsub
-  }, [])
+  }, [initFirebase, cleanup])
 
   const handleSubmit = async (e) => {
     e.preventDefault()

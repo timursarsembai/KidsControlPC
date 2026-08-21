@@ -78,6 +78,10 @@ export default function PomodoroPanel() {
   const lastSeen = selectedDevice?.lastSeen?.toDate?.()
   const isOnline = selectedDevice?.status !== 'offline' && lastSeen && (Date.now() - lastSeen.getTime()) < 2 * 60 * 1000
   
+  // getFilteredWebsites() reads `rules` via the store's own get(), invisible to
+  // eslint's static analysis, but the memo genuinely needs to recompute when
+  // `rules` changes — do not drop it despite the "unnecessary dependency" warning.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const allWebsites = useMemo(() => getFilteredWebsites(), [rules, getFilteredWebsites])
   const currentSession = getPomodoroSession()
   const agentPomodoroState = selectedDevice?.pomodoroState

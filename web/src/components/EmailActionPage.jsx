@@ -25,7 +25,7 @@ export default function EmailActionPage() {
           setStatus('error')
         })
     }
-  }, [])
+  }, [mode, oobCode])
 
   return (
     <div className="auth-screen">

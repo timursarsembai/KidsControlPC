@@ -55,6 +55,11 @@ export default function ProgramsPanel({ mode }) {
         running: app.running || false
       }
     })
+    // getFilteredPrograms() reads installedApps/programSearch/programFilter via the
+    // store's own get(), invisible to eslint's static analysis, but this memo genuinely
+    // needs to recompute when any of them change (e.g. live search/filter) — do not drop
+    // them despite the "unnecessary dependency" warning.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [installedApps, rules, programSearch, programFilter, getFilteredPrograms, mode, now, showRunningOnly])
 
   // Auto-disable expired timers
