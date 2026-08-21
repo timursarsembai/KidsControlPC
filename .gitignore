@@ -7,6 +7,7 @@ functions/.env*
 agent/node_modules/
 agent/dist/
 agent/pairing.json
+agent/agent_auth*.json
 .local-tools/
 *.exe
 *.log
