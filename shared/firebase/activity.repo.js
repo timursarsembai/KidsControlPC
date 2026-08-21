@@ -1,5 +1,5 @@
 import {
-  collection, doc, query, where, orderBy, limit,
+  collection, query, where, orderBy, limit,
   onSnapshot, getDocs, Timestamp
 } from 'firebase/firestore'
 import { db } from './config.js'

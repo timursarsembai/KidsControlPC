@@ -66,7 +66,7 @@ export const createChatSlice = (set, get) => ({
   },
 
   createGroupChat: async (name, deviceIds) => {
-    const { user, activeOwnerUid, devices } = get()
+    const { user, activeOwnerUid } = get()
     if (!user) return
     const ownerUid = activeOwnerUid || user.uid
     const parentUids = await get()._getAllParentUids(ownerUid)
@@ -139,7 +139,7 @@ export const createChatSlice = (set, get) => ({
     set({ userProfile: { ...(userProfile || {}), chatName } })
   },
 
-  getChatUnreadCount: (chatId) => {
+  getChatUnreadCount: (_chatId) => {
     // unread for web (parent) — messages from children not read by this parent uid
     // For simplicity we just count messages from children (senderType=child)
     // A proper implementation would track readBy[parentUid], skipping for now
