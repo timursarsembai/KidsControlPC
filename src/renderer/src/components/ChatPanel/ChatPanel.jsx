@@ -28,7 +28,7 @@ function formatLastTime(chat) {
 
 export default function ChatPanel() {
   const {
-    chats, chatsLoading, activeChatId, selectChat, deleteGroupChat, devices
+    chats, chatsLoading, activeChatId, selectChat, devices
   } = useRulesStore()
   const [showGroupManager, setShowGroupManager] = useState(false)
 

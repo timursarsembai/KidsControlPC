@@ -105,7 +105,7 @@ export default function MessageThread({ chat }) {
           <div className="msg-empty">Нет сообщений. Напишите первым!</div>
         )}
 
-        {chatMessages.map((msg, i) => {
+        {chatMessages.map((msg) => {
           const isMe = msg.senderType === 'parent' && msg.senderUid === user?.uid
           const isChild = msg.senderType === 'child'
           const dateLabel = formatDate(msg.timestamp)

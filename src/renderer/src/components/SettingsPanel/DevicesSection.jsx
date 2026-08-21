@@ -90,7 +90,7 @@ function DeviceCard({ device, onRemove, onRename, onForceUpdate, deleting }) {
   )
 }
 
-export default function DevicesSection({ uid }) {
+export default function DevicesSection({ uid: _uid }) {
   const { t } = useTranslation()
   const { devices, renameDevice, deleteDevice } = useRulesStore()
   const [code, setCode] = useState('')

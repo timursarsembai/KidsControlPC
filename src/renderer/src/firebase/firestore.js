@@ -21,10 +21,8 @@ const deviceDoc      = (uid, devId)       => doc(db, 'users', uid, 'devices', de
 const rulesCol       = (uid, devId)       => collection(db, 'users', uid, 'devices', devId, 'rules')
 const ruleDoc        = (uid, devId, rId)  => doc(db, 'users', uid, 'devices', devId, 'rules', rId)
 const appsCol        = (uid, devId)       => collection(db, 'users', uid, 'devices', devId, 'installedApps')
-const commandsCol    = (uid, devId)       => collection(db, 'users', uid, 'devices', devId, 'commands')
 const screenshotsCol = (uid, devId)       => collection(db, 'users', uid, 'devices', devId, 'screenshots')
 const alertsCol      = (uid)              => collection(db, 'users', uid, 'alerts')
-const pairingCol     = (uid)              => collection(db, 'users', uid, 'pairingCodes')
 
 // ─── Devices ─────────────────────────────────────────────────────────────────
 
@@ -92,7 +90,6 @@ export function subscribeToInstalledApps(uid, deviceId, callback) {
 // Agent uses this to bulk-upload installed apps (called from agent, not parent UI)
 export async function uploadInstalledApps(uid, deviceId, apps) {
   const col = appsCol(uid, deviceId)
-  const batch = writeBatch(db)
   // Limit to 500 per batch (Firestore limit)
   const chunks = []
   for (let i = 0; i < apps.length; i += 400) chunks.push(apps.slice(i, i + 400))

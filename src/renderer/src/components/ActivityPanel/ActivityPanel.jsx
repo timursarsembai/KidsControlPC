@@ -30,12 +30,6 @@ function fmtScreenTime(sec) {
   return m > 0 ? `${h} ч ${m} мин` : `${h} ч`
 }
 
-function fmtShortDay(dateStr) {
-  const days = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб']
-  const d = new Date(dateStr + 'T12:00:00')
-  return days[d.getDay()]
-}
-
 function localDateStr(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
@@ -226,9 +220,16 @@ function AppsTab({ logs, stats, longStats, now }) {
   const topApps = Object.entries(appsUsage7).sort((a, b) => b[1] - a[1]).slice(0, 8)
   const maxSec7 = topApps[0]?.[1] || 1
 
+  // `now` is a primitive timestamp (useState(Date.now())); React Compiler's
+  // mutability check is being conservative about this prop-drilled value, which
+  // cascades into every useMemo below that depends on todayExtraSec. The manual
+  // useMemo calls still work correctly at runtime — this just opts the component
+  // out of the compiler's further optimization passes.
+  /* eslint-disable react-hooks/preserve-manual-memoization */
   const todayExtraSec = React.useMemo(() => runningSecFromLogs(appLogs, now), [appLogs, now])
   const dowItems = React.useMemo(() => computeDayOfWeek(longStats, todayExtraSec), [longStats, todayExtraSec])
   const monthItems = React.useMemo(() => computeByMonth(longStats, todayExtraSec), [longStats, todayExtraSec])
+  /* eslint-enable react-hooks/preserve-manual-memoization */
 
   // Events table data based on period
   let aggregatedRows = null

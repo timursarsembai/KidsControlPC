@@ -6,7 +6,6 @@ export default function ProfileSection({
   activeTab,
   addProfileMode,
   deleteProfileMode,
-  toggleProfileMode,
   expanded,
   handleMode,
   isActive,

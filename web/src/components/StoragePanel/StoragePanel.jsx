@@ -74,7 +74,7 @@ export default function StoragePanel() {
     })
   }
 
-  const doDelete = async (paths, label) => {
+  const doDelete = async (paths, _label) => {
     if (!paths.length) return
     setDeleting(true)
     setProgress('Удаление...')
