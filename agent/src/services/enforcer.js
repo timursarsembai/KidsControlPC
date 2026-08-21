@@ -1,4 +1,5 @@
-import path from 'path'
+// Rule paths are always Windows paths regardless of host OS — see scanner.js.
+import path from 'path/win32'
 import { updateDoc, doc, serverTimestamp } from 'firebase/firestore'
 import { getDeviceConfig, getActiveRules, getParentConfig } from '../core/configManager.js'
 import { getRunningProcesses } from '../scanner.js'

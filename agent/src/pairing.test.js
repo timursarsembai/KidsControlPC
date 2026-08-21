@@ -21,16 +21,13 @@ vi.mock('firebase/auth', () => ({
   signInAnonymously: vi.fn()
 }))
 
-// Mock Firebase functions module
+// Mock firebaseSync to avoid real Firebase init. pairing.js calls callCF()
+// directly (raw https, not the firebase/functions SDK) and uses its resolved
+// value unwrapped (no `.data` envelope).
 const mockPairDeviceFn = vi.fn()
-vi.mock('firebase/functions', () => ({
-  httpsCallable: vi.fn(() => mockPairDeviceFn)
-}))
-
-// Mock firebaseSync to avoid real Firebase init
 vi.mock('./network/firebaseSync.js', () => ({
   auth: { currentUser: { uid: 'agent-anon-uid-123' } },
-  functions: {}
+  callCF: (...args) => mockPairDeviceFn(...args)
 }))
 
 describe('loadPairing', () => {
@@ -69,7 +66,7 @@ describe('runPairingFlow', () => {
 
   it('pairs successfully with valid code', async () => {
     await setupUI(['1', 'OK', 'ABCDEF', 'OK'])  // lang, info, code, success
-    mockPairDeviceFn.mockResolvedValue({ data: { parentUid: 'parent123', deviceId: 'device-uuid' } })
+    mockPairDeviceFn.mockResolvedValue({ parentUid: 'parent123', deviceId: 'device-uuid' })
 
     const result = await runPairingFlow()
 
@@ -77,14 +74,14 @@ describe('runPairingFlow', () => {
     expect(result.deviceId).toBe('device-uuid')
     expect(result.agentUid).toBe('agent-anon-uid-123')
     expect(writeFileSync).toHaveBeenCalledTimes(1)
-    expect(mockPairDeviceFn).toHaveBeenCalledWith(expect.objectContaining({ code: 'ABCDEF' }))
+    expect(mockPairDeviceFn).toHaveBeenCalledWith('pairDevice', expect.objectContaining({ code: 'ABCDEF' }))
   })
 
   it('retries on CF error and succeeds with second code', async () => {
-    await setupUI(['1', 'OK', 'BADCO', 'OK', 'VALID1', 'OK'])
+    await setupUI(['1', 'OK', 'BADCOD', 'OK', 'VALID1', 'OK'])
     mockPairDeviceFn
       .mockRejectedValueOnce(Object.assign(new Error('not-found'), { code: 'functions/not-found' }))
-      .mockResolvedValueOnce({ data: { parentUid: 'parentXYZ', deviceId: 'dev-456' } })
+      .mockResolvedValueOnce({ parentUid: 'parentXYZ', deviceId: 'dev-456' })
 
     const result = await runPairingFlow()
 
@@ -94,7 +91,7 @@ describe('runPairingFlow', () => {
 
   it('rejects codes shorter than 6 characters without calling CF', async () => {
     await setupUI(['1', 'OK', 'ABC', 'OK', 'ABCDEF', 'OK'])
-    mockPairDeviceFn.mockResolvedValue({ data: { parentUid: 'p', deviceId: 'd' } })
+    mockPairDeviceFn.mockResolvedValue({ parentUid: 'p', deviceId: 'd' })
 
     await runPairingFlow()
 

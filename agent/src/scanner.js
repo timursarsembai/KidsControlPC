@@ -6,7 +6,11 @@
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import { writeFileSync, unlinkSync, existsSync } from 'fs'
-import { join, basename, extname } from 'path'
+import { join } from 'path'
+// Process/registry paths always come from Windows (PowerShell output) regardless
+// of what OS this code happens to run on (e.g. tests on a Linux dev machine) —
+// parse them with path.win32, not the host-native path module.
+import { basename, extname } from 'path/win32'
 import { tmpdir } from 'os'
 import { createHash } from 'crypto'
 import { isProtectedProgramEntry, isProtectedProcess } from './selfProtection.js'

@@ -1,6 +1,9 @@
 import fs from 'fs'
 import os from 'os'
-import path from 'path'
+// These paths always describe the agent's Windows install/output dirs, even
+// when this module is loaded on a non-Windows host (e.g. running tests) —
+// use path.win32 so separators stay deterministic regardless of host OS.
+import path from 'path/win32'
 import { randomUUID } from 'crypto'
 import { execAsync, runEncodedPS } from '../core/utils.js'
 

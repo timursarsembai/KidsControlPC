@@ -5,7 +5,8 @@
 
 import { exec } from 'child_process'
 import { promisify } from 'util'
-import { basename } from 'path'
+// Rule/process paths are always Windows paths regardless of host OS — see scanner.js.
+import { basename } from 'path/win32'
 import { isProtectedProcess } from './selfProtection.js'
 
 const execAsync = promisify(exec)
