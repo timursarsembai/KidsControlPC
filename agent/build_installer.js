@@ -134,6 +134,12 @@ async function build() {
   <arguments>--service</arguments>
   <logmode>roll</logmode>
   <onfailure action="restart" delay="10 sec"/>
+  <!-- The agent cannot handle a Windows service stop gracefully (Node gets no
+       SIGTERM on Windows), so WinSW always falls through to killing it. Keep that
+       wait short: a long stop makes Restart-Service hang and, worse, leaves
+       agent.exe locked during a silent update, which aborts the installer after
+       the service has already been deleted. -->
+  <stoptimeout>5 sec</stoptimeout>
 </service>`
     fs.writeFileSync(path.join(distDir, 'WinSW.xml'), xml)
 

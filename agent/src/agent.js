@@ -29,8 +29,12 @@ import { checkAndUpdateSilently } from './updater.js'
 import { tickScreenTime } from './services/activityTracker.js'
 import { tickDnsTracking } from './services/dnsTracker.js'
 import { delay } from './core/utils.js'
+import { withOperationTimeout } from './services/operationTimeout.js'
 import { clearHostsBlock } from './hostsBlocker.js'
 import { ENFORCE_INTERVAL_MS, HEARTBEAT_INTERVAL_MS } from './config.js'
+
+// Cap on each network-dependent startup step so main() always reaches the end.
+const STARTUP_STEP_TIMEOUT_MS = 30_000
 
 let parentUid = null
 let deviceId = null
@@ -116,9 +120,9 @@ async function main() {
   deviceId = pairing.deviceId
   setAgentContext(parentUid, deviceId)
 
-  await initFirebaseSync(parentUid, deviceId)
-  startScreenshotService(parentUid, deviceId)
-
+  // Enforcement must not depend on the network. loadConfigCache() restores the last
+  // known rules from disk, so blocking keeps working while offline — critical after a
+  // Windows 11 Modern Standby resume, when the NIC is down for tens of seconds.
   loadConfigCache()
   const dc = getDeviceConfig()
   if (dc && dc.isLocked) {
@@ -126,16 +130,43 @@ async function main() {
     ensureWidgetLocked()
   }
 
-  // Chat sync: subscribe to chats for this device, handle child replies
+  startTimerWidgetIfNeeded()
+
+  // Scheduled BEFORE any network await. These used to be registered at the very end
+  // of main(), so a single hung startup call (initChatSync's getDocs has no timeout)
+  // left the service "running" with no enforcement and no heartbeat at all.
+  let _dnsTick = 0
+  setInterval(() => {
+    sendHeartbeat()
+    if (!getIsWidgetLocked()) tickScreenTime(parentUid, deviceId, HEARTBEAT_INTERVAL_MS / 1000).catch(() => {})
+    if (++_dnsTick % 2 === 0) tickDnsTracking(parentUid, deviceId).catch(() => {})
+  }, HEARTBEAT_INTERVAL_MS)
+  setInterval(() => enforceRules(parentUid, deviceId, isShuttingDown), ENFORCE_INTERVAL_MS)
+  log('🛡️ Enforcement scheduled (works offline from cached rules)')
+
+  // Everything below needs the network. Each step is capped so a slow or missing
+  // connection can delay startup but can never stall it.
+  await withOperationTimeout(
+    initFirebaseSync(parentUid, deviceId),
+    STARTUP_STEP_TIMEOUT_MS,
+    'initFirebaseSync timed out'
+  ).catch(e => log(`⚠️ ${e.message} — continuing offline, listeners retry on their own`))
+
+  startScreenshotService(parentUid, deviceId)
+
   const chatDeviceName = dc?.alias || dc?.hostname || hostname()
-  await initChatSync(parentUid, deviceId, chatDeviceName)
+  withOperationTimeout(
+    initChatSync(parentUid, deviceId, chatDeviceName),
+    STARTUP_STEP_TIMEOUT_MS,
+    'initChatSync timed out'
+  ).catch(e => log(`⚠️ ${e.message}`))
   startChatWidgetIfNeeded().catch(e => log(`⚠️ Chat widget launch failed: ${e.message}`))
 
-  await sendHeartbeat()
-  log('💓 Heartbeat sent')
-  await sendAlert('agent_started', 'Background program was started')
+  sendHeartbeat().catch(() => {})
+  sendAlert('agent_started', 'Background program was started').catch(() => {})
 
-  await performProgramRescan(parentUid, deviceId, log, 'startup')
+  performProgramRescan(parentUid, deviceId, log, 'startup')
+    .catch(e => log(`⚠️ Startup scan failed: ${e.message}`))
 
   setTimeout(() => {
     if (!isShuttingDown) {
@@ -144,16 +175,6 @@ async function main() {
         .catch(e => log(`⚠️ Delayed scan failed: ${e.message}`))
     }
   }, 3 * 60 * 1000)
-
-  startTimerWidgetIfNeeded()
-
-  let _dnsTick = 0
-  setInterval(() => {
-    sendHeartbeat()
-    if (!getIsWidgetLocked()) tickScreenTime(parentUid, deviceId, HEARTBEAT_INTERVAL_MS / 1000).catch(() => {})
-    if (++_dnsTick % 2 === 0) tickDnsTracking(parentUid, deviceId).catch(() => {})
-  }, HEARTBEAT_INTERVAL_MS)
-  setInterval(() => enforceRules(parentUid, deviceId, isShuttingDown), ENFORCE_INTERVAL_MS)
   setInterval(() => {
     if (!isShuttingDown) {
       performProgramRescan(parentUid, deviceId, log, 'periodic')

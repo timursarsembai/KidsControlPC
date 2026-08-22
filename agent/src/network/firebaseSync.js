@@ -7,7 +7,8 @@ import { initializeAuth, signInWithCustomToken } from 'firebase/auth'
 import {
   getFirestore, collection, doc,
   query, where, onSnapshot,
-  updateDoc, addDoc, serverTimestamp
+  updateDoc, addDoc, serverTimestamp,
+  disableNetwork, enableNetwork
 } from 'firebase/firestore'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import https from 'https'
@@ -216,6 +217,26 @@ export function stopFirebaseSync() {
 }
 
 let consecutiveFailures = 0
+let isReconnecting = false
+
+// Forces the Firestore gRPC channel to be torn down and rebuilt. After a Windows 11
+// Modern Standby resume the NIC returns seconds later but the existing Listen/Write
+// streams stay wedged, so every updateDoc sits unresolved until it times out.
+async function resetFirestoreConnection() {
+  if (isReconnecting) return
+  isReconnecting = true
+  try {
+    log('Resetting Firestore connection after repeated heartbeat failures')
+    await disableNetwork(db)
+    await enableNetwork(db)
+    consecutiveFailures = 0
+    log('Firestore connection reset complete')
+  } catch (err) {
+    log(`Firestore reconnect failed: ${err.message}`)
+  } finally {
+    isReconnecting = false
+  }
+}
 
 export async function sendHeartbeat() {
   if (!parentUid || !deviceId) return
@@ -240,8 +261,11 @@ export async function sendHeartbeat() {
       consecutiveFailures++
       log(`Heartbeat error (${consecutiveFailures}/3): ${err.message}`)
       if (consecutiveFailures >= 3) {
-        log('Network likely stuck after sleep/disconnect. Restarting agent...')
-        process.exit(1)
+        // Used to be process.exit(1), trusting the Windows service to restart us.
+        // That turned every sleep/resume into a kill, and if the network was still
+        // down on the next start main() could hang before enforcement was ever
+        // scheduled - agent "running" with no rules applied. Recover in-process.
+        await resetFirestoreConnection()
       }
     }
   }
