@@ -34,11 +34,14 @@ export async function ensureUploadToken(parentUid, deviceId) {
 
   const pairing = readPairingFile() || {}
   uploadToken = pairing.screenshotUploadToken
-  if (!uploadToken) {
-    uploadToken = randomBytes(32).toString('hex')
-    writePairingFile({ ...pairing, screenshotUploadToken: uploadToken })
-  }
 
+  // pairDevice now mints this server-side and it is already on the device doc,
+  // so the common path neither generates nor writes anything. Only devices paired
+  // by an older agent still need the legacy self-issue path below.
+  if (uploadToken) return uploadToken
+
+  uploadToken = randomBytes(32).toString('hex')
+  writePairingFile({ ...pairing, screenshotUploadToken: uploadToken })
   await updateDoc(doc(db, 'users', parentUid, 'devices', deviceId), {
     screenshotUploadToken: uploadToken
   })

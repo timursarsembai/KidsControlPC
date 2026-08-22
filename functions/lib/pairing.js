@@ -77,6 +77,13 @@ const pairDevice = onCall({ region: REGION }, async (request) => {
   const codeRef = db.collection('pairingCodes').doc(code)
   const newDeviceId = crypto.randomUUID()
 
+  // Minted here rather than by the agent so a freshly paired agent can authenticate
+  // immediately (getAgentToken checks this value). Previously the agent generated it
+  // and wrote it to the device doc itself, which required the device doc to be
+  // writable by unauthenticated callers — the hole that kept agentUid at null.
+  // On a repair pairing this deliberately rotates: the replaced PC's copy stops working.
+  const screenshotUploadToken = crypto.randomBytes(32).toString('hex')
+
   const { parentUid, deviceId } = await db.runTransaction(async (tx) => {
     const snap = await tx.get(codeRef)
     if (!snap.exists) throw new HttpsError('not-found', 'Code not found or expired.')
@@ -101,6 +108,7 @@ const pairDevice = onCall({ region: REGION }, async (request) => {
         lastSeen: now,
         agentVersion,
         agentUid,
+        screenshotUploadToken,
         status: 'online'
       }, { merge: true })
       return { parentUid: data.parentUid, deviceId: data.targetDeviceId }
@@ -115,12 +123,13 @@ const pairDevice = onCall({ region: REGION }, async (request) => {
       deviceName: hostname,
       agentVersion,
       agentUid,
+      screenshotUploadToken,
       status: 'online'
     })
     return { parentUid: data.parentUid, deviceId: newDeviceId }
   })
 
-  return { parentUid, deviceId }
+  return { parentUid, deviceId, screenshotUploadToken }
 })
 
 const registerAgentUid = onCall({ region: REGION }, async (request) => {

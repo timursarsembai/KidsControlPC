@@ -1,3 +1,7 @@
+// MUST be first: installs a pkg-safe fetch before firebase/auth is evaluated,
+// otherwise Auth cannot refresh the ID token and Firestore starts failing after
+// the token's one-hour lifetime.
+import './fetchPolyfill.js'
 import { initializeApp } from 'firebase/app'
 import { initializeAuth, signInWithCustomToken } from 'firebase/auth'
 import {
@@ -45,7 +49,18 @@ export const auth = initializeAuth(app, { persistence: [makeFilePersistence(AGEN
 // Direct HTTPS call to a Firebase Callable Function — bypasses Firebase Functions SDK
 // (which requires a working fetch implementation). Uses Node.js built-in https module
 // that reliably works inside pkg/Node.js executables.
-export function callCF(fnName, data) {
+export async function callCF(fnName, data) {
+  // Callable Functions read the caller identity from this header. Without it every
+  // CF sees request.auth === undefined, which is why registerAgentUid could never
+  // succeed and agentUid stayed null on every device — leaving the device doc
+  // writable by anyone via the isDeviceAgent(storedUid == null) fallback.
+  let authHeader = null
+  try {
+    if (auth.currentUser) authHeader = `Bearer ${await auth.currentUser.getIdToken()}`
+  } catch (err) {
+    log(`Could not attach ID token to ${fnName}: ${err.message}`)
+  }
+
   return new Promise((resolve, reject) => {
     const body = JSON.stringify({ data })
     const options = {
@@ -54,7 +69,8 @@ export function callCF(fnName, data) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(body)
+        'Content-Length': Buffer.byteLength(body),
+        ...(authHeader ? { Authorization: authHeader } : {})
       }
     }
     const req = https.request(options, (res) => {
@@ -118,32 +134,35 @@ export async function initFirebaseSync(pUid, dId) {
   // Best-effort auth. Primary: custom token via getAgentToken CF called with plain
   // https.request (Node.js built-in, works in pkg). Fallback: legacy unauthenticated
   // mode (Firestore rules allow writes when agentUid == null). MUST NOT be fatal.
-  if (!auth.currentUser) {
-    let signedIn = false
-
-    // Primary: custom token (proves device ownership via screenshotUploadToken)
+  // The agent must end up as `agent_<deviceId>` — the uid getAgentToken mints after
+  // verifying screenshotUploadToken. Checking `!auth.currentUser` was not enough:
+  // runPairingFlow() used to signInAnonymously() and that session is restored from
+  // agent_auth.json on every later start, so this branch was skipped forever and the
+  // agent ran as an anonymous user that matches no security rule.
+  const expectedUid = `agent_${deviceId}`
+  if (auth.currentUser?.uid !== expectedUid) {
+    if (auth.currentUser) {
+      log(`Replacing stale session ${auth.currentUser.uid} with the device agent identity`)
+    }
     try {
       const pairing = existsSync(PAIRING_FILE)
         ? JSON.parse(readFileSync(PAIRING_FILE, 'utf8'))
         : null
-      if (pairing?.screenshotUploadToken) {
-        const result = await callCF('getAgentToken', {
-          parentUid, deviceId,
-          uploadToken: pairing.screenshotUploadToken
-        })
-        await signInWithCustomToken(auth, result.token)
-        log(`Signed in with custom token: ${auth.currentUser.uid}`)
-        signedIn = true
+      if (!pairing?.screenshotUploadToken) {
+        throw new Error('pairing.json has no screenshotUploadToken — re-pair this device')
       }
+      const result = await callCF('getAgentToken', {
+        parentUid, deviceId,
+        uploadToken: pairing.screenshotUploadToken
+      })
+      await signInWithCustomToken(auth, result.token)
+      log(`Signed in with custom token: ${auth.currentUser.uid}`)
     } catch (err) {
       log(`Custom token auth failed: ${err.message}`)
-    }
-
-    if (!signedIn) {
       log('Continuing in legacy unauthenticated mode')
     }
   } else {
-    log(`Using persisted auth session: ${auth.currentUser.uid}`)
+    log(`Using persisted agent session: ${auth.currentUser.uid}`)
   }
 
   // Register this agent's UID in the device doc so Firestore rules can verify it.

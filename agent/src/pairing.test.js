@@ -16,17 +16,11 @@ vi.mock('child_process', () => ({
   })
 }))
 
-// Mock Firebase auth module
-vi.mock('firebase/auth', () => ({
-  signInAnonymously: vi.fn()
-}))
-
 // Mock firebaseSync to avoid real Firebase init. pairing.js calls callCF()
 // directly (raw https, not the firebase/functions SDK) and uses its resolved
 // value unwrapped (no `.data` envelope).
 const mockPairDeviceFn = vi.fn()
 vi.mock('./network/firebaseSync.js', () => ({
-  auth: { currentUser: { uid: 'agent-anon-uid-123' } },
   callCF: (...args) => mockPairDeviceFn(...args)
 }))
 
@@ -66,13 +60,20 @@ describe('runPairingFlow', () => {
 
   it('pairs successfully with valid code', async () => {
     await setupUI(['1', 'OK', 'ABCDEF', 'OK'])  // lang, info, code, success
-    mockPairDeviceFn.mockResolvedValue({ parentUid: 'parent123', deviceId: 'device-uuid' })
+    mockPairDeviceFn.mockResolvedValue({
+      parentUid: 'parent123',
+      deviceId: 'device-uuid',
+      screenshotUploadToken: 'server-minted-token'
+    })
 
     const result = await runPairingFlow()
 
     expect(result.parentUid).toBe('parent123')
     expect(result.deviceId).toBe('device-uuid')
-    expect(result.agentUid).toBe('agent-anon-uid-123')
+    // Persisted so initFirebaseSync can authenticate as agent_<deviceId>.
+    expect(result.screenshotUploadToken).toBe('server-minted-token')
+    // No anonymous session is created any more, so nothing shadows that identity.
+    expect(result.agentUid).toBeUndefined()
     expect(writeFileSync).toHaveBeenCalledTimes(1)
     expect(mockPairDeviceFn).toHaveBeenCalledWith('pairDevice', expect.objectContaining({ code: 'ABCDEF' }))
   })

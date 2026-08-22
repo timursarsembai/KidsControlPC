@@ -5,10 +5,9 @@
  * Uses the pairDevice Cloud Function for atomic code validation + device creation.
  */
 
-import { signInAnonymously } from 'firebase/auth'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { PAIRING_FILE, AGENT_VERSION } from './config.js'
-import { auth, callCF } from './network/firebaseSync.js'
+import { callCF } from './network/firebaseSync.js'
 import { hostname, type as osType } from 'os'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
@@ -54,13 +53,10 @@ export async function runPairingFlow() {
   console.log('║     KidsControlPC — Agent (Child PC)     ║')
   console.log('╚══════════════════════════════════════════╝\n')
 
-  // Best-effort sign-in — agentUid may not be available during first pairing in pkg.
-  if (!auth.currentUser) {
-    try {
-      await signInAnonymously(auth)
-      console.log(`[Pairing] Anonymous auth established: ${auth.currentUser.uid}`)
-    } catch { /* fails in pkg/Node.js — pairing continues without auth */ }
-  }
+  // No sign-in here on purpose. An anonymous session would be persisted to
+  // agent_auth.json and then restored on every later start, permanently shadowing
+  // the `agent_<deviceId>` custom-token identity that the security rules expect.
+  // pairDevice returns the upload token; initFirebaseSync authenticates with it.
 
   const langChoice = await promptUI('Language / Язык', 'Choose language / Выберите язык\n(1 - English, 2 - Русский)', true)
   const isRu = langChoice === '2'
@@ -98,13 +94,13 @@ export async function runPairingFlow() {
         agentVersion: AGENT_VERSION
       })
 
-      const { parentUid, deviceId } = result
+      const { parentUid, deviceId, screenshotUploadToken } = result
       const deviceHostname = hostname()
 
       const pairingData = {
         parentUid,
         deviceId,
-        agentUid: auth.currentUser?.uid ?? null,
+        screenshotUploadToken,
         deviceHostname,
         pairedAt: new Date().toISOString()
       }
