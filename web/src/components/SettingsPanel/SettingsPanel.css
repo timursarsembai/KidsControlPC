@@ -134,6 +134,13 @@
   gap: var(--space-4);
 }
 
+.device-actions-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
 .device-status-dot { flex-shrink: 0; }
 
 .device-info { flex: 1; min-width: 0; }
@@ -739,6 +746,20 @@
     align-items: flex-start;
     flex-direction: column;
     gap: var(--space-3);
+  }
+
+  .device-card-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .device-actions-row {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .device-actions-row .btn {
+    flex: 1 1 auto;
   }
 
   .device-meta,
