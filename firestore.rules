@@ -38,6 +38,18 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.get('parentUid', null) == userId;
     }
 
+    // Any session an agent can legitimately be in. runPairingFlow() calls
+    // signInAnonymously() and persists that session to agent_auth.json, so from the
+    // second start onward initFirebaseSync's `if (!auth.currentUser)` short-circuits
+    // and the agent runs as an ANONYMOUS user — neither `request.auth == null` nor
+    // the custom-token claim path matches it, which denied every alert/chat write.
+    // No get() here, so this costs no extra document reads.
+    function isAgentSession(userId) {
+      return request.auth == null
+        || (isSignedIn() && request.auth.token.firebase.sign_in_provider == 'anonymous')
+        || isAgentOfUser(userId);
+    }
+
     // ── User root document (e.g. pauseAllRules flag) ─────────────────────────
     // Agents read this to check pauseAllRules. Legacy agents run without auth,
     // so we allow any read — the userId is not publicly guessable.
@@ -129,7 +141,7 @@ service cloud.firestore {
     // exclude bare isSignedIn() to block revoked invitees.
     match /users/{userId}/alerts/{alertId} {
       allow read: if canManageUser(userId);
-      allow write: if canManageUser(userId) || request.auth == null || isAgentOfUser(userId);
+      allow write: if canManageUser(userId) || isAgentSession(userId);
     }
 
     // ── Chats ─────────────────────────────────────────────────────────────────
@@ -137,9 +149,9 @@ service cloud.firestore {
     // the child can send and receive chat messages. Signed-in agents match via
     // isAgentOfUser instead (they are neither owner nor parent).
     match /users/{userId}/chats/{chatId} {
-      allow read: if canManageUser(userId) || request.auth == null || isAgentOfUser(userId);
+      allow read: if canManageUser(userId) || isAgentSession(userId);
       allow create: if canManageUser(userId);
-      allow update: if canManageUser(userId) || request.auth == null || isAgentOfUser(userId);
+      allow update: if canManageUser(userId) || isAgentSession(userId);
       allow delete: if isOwner(userId) || (isSignedIn() && resource.data.createdBy == request.auth.uid);
     }
 
@@ -155,9 +167,9 @@ service cloud.firestore {
     }
 
     match /users/{userId}/chats/{chatId}/messages/{msgId} {
-      allow read: if canManageUser(userId) || request.auth == null || isAgentOfUser(userId);
-      allow create: if canManageUser(userId) || request.auth == null || isAgentOfUser(userId);
-      allow update: if canManageUser(userId) || request.auth == null || isAgentOfUser(userId);
+      allow read: if canManageUser(userId) || isAgentSession(userId);
+      allow create: if canManageUser(userId) || isAgentSession(userId);
+      allow update: if canManageUser(userId) || isAgentSession(userId);
       allow delete: if isOwner(userId);
     }
   }
