@@ -8,6 +8,7 @@
 import {
   createUserWithEmailAndPassword,
   deleteUser,
+  updatePassword,
   onAuthStateChanged,
   sendEmailVerification,
   sendPasswordResetEmail,
@@ -79,6 +80,19 @@ export async function deleteAccount(password) {
   if (!isSelfHosted) return deleteUser(firebaseAuth.currentUser)
   return selfhosted.deleteAccount(password)
 }
+
+/**
+ * Firebase changes a password on the strength of a recent sign-in and refuses
+ * with auth/requires-recent-login otherwise, so it never sees the current one.
+ * The self-hosted backend asks for it instead — which also works for a parent
+ * who signed in yesterday.
+ */
+export async function changePassword(currentPassword, newPassword) {
+  if (!isSelfHosted) return updatePassword(firebaseAuth.currentUser, newPassword)
+  return selfhosted.changePassword(currentPassword, newPassword)
+}
+
+export const requiresCurrentPasswordToChange = isSelfHosted
 
 export function getCurrentUser() {
   if (!isSelfHosted) return firebaseAuth.currentUser

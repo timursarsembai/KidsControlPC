@@ -108,3 +108,17 @@ export async function deleteAccount(password) {
   clearTokens()
   setUser(null)
 }
+
+/**
+ * Changes the password and keeps the session alive.
+ *
+ * The server revokes every other session — including any copy of the token
+ * someone else might hold — and hands back a fresh pair for this one, which is
+ * why the response is stored the same way a sign-in is.
+ */
+export async function changePassword(currentPassword, newPassword) {
+  const session = await api.post('/auth/change-password', { currentPassword, newPassword })
+  setTokens(session)
+  setUser(session.user)
+  return session.user
+}

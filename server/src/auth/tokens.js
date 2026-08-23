@@ -88,7 +88,7 @@ export async function rotateRefreshToken(rawToken, userAgent) {
   // function exists to detect, waved through by a race.
   const claimed = await query(
     `update refresh_tokens
-        set revoked_at = now()
+        set revoked_at = now(), revoked_reason = 'rotated'
       where token_hash = $1 and revoked_at is null and expires_at > now()
       returning user_id`,
     [hash]
@@ -100,14 +100,18 @@ export async function rotateRefreshToken(rawToken, userAgent) {
     return { userId, token: next.token }
   }
 
-  // Nothing claimed: the token is unknown, expired, or already spent. Only the
-  // last case is a replay worth reacting to.
+  // Nothing claimed: the token is unknown, expired, or already revoked. Only
+  // one of those is a replay.
   const { rows } = await query(
-    'select user_id, revoked_at from refresh_tokens where token_hash = $1',
+    'select user_id, revoked_at, revoked_reason from refresh_tokens where token_hash = $1',
     [hash]
   )
-  if (rows[0]?.revoked_at) {
-    await revokeAllForUser(rows[0].user_id)
+  // A token revoked because it was rotated should never be presented again —
+  // whoever holds it got the replacement. Any other reason (a password change,
+  // a sign-out) is something the owner did on purpose, and a stale tab
+  // stumbling over it must not cost them the session they are using.
+  if (rows[0]?.revoked_at && rows[0].revoked_reason === 'rotated') {
+    await revokeAllForUser(rows[0].user_id, 'reuse_detected')
   }
   return null
 }
@@ -115,15 +119,19 @@ export async function rotateRefreshToken(rawToken, userAgent) {
 export async function revokeRefreshToken(rawToken) {
   if (typeof rawToken !== 'string' || rawToken.length === 0) return
   await query(
-    'update refresh_tokens set revoked_at = now() where token_hash = $1 and revoked_at is null',
+    `update refresh_tokens
+        set revoked_at = now(), revoked_reason = 'logout'
+      where token_hash = $1 and revoked_at is null`,
     [sha256(rawToken)]
   )
 }
 
-export async function revokeAllForUser(userId) {
+export async function revokeAllForUser(userId, reason = 'password_change') {
   await query(
-    'update refresh_tokens set revoked_at = now() where user_id = $1 and revoked_at is null',
-    [userId]
+    `update refresh_tokens
+        set revoked_at = now(), revoked_reason = $2
+      where user_id = $1 and revoked_at is null`,
+    [userId, reason]
   )
 }
 

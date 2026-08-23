@@ -14,6 +14,10 @@ RUN npm ci --omit=dev --no-audit --no-fund
 
 COPY src ./src
 COPY migrations ./migrations
+# One-off maintenance run with `docker compose exec api node scripts/…`.
+# The Firestore import lives here so it uses the same password hashing and the
+# same database connection the service itself does.
+COPY scripts ./scripts
 
 USER node
 EXPOSE 8092

@@ -4,7 +4,7 @@ import { badRequest, conflict, unauthorized } from '../errors.js'
 import { looksLikeEmail, normalizeEmail } from '../auth/email.js'
 import { hashPassword, verifyAgainstDummy, verifyPassword } from '../auth/password.js'
 import {
-  issueRefreshToken, revokeRefreshToken, rotateRefreshToken, signAccessToken
+  issueRefreshToken, revokeAllForUser, revokeRefreshToken, rotateRefreshToken, signAccessToken
 } from '../auth/tokens.js'
 import { requireParent } from '../auth/guard.js'
 
@@ -132,6 +132,47 @@ export default async function authRoutes(app) {
   app.post('/auth/logout', { schema: { body: refreshSchema } }, async (request, reply) => {
     await revokeRefreshToken(request.body.refreshToken)
     return reply.code(204).send()
+  })
+
+  // Changing a password. Needed by ordinary use and required by the migration:
+  // accounts imported from Firestore arrive with a password their owner did
+  // not choose, and there is no mail to reset it with yet.
+  app.post('/auth/change-password', {
+    preHandler: requireParent,
+    schema: {
+      body: {
+        type: 'object',
+        required: ['currentPassword', 'newPassword'],
+        properties: {
+          currentPassword: { type: 'string', minLength: 1, maxLength: 200 },
+          newPassword: { type: 'string', minLength: 8, maxLength: 200 }
+        },
+        additionalProperties: false
+      }
+    },
+    config: { rateLimit: { max: 10, timeWindow: '5 minutes' } }
+  }, async (request, reply) => {
+    const { rows } = await query('select password_hash from users where id = $1', [request.userId])
+    if (!rows[0]) throw unauthorized('invalid_token', 'Сессия истекла, войдите заново.')
+
+    const ok = await verifyPassword(request.body.currentPassword, rows[0].password_hash)
+    if (!ok) throw unauthorized('invalid_credentials', 'Текущий пароль неверен.')
+
+    const passwordHash = await hashPassword(request.body.newPassword)
+    await query(
+      'update users set password_hash = $2, updated_at = now() where id = $1',
+      [request.userId, passwordHash]
+    )
+
+    // Every other session dies with the old password. If the reason for
+    // changing it was that someone else had it, leaving their session alive
+    // would defeat the whole exercise. The caller gets a fresh pair so the
+    // screen they are looking at keeps working.
+    await revokeAllForUser(request.userId)
+    const refresh = await issueRefreshToken(request.userId, request.headers['user-agent'])
+
+    const { rows: user } = await query('select email from users where id = $1', [request.userId])
+    return reply.send(sessionResponse(request.userId, user[0].email, refresh.token))
   })
 
   // Emergency unlock: turns every rule on every device off at once. Lives on
