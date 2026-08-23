@@ -65,6 +65,7 @@ function DeviceCard({ device, ownerUid, onRemove, onRename, deleting }) {
               {isOnline ? '● Онлайн' : '● Оффлайн'}
             </span>
             {device.hostname && <span className="device-hostname">{device.hostname}</span>}
+            {device.agentVersion && <span className="device-hostname">v{device.agentVersion}</span>}
             {lastSeen && (
               <span className="device-lastseen">
                 Последний раз: {lastSeen.toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}
