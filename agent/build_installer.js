@@ -17,16 +17,21 @@ const registryRunValue = isStaging ? 'KidsControlTimerWidgetDev' : 'KidsControlT
 const uninstallKey = isStaging ? 'KidsControlAgentDev' : 'KidsControlAgent'
 const pairingFileName = isStaging ? 'pairing.staging.json' : 'pairing.json'
 const processCleanupScriptName = 'stop_install_dir_processes.ps1'
-const processCleanupCommands = isStaging
-  ? `  nsExec::ExecToLog 'schtasks /End /TN "${widgetTaskName}"'
+// Production used to just taskkill a few images by name. That never touched WinSW.exe -
+// the service host itself - so "cannot open file for writing: WinSW.exe" aborted the
+// install. Interactively you can hit Retry; under /S (how the updater runs) NSIS simply
+// gives up, and by then the section has already run `sc delete`, leaving the machine
+// with no service and no agent until someone reinstalls by hand.
+// The staging script already handled this properly: stop everything running from the
+// install dir, then rename the exes aside - NTFS allows renaming a running image even
+// when it cannot be overwritten - so use it for both builds.
+// Also drops `taskkill /F /IM node.exe`, which killed every unrelated Node process on
+// the machine, including a developer's own build.
+const processCleanupCommands = `  nsExec::ExecToLog 'schtasks /End /TN "${widgetTaskName}"'
   nsExec::ExecToLog 'schtasks /Delete /TN "${widgetTaskName}" /F'
-  nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\\${processCleanupScriptName}" -InstallDir "$INSTDIR"'
-`
-  : `  nsExec::ExecToLog 'taskkill /F /IM agent.exe'
-  nsExec::ExecToLog 'taskkill /F /IM TimerWidget.exe'
-  nsExec::ExecToLog 'taskkill /F /IM ReminderWidget.exe'
+  nsExec::ExecToLog 'taskkill /F /IM agent.exe'
   nsExec::ExecToLog 'taskkill /F /IM ChatTrayApp.exe'
-  nsExec::ExecToLog 'taskkill /F /IM node.exe'
+  nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\\${processCleanupScriptName}" -InstallDir "$INSTDIR"'
 `
 
 // System.Speech.dll (used by TimerWidget/ReminderWidget/ScreenBlockerWidget for TTS)
@@ -261,7 +266,13 @@ for ($i = 0; $i -lt 10; $i++) {
   Start-Sleep -Milliseconds 500
 }
 
-foreach ($fileName in @('agent.exe', 'TimerWidget.exe', 'ReminderWidget.exe', 'ScreenBlockerWidget.exe', 'CustomDialogWidget.exe', 'ScreenshotHelper.exe')) {
+# Sweep away renamed binaries left by earlier updates before creating more. agent.exe
+# alone is ~43 MB, so without this every silent update permanently adds that much to
+# Program Files.
+Get-ChildItem -LiteralPath $root -Filter '*.old.*' -File -ErrorAction SilentlyContinue |
+  ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
+
+foreach ($fileName in @('agent.exe', 'WinSW.exe', 'ChatTrayApp.exe', 'TimerWidget.exe', 'ReminderWidget.exe', 'ScreenBlockerWidget.exe', 'CustomDialogWidget.exe', 'ScreenshotHelper.exe')) {
   $filePath = Join-Path $root $fileName
   if (Test-Path $filePath) {
     try {
