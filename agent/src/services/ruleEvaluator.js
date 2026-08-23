@@ -78,26 +78,47 @@ export function getEffectiveRules(activeRules, deviceConfig, now = new Date()) {
   return [...filtered, ...getPomodoroRules(activeRules, deviceConfig)]
 }
 
+// These run on every enforcement tick — every 5 seconds. Dumping the full rule list
+// each time buried the startup diagnostics under tens of thousands of identical lines
+// within minutes, which repeatedly cost us the evidence needed to debug a failure.
+// Emit only when the picture actually changes; a stable system stays silent.
+let lastProfileSignature = null
+let lastEffectiveSignature = null
+
+function logIfChanged(signature, last, emit) {
+  if (signature === last) return last
+  emit()
+  return signature
+}
+
 export function logProfileRuleDebug(activeRules, now, log) {
   const profileRules = activeRules.filter(r => r.mode === 'profile')
   if (profileRules.length === 0) return
 
-  log(`📊 Profile rules count: ${profileRules.length}`)
-  for (const r of profileRules) {
+  const lines = profileRules.map(r => {
     const hasSchedule = !!r.schedule
     const scheduleAction = r.schedule?.action || 'N/A'
     const groups = r.schedule?.groups?.length || 0
     const shouldBlock = hasSchedule ? shouldBlockBySchedule(r.schedule, now) : 'no schedule'
-    log(`  → id=${r.id} type=${r.type} mode=${r.mode} status=${r.status} hasSchedule=${hasSchedule} scheduleAction=${scheduleAction} groups=${groups} shouldBlock=${shouldBlock} program=${r.program?.name || 'N/A'}`)
-  }
+    return `  → id=${r.id} type=${r.type} mode=${r.mode} status=${r.status} hasSchedule=${hasSchedule} scheduleAction=${scheduleAction} groups=${groups} shouldBlock=${shouldBlock} program=${r.program?.name || 'N/A'}`
+  })
+
+  lastProfileSignature = logIfChanged(lines.join('\n'), lastProfileSignature, () => {
+    log(`📊 Profile rules count: ${profileRules.length}`)
+    for (const line of lines) log(line)
+  })
 }
 
 export function logEffectiveProgramRules(effectiveRules, log) {
   const effectivePrograms = effectiveRules.filter(r => r.type === 'program')
   if (effectivePrograms.length === 0) return
 
-  log(`🔒 Effective program rules to enforce: ${effectivePrograms.length}`)
-  for (const r of effectivePrograms) {
-    log(`  → ${r.program?.name} (mode=${r.mode}, schedule_action=${r.schedule?.action || 'N/A'})`)
-  }
+  const lines = effectivePrograms.map(
+    r => `  → ${r.program?.name} (mode=${r.mode}, schedule_action=${r.schedule?.action || 'N/A'})`
+  )
+
+  lastEffectiveSignature = logIfChanged(lines.join('\n'), lastEffectiveSignature, () => {
+    log(`🔒 Effective program rules to enforce: ${effectivePrograms.length}`)
+    for (const line of lines) log(line)
+  })
 }

@@ -75,11 +75,17 @@ function buildBlockSection(domains) {
 }
 
 // ─── Apply blocked domains list ───────────────────────────────────────────────
+// Called from the enforcement tick, i.e. every 5 seconds. It used to rewrite the hosts
+// file unconditionally on each pass — pointless disk churn on a file Windows and
+// antivirus software both watch closely, and the source of the recurring
+// "EBUSY: resource busy or locked" errors, plus one log line every 5 seconds.
 export function applyHostsBlock(domains) {
   const current  = readHosts()
   const stripped = stripOurSection(current)
   const section  = buildBlockSection(domains)
   const next     = stripped + section
+
+  if (next === current) return true
 
   try {
     writeFileSync(HOSTS_FILE, next, 'utf8')

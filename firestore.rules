@@ -131,8 +131,11 @@ service cloud.firestore {
     }
 
     // Screenshots - agent can create metadata only with this device's upload token.
+    // The agent also needs read: cleanupExpiredScreenshots() queries this collection for
+    // expired entries before deleting them. Without it that query was denied on every
+    // run, so expired screenshots were never reclaimed and quietly ate the storage quota.
     match /users/{userId}/devices/{deviceId}/screenshots/{screenshotId} {
-      allow read: if canManageUser(userId);
+      allow read: if canManageUser(userId) || isDeviceAgent(userId, deviceId);
       allow create: if canManageUser(userId) || hasValidScreenshotToken(userId, deviceId);
       allow update: if canManageUser(userId);
       allow delete: if canManageUser(userId)
