@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import https from 'https'
-import { hostname } from 'os'
+import { hostname, freemem, totalmem } from 'os'
 import { firebaseConfig, AGENT_AUTH_FILE, PAIRING_FILE, FUNCTIONS_REGION, AGENT_VERSION } from '../config.js'
 import { eventBus, EVENTS } from '../core/eventBus.js'
 import { setDeviceConfig, setActiveRules, setParentConfig } from '../core/configManager.js'
@@ -246,7 +246,12 @@ async function resetFirestoreConnection() {
   if (isReconnecting) return
   isReconnecting = true
   try {
-    log('Resetting Firestore connection after repeated heartbeat failures')
+    // Report memory alongside the reset: a machine out of RAM produces the same
+    // ENETUNREACH/timeout symptoms as a genuinely disconnected one, and telling those
+    // two apart from the log alone was otherwise impossible.
+    const freeMb = Math.round(freemem() / 1048576)
+    const totalMb = Math.round(totalmem() / 1048576)
+    log(`Resetting Firestore connection after repeated heartbeat failures (${freeMb}MB free of ${totalMb}MB)`)
     await disableNetwork(db)
     await enableNetwork(db)
     consecutiveFailures = 0

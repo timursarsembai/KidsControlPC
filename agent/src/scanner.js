@@ -11,14 +11,39 @@ import { join } from 'path'
 // of what OS this code happens to run on (e.g. tests on a Linux dev machine) —
 // parse them with path.win32, not the host-native path module.
 import { basename, extname } from 'path/win32'
-import { tmpdir } from 'os'
+import { tmpdir, freemem, totalmem } from 'os'
 import { createHash } from 'crypto'
 import { isProtectedProgramEntry, isProtectedProcess } from './selfProtection.js'
 
 const execAsync = promisify(exec)
 
-// ─── Run PowerShell via temp .ps1 file ───────────────────────────────────────
+// Scans run on the 5-second enforcement tick, each spawning a powershell.exe. On a
+// machine that has run out of memory that spawn is exactly what fails first, and
+// retrying it every 5 seconds piles more pressure onto an already struggling system.
+// Observed on a child PC with ~6% free RAM: PowerShell failing while Edge, Roblox and a
+// torrent client held ~2.5 GB between them.
+//
+// Back off instead. Callers already treat a failure as "no data" and carry on, so the
+// only behavioural change is that we stop hammering — enforcement keeps running from the
+// cached rules throughout.
+const PS_BACKOFF_BASE_MS = 15_000
+const PS_BACKOFF_MAX_MS = 5 * 60_000
+let psFailures = 0
+let psCooldownUntil = 0
+
+function reportSystemPressure() {
+  const freeMb = Math.round(freemem() / 1048576)
+  const totalMb = Math.round(totalmem() / 1048576)
+  return `${freeMb}MB free of ${totalMb}MB`
+}
+
 async function runPS(script, timeoutMs = 30000) {
+  if (Date.now() < psCooldownUntil) {
+    const err = new Error('PowerShell scanning is backing off after repeated failures')
+    err.code = 'ps_cooldown'
+    throw err
+  }
+
   const tmpFile = join(tmpdir(), `kca_scan_${Date.now()}.ps1`)
   try {
     // UTF-8 BOM so PowerShell reads the file correctly
@@ -42,7 +67,21 @@ async function runPS(script, timeoutMs = 30000) {
     if (stderr && stderr.trim()) {
       console.warn('[Scanner] PS stderr:', stderr.slice(0, 300))
     }
+    if (psFailures > 0) {
+      console.log(`[Scanner] PowerShell recovered after ${psFailures} failure(s) — ${reportSystemPressure()}`)
+      psFailures = 0
+      psCooldownUntil = 0
+    }
     return stdout.trim()
+  } catch (err) {
+    psFailures++
+    const cooldown = Math.min(PS_BACKOFF_BASE_MS * 2 ** (psFailures - 1), PS_BACKOFF_MAX_MS)
+    psCooldownUntil = Date.now() + cooldown
+    console.error(
+      `[Scanner] PowerShell failed (${psFailures}), pausing scans for ${Math.round(cooldown / 1000)}s ` +
+      `— ${reportSystemPressure()} — ${err.message}`
+    )
+    throw err
   } finally {
     try { if (existsSync(tmpFile)) unlinkSync(tmpFile) } catch {}
   }
@@ -192,7 +231,7 @@ if ($result) {
         }
       })
   } catch (err) {
-    console.error('[Scanner] getInstalledPrograms error:', err.message)
+    if (err.code !== 'ps_cooldown') console.error('[Scanner] getInstalledPrograms error:', err.message)
     return []
   }
 }
@@ -235,7 +274,7 @@ if ($procs) {
       }))
       .filter(p => !isProtectedProcess(p))
   } catch (err) {
-    console.error('[Scanner] getRunningProcesses error:', err.message)
+    if (err.code !== 'ps_cooldown') console.error('[Scanner] getRunningProcesses error:', err.message)
     return []
   }
 }
