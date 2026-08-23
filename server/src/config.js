@@ -33,8 +33,24 @@ export const config = {
     .map(s => s.trim())
     .filter(Boolean),
 
+  // Mail is optional until kidscontrol.kz is delegated and a mailbox exists.
+  // Without SMTP_HOST the service runs exactly as before and simply cannot
+  // send — the routes that would email say so in the log.
+  smtp: {
+    host: process.env.SMTP_HOST || null,
+    port: Number(process.env.SMTP_PORT) || 587,
+    user: process.env.SMTP_USER || null,
+    pass: process.env.SMTP_PASS || null,
+    from: process.env.MAIL_FROM || null
+  },
+
   accessTokenTtlSec: 15 * 60,
   refreshTokenTtlSec: 30 * 24 * 60 * 60,
   agentTokenTtlSec: 60 * 60,
-  pairingCodeTtlSec: 15 * 60
+  pairingCodeTtlSec: 15 * 60,
+
+  // Long enough to find the letter in a spam folder, short enough that a link
+  // left in an inbox stops being a key by morning.
+  passwordResetTtlSec: 60 * 60,
+  emailVerificationTtlSec: 24 * 60 * 60
 }

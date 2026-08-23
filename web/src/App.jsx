@@ -3,6 +3,7 @@ import { functions } from '@kidscontrol/shared/firebase/config'
 import {
   authErrorMessage,
   getCurrentUser,
+  mailCapabilities,
   onAuthChanged,
   reloadUser,
   sendPasswordReset,
@@ -16,6 +17,7 @@ import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import Dashboard from './components/Dashboard/Dashboard'
 import InviteAcceptance from '@kidscontrol/shared/ui/InviteAcceptance'
 import EmailActionPage from './components/EmailActionPage'
+import ResetPasswordPage from './components/ResetPasswordPage'
 import { useTranslation } from 'react-i18next'
 import './App.css'
 
@@ -35,6 +37,17 @@ export default function App() {
   const [loading, setLoading]           = useState(false)
   const [verifyPending, setVerifyPending] = useState(false)
   const [resendMsg, setResendMsg]         = useState('')
+  // Whether this backend can send mail at all. Offering recovery that silently
+  // goes nowhere is worse than not offering it.
+  const [canResetPassword, setCanResetPassword] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    mailCapabilities()
+      .then(caps => { if (!cancelled) setCanResetPassword(Boolean(caps.passwordReset)) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   const { user, initFirebase, cleanup } = useRulesStore()
 
@@ -77,7 +90,9 @@ export default function App() {
         if (supportsEmailVerification) await sendVerificationEmail()
       } else if (mode === 'reset') {
         await sendPasswordReset(email)
-        setResetMsg(`Письмо отправлено на ${email}. Обязательно проверьте папку «Спам»!`)
+        // Namely "if such an account exists": saying "письмо отправлено"
+        // confirms the address is registered to anyone who types one in.
+        setResetMsg(`Если аккаунт с адресом ${email} существует, письмо уже отправлено. Проверьте папку «Спам».`)
       }
     } catch (err) {
       setError(authErrorMessage(err))
@@ -129,6 +144,11 @@ export default function App() {
   // ── Email action handler (/action?mode=verifyEmail&oobCode=...) ──
   if (window.location.pathname === '/action') {
     return <EmailActionPage />
+  }
+
+  // ── Ссылка из письма о восстановлении пароля ──
+  if (window.location.pathname === '/reset-password') {
+    return <ResetPasswordPage />
   }
 
   // ── Dashboard (logged in) ──
@@ -228,7 +248,7 @@ export default function App() {
             />
             {mode === 'login' && (
               <div style={{ textAlign: 'right', marginTop: 8 }}>
-                <a href="#" onClick={(e) => { e.preventDefault(); setMode('reset'); setError(''); setResetMsg('') }} style={{ color: 'var(--brand-primary)', fontSize: 13, textDecoration: 'none' }}>
+                <a href="#" onClick={(e) => { e.preventDefault(); setMode('reset'); setError(''); setResetMsg('') }} style={{ color: 'var(--brand-primary)', fontSize: 13, textDecoration: 'none', display: canResetPassword ? undefined : 'none' }}>
                   {t('auth.forgot_password', 'Забыли пароль?')}
                 </a>
               </div>

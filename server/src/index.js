@@ -20,6 +20,7 @@ import alertRoutes from './routes/alerts.js'
 import authRoutes from './routes/auth.js'
 import commandRoutes from './routes/commands.js'
 import deviceRoutes from './routes/devices.js'
+import emailAuthRoutes from './routes/emailAuth.js'
 import ruleRoutes from './routes/rules.js'
 
 const app = Fastify({
@@ -131,6 +132,7 @@ async function registerPlugins() {
   })
 
   await app.register(authRoutes, { prefix: '/api/v1' })
+  await app.register(emailAuthRoutes, { prefix: '/api/v1' })
   await app.register(deviceRoutes, { prefix: '/api/v1' })
   await app.register(ruleRoutes, { prefix: '/api/v1' })
   await app.register(alertRoutes, { prefix: '/api/v1' })

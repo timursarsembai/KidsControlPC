@@ -40,12 +40,24 @@ async function pruneOldAlerts() {
   return rowCount
 }
 
+// A spent recovery link is kept a day: when a parent says "я нажал, и ничего",
+// the row is the only evidence of whether the link was ever opened.
+async function pruneEmailTokens() {
+  const { rowCount } = await query(
+    `delete from email_tokens
+      where expires_at < now() - interval '1 day'
+         or (used_at is not null and used_at < now() - interval '1 day')`
+  )
+  return rowCount
+}
+
 export async function runMaintenance(log) {
   const tasks = [
     ['refresh tokens', pruneRefreshTokens],
     ['pairing codes', pruneExpiredPairingCodes],
     ['commands', pruneOldCommands],
-    ['alerts', pruneOldAlerts]
+    ['alerts', pruneOldAlerts],
+    ['email tokens', pruneEmailTokens]
   ]
 
   for (const [name, task] of tasks) {

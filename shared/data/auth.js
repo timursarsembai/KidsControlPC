@@ -33,7 +33,9 @@ function normalize(user) {
 }
 
 export const supportsEmailVerification = !isSelfHosted
-export const supportsPasswordReset = !isSelfHosted
+// Both backends can now do this; whether mail is actually configured is
+// answered by mailCapabilities().
+export const supportsPasswordReset = true
 
 /**
  * Fires with the current user and again whenever it changes.
@@ -101,15 +103,37 @@ export function getCurrentUser() {
 
 export async function sendPasswordReset(email) {
   if (!isSelfHosted) return sendPasswordResetEmail(firebaseAuth, email)
-  // Failing loudly rather than pretending: a parent told "we sent you a link"
-  // who then waits for mail that will never arrive is worse off than one told
-  // plainly that this is not available yet.
-  throw new Error('Восстановление пароля пока недоступно. Напишите в поддержку.')
+  return selfhosted.requestPasswordReset(email)
+}
+
+// Second half of recovery: the parent arrives from their mailbox with a token.
+export async function resetPasswordWithToken(token, password) {
+  if (!isSelfHosted) {
+    // Firebase handles this on its own hosted page, reached from its own
+    // email; the panel never sees a token.
+    throw new Error('Восстановление пароля выполняется по ссылке из письма.')
+  }
+  return selfhosted.resetPassword(token, password)
+}
+
+export async function confirmEmailWithToken(token) {
+  if (!isSelfHosted) throw new Error('Подтверждение выполняется по ссылке из письма.')
+  return selfhosted.confirmEmail(token)
+}
+
+/**
+ * What this backend can actually do. Firebase can always send; the
+ * self-hosted one only once a mailbox is configured, and until then the panel
+ * should not offer recovery it cannot deliver.
+ */
+export async function mailCapabilities() {
+  if (!isSelfHosted) return { passwordReset: true, emailVerification: true }
+  return selfhosted.getCapabilities()
 }
 
 export async function resendVerification() {
   if (!isSelfHosted) return sendEmailVerification(firebaseAuth.currentUser)
-  throw new Error('Подтверждение почты пока не требуется.')
+  return selfhosted.sendVerificationEmail()
 }
 
 export async function reloadUser() {

@@ -122,3 +122,38 @@ export async function changePassword(currentPassword, newPassword) {
   setUser(session.user)
   return session.user
 }
+
+// Whether this server can send mail at all. The panel asks once and hides the
+// recovery link if it cannot — a form that silently does nothing is worse than
+// no form.
+let capabilitiesPromise = null
+export function getCapabilities() {
+  if (!capabilitiesPromise) {
+    capabilitiesPromise = api.get('/auth/capabilities', { auth: false })
+      .catch(() => ({ passwordReset: false, emailVerification: false }))
+  }
+  return capabilitiesPromise
+}
+
+// Always resolves: the server answers the same whether or not the address is
+// registered, and the panel must not imply otherwise.
+export async function requestPasswordReset(email) {
+  await api.post('/auth/forgot-password', { email }, { auth: false })
+}
+
+// Completes recovery and signs the parent in: they came from their mailbox and
+// have just proved they own the address.
+export async function resetPassword(token, password) {
+  const session = await api.post('/auth/reset-password', { token, password }, { auth: false })
+  setTokens(session)
+  setUser(session.user)
+  return session.user
+}
+
+export async function sendVerificationEmail() {
+  return api.post('/auth/send-verification')
+}
+
+export async function confirmEmail(token) {
+  return api.post('/auth/verify-email', { token }, { auth: false })
+}
