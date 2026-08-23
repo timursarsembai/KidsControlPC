@@ -23,6 +23,16 @@ export const config = {
   jwtSecret: process.env.JWT_SECRET,
   publicOrigin: process.env.PUBLIC_ORIGIN || 'https://kidscontrol.kz',
 
+  // Whose X-Forwarded-For header is believed: the proxy-network subnet, where
+  // Nginx Proxy Manager lives, and nothing else. Loopback is deliberately not
+  // here — local probes send no forwarding header, so they lose nothing, and
+  // anything that does reach 127.0.0.1:8092 directly should not get to pick
+  // its own client address.
+  trustedProxies: (process.env.TRUSTED_PROXIES || '172.18.0.0/16')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean),
+
   accessTokenTtlSec: 15 * 60,
   refreshTokenTtlSec: 30 * 24 * 60 * 60,
   agentTokenTtlSec: 60 * 60,

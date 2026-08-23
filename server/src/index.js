@@ -1,10 +1,15 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import cors from '@fastify/cors'
+import rateLimit from '@fastify/rate-limit'
 import Fastify from 'fastify'
+import { pruneRefreshTokens } from './auth/tokens.js'
 import { config } from './config.js'
 import { ping, pool } from './db.js'
+import { errorHandler } from './errors.js'
 import { runMigrations } from './migrate.js'
+import authRoutes from './routes/auth.js'
 
 const app = Fastify({
   logger: {
@@ -16,7 +21,12 @@ const app = Fastify({
       req: (req) => ({ method: req.method, url: req.url, ip: req.ip })
     }
   },
-  trustProxy: true,       // behind Nginx Proxy Manager
+  // Trust X-Forwarded-For only from Nginx Proxy Manager's network, not from
+  // anyone. `true` would take the header from any caller — and the API also
+  // sits on proxy-network alongside other projects' containers, so a
+  // neighbour could forge an address and walk straight past the rate limit
+  // on the login route.
+  trustProxy: config.trustedProxies,
   bodyLimit: 2 * 1024 * 1024
 })
 
@@ -52,6 +62,51 @@ app.get('/health', async (_req, reply) => {
   return reply.code(dbOk ? 200 : 503).send(body)
 })
 
+app.setErrorHandler(errorHandler)
+
+let pruneTimer = null
+
+async function registerPlugins() {
+  // The panel lives on kidscontrol.kz and the API on api.kidscontrol.kz, so
+  // every panel request is cross-origin. Tokens travel in the Authorization
+  // header rather than cookies, so credentials are not needed — and without
+  // them a wildcard would still not expose anything a token does not.
+  const allowedOrigins = new Set([
+    config.publicOrigin,
+    config.publicOrigin.replace('https://', 'https://www.')
+  ])
+  if (config.env !== 'production') {
+    allowedOrigins.add('http://localhost:5173')
+  }
+
+  await app.register(cors, {
+    origin: (origin, cb) => {
+      // No Origin header: the agent, curl, health checks. Not a browser, so
+      // there is no same-origin policy to enforce here.
+      if (!origin) return cb(null, true)
+      cb(null, allowedOrigins.has(origin))
+    },
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
+    maxAge: 86400
+  })
+
+  // A blanket ceiling so one misbehaving agent cannot saturate the box; login
+  // and registration have their own tighter limits in the routes themselves.
+  await app.register(rateLimit, {
+    global: true,
+    max: 300,
+    timeWindow: '1 minute',
+    // request.ip is the forwarded client address, but only when the header
+    // came from a trusted proxy — see trustProxy above.
+    keyGenerator: (request) => request.ip
+    // The 429 body is shaped in errorHandler, not here: the plugin raises an
+    // error that the error handler catches, so anything built at this point
+    // gets overwritten anyway.
+  })
+
+  await app.register(authRoutes, { prefix: '/api/v1' })
+}
+
 async function start() {
   // Compose already waits for the database healthcheck, but a Postgres restart
   // (backup, host reboot) can still leave us starting first. Retry instead of
@@ -71,14 +126,26 @@ async function start() {
     }
   }
 
+  await registerPlugins()
+
   await app.listen({ port: config.port, host: config.host })
   app.log.info(`kidscontrol api listening on ${config.host}:${config.port}`)
+
+  // Expired and revoked sessions accumulate forever otherwise. unref() so a
+  // pending timer never holds up shutdown.
+  pruneTimer = setInterval(() => {
+    pruneRefreshTokens()
+      .then(n => { if (n > 0) app.log.info(`pruned ${n} expired refresh token(s)`) })
+      .catch(err => app.log.warn(`refresh token prune failed: ${err.message}`))
+  }, 6 * 60 * 60 * 1000)
+  pruneTimer.unref()
 }
 
 for (const signal of ['SIGTERM', 'SIGINT']) {
   process.on(signal, async () => {
     app.log.info(`${signal} received, shutting down`)
     try {
+      if (pruneTimer) clearInterval(pruneTimer)
       await app.close()
       await pool.end()
     } finally {
