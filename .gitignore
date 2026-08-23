@@ -14,3 +14,7 @@ agent/agent_auth*.json
 .DS_Store
 
 .firebase/
+
+# Артефакт установки зависимостей только внутри shared/ (на сервере нет Node,
+# и тесты shared гоняются в контейнере отдельно от корневого workspace).
+shared/package-lock.json

@@ -22,6 +22,15 @@ export function serializeDevice(row, { includeLogs = false } = {}) {
   const status = row.status === 'online' && stale ? 'offline' : row.status
 
   const device = {
+    // Settings are spread at the top level, not nested, because that is where
+    // the Firestore document had them: the panel writes isLocked, lockMessage,
+    // forceUpdateRequestedAtMs and reads them straight off the device, and the
+    // agent's config manager does the same. Nesting them would leave the panel
+    // writing to one place and reading from another — and the thing that stops
+    // working is the lock.
+    //
+    // Spread first so a stored setting can never shadow id, owner or status.
+    ...(row.settings ?? {}),
     id: row.id,
     hostname: row.hostname,
     osType: row.os_type,
@@ -31,7 +40,6 @@ export function serializeDevice(row, { includeLogs = false } = {}) {
     status,
     lastSeen: lastSeen ? lastSeen.toISOString() : null,
     pairedAt: row.paired_at ? new Date(row.paired_at).toISOString() : null,
-    settings: row.settings ?? {},
     pomodoroState: row.pomodoro_state ?? null
   }
   // recentLogs is up to a hundred lines per device — fine when a parent opens
