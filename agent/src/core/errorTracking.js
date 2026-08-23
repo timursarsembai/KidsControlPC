@@ -9,8 +9,25 @@ import { APP_ENV, SENTRY_DSN, AGENT_VERSION } from '../config.js'
 // which looked like "the installer finishes but never asks for a pairing code".
 let enabled = false
 
+// @sentry/node 10.x needs Node >= 18.19 (or >= 20.6). pkg tops out at Node 18.5, so
+// in the packaged agent init() always throws. Skip it outright rather than calling it
+// and swallowing the failure — that kept dumping a stack trace to stderr on every
+// start. The guard stays version-based so this revives itself if the agent ever moves
+// off pkg to a newer runtime.
+function runtimeSupportsSentry() {
+  const [major, minor] = process.versions.node.split('.').map(Number)
+  if (major > 20) return true
+  if (major === 20) return minor >= 6
+  if (major === 18) return minor >= 19
+  return false
+}
+
 export function initErrorTracking() {
   if (!SENTRY_DSN) return
+  if (!runtimeSupportsSentry()) {
+    console.log(`[ErrorTracking] Disabled — Node ${process.versions.node} is too old for @sentry/node`)
+    return
+  }
   try {
     Sentry.init({
       dsn: SENTRY_DSN,
