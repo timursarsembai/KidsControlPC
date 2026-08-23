@@ -108,38 +108,34 @@ service cloud.firestore {
         && request.resource.data.uploadToken == deviceScreenshotToken(userId, deviceId);
     }
 
-    function hasValidExistingCommandToken(userId, deviceId) {
-      return resource.data.uploadToken is string
-        && resource.data.uploadToken == deviceScreenshotToken(userId, deviceId);
-    }
-
-    // Commands - parent creates via CF (which validates and adds token server-side);
-    // agent reads and marks only token-matched commands.
+    // Commands - the parent app creates these through the sendDeviceCommand function,
+    // which uses the admin SDK and so bypasses these rules entirely; the create rule
+    // only constrains a direct client write. The agent reads its own commands and marks
+    // them done, identified by its token claims.
+    //
+    // Read and update used to compare the command's stored uploadToken against the
+    // device's CURRENT token. That secret rotates - repair pairing deliberately reissues
+    // it - and any command created before a rotation then became impossible to update,
+    // so it stayed 'pending' forever and the agent re-ran it on every restart.
     match /users/{userId}/devices/{deviceId}/commands/{commandId} {
       allow create: if canManageUser(userId)
         && hasValidNewCommandToken(userId, deviceId);
-      allow read: if canManageUser(userId)
-        || hasValidExistingCommandToken(userId, deviceId);
-      allow update: if hasValidExistingCommandToken(userId, deviceId)
-        && hasValidNewCommandToken(userId, deviceId);
+      allow read: if canManageUser(userId) || isDeviceAgent(userId, deviceId);
+      allow update: if canManageUser(userId) || isDeviceAgent(userId, deviceId);
       allow delete: if canManageUser(userId);
     }
 
-    function hasValidScreenshotToken(userId, deviceId) {
-      return deviceScreenshotToken(userId, deviceId) is string
-        && request.resource.data.uploadToken == deviceScreenshotToken(userId, deviceId);
-    }
-
-    // Screenshots - agent can create metadata only with this device's upload token.
-    // The agent also needs read: cleanupExpiredScreenshots() queries this collection for
-    // expired entries before deleting them. Without it that query was denied on every
-    // run, so expired screenshots were never reclaimed and quietly ate the storage quota.
+    // Screenshots - same rotation trap: delete required the screenshot's stored token to
+    // still match the device's current one, so a rotation left every existing screenshot
+    // permanently undeletable. cleanupExpiredScreenshots() then failed on each run and
+    // expired images accumulated against the storage quota.
+    // Identify the agent by its claims instead; that is both rotation-proof and stronger
+    // than a shared secret, and it drops a get() on the device doc per operation.
     match /users/{userId}/devices/{deviceId}/screenshots/{screenshotId} {
       allow read: if canManageUser(userId) || isDeviceAgent(userId, deviceId);
-      allow create: if canManageUser(userId) || hasValidScreenshotToken(userId, deviceId);
+      allow create: if canManageUser(userId) || isDeviceAgent(userId, deviceId);
       allow update: if canManageUser(userId);
-      allow delete: if canManageUser(userId)
-        || (resource.data.uploadToken == deviceScreenshotToken(userId, deviceId));
+      allow delete: if canManageUser(userId) || isDeviceAgent(userId, deviceId);
     }
 
     // Alerts - written by the parent apps or by a device agent holding its custom token.
