@@ -104,7 +104,7 @@ async function build() {
     console.log('📦 1/5 Bundling agent with esbuild...')
     // Fix import.meta.url issue for CommonJS by injecting a define
     // Do NOT wrap version in single quotes inside the define, just double quotes so it becomes a string literal
-    execSync(`npx esbuild src/agent.js --bundle --platform=node --target=node18 --outfile=dist/agent.cjs --define:import.meta.url=\\"file://\\" --define:__APP_VERSION__="'${version}'" --define:__KIDSCONTROL_ENV__="'${buildEnvironment}'"`, { stdio: 'inherit' })
+    execSync(`npx esbuild src/agent.js --bundle --platform=node --target=node18 --alias:undici=./src/network/undiciShim.js --outfile=dist/agent.cjs --define:import.meta.url=\\"file://\\" --define:__APP_VERSION__="'${version}'" --define:__KIDSCONTROL_ENV__="'${buildEnvironment}'"`, { stdio: 'inherit' })
 
     console.log('📦 2/5 Packaging to agent.exe with pkg...')
     execSync('npx pkg dist/agent.cjs -t node18-win-x64 -o dist/agent.exe', { stdio: 'inherit' })
