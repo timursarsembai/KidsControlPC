@@ -1,0 +1,530 @@
+# Self-hosted бэкенд KidsControlPC — инвентарь сервера и план
+
+Документ ветки `selfhosted`. Составлен до написания кода.
+Дата: 2026-08-23.
+
+---
+
+## 1. Что на сервере на самом деле
+
+### Железо и ОС
+
+| Параметр | Значение |
+|---|---|
+| ОС | Ubuntu 24.04.4 LTS, ядро 6.8.0-137 |
+| CPU | 4 ядра |
+| RAM | 7.7 ГБ, занято 4.4 ГБ, **доступно 3.2 ГБ** |
+| Swap | 2.0 ГБ, **занято 1.3 ГБ** |
+| Диск | 99 ГБ, свободно 65 ГБ |
+| Внешний IP | 93.171.232.110 (сам сервер, не за NAT) |
+| Docker | 29.1.3, Compose v5.3.1 |
+| Node.js на хосте | **нет** — сборка только через `docker run node:22-alpine` |
+| Аптайм | 13 дней |
+
+Узкое место — не диск, а **память**. Свободно ~3.2 ГБ при уже занятом swap.
+Новый стек должен укладываться примерно в 800 МБ и иметь явные `mem_limit`.
+
+### Что уже крутится
+
+29 работающих контейнеров, пять групп:
+
+- **mailcow** (18 контейнеров) — почта, держит 25/465/587/110/143/993/995/4190 наружу;
+- **kaspi-billing** — боевой платёжный сервис, `127.0.0.1:8080`, PostgreSQL 16.14;
+- **infisical** — менеджер секретов, `127.0.0.1:8091`, свой PostgreSQL 16.14 + Redis;
+- **kulager** — сайт, `127.0.0.1:8090`, MySQL;
+- **nginx-proxy-manager** — 80/443 наружу, панель на `127.0.0.1:81`;
+- **wg-easy** — 51820/udp, панель `127.0.0.1:51821`;
+- **squid** — прокси.
+
+### Ответы на вопросы из вводного промпта
+
+**«Роль wg-easy: сервер за VPN или смотрит наружу?»**
+Смотрит наружу. wg-easy здесь — это VPN-**выход** для клиентских устройств
+(`WG_ALLOWED_IPS=0.0.0.0/0`, `WG_HOST=vpn.kazpay.app`), а не защита сервера.
+80 и 443 слушаются публично на всех интерфейсах. Значит новый API будет
+доступен из интернета сразу после создания записи в NPM — отдельного
+VPN-контура для доступа к нему не появится, безопасность обеспечивает
+только сам API.
+
+**«Есть ли уже PostgreSQL — переиспользовать или поднимать отдельный?»**
+Есть три инстанса PostgreSQL 16.14: `kaspi-billing-db-1`, `kaspi-billing-backup-1`,
+`infisical-db`. **Переиспользовать нельзя.** `kaspi-billing` — боевой платёжный
+сервис, а `infisical` хранит секреты всех остальных проектов; подсадка чужой
+схемы в любой из них означает общий цикл жизни, общий бэкап и общий инцидент.
+Поднимаем свой `postgres:16-alpine` в изолированной сети.
+
+**«Как устроен Nginx Proxy Manager?»**
+`~/docker/npm`, образ `jc21/nginx-proxy-manager:latest`, данные в `./data`,
+сертификаты Let's Encrypt в `./letsencrypt`. Подключён к внешней docker-сети
+`proxy-network`. Сейчас проксирует пять доменов:
+`kazpayment.kz`, `www.kazpayment.kz`, `mail.kazpayment.kz`, `vpn.kazpay.app`,
+`kulager.sarsembai.dev`.
+Конвенция сервера: контейнер приложения публикует порт **только на 127.0.0.1**
+и одновременно состоит в сети `proxy-network`; NPM ходит в него по имени
+контейнера, сертификат выпускает сам.
+
+**«Файрвол»**
+`ufw` недоступен без пароля sudo; проверить политику `iptables` не удалось по
+той же причине. Судя по тому, что 80/443/25/587/… отвечают снаружи, входящий
+трафик не фильтруется на хосте — фильтрация фактически на уровне публикации
+портов Docker'ом. **Требует подтверждения владельца**: нужен ли `ufw` вообще
+и есть ли фильтр на стороне провайдера.
+
+**«Бэкапы существующих проектов»**
+`~/monitoring` — локальный git-репозиторий со скриптами:
+
+- `offsite-backup.sh` — restic по SFTP на вторую площадку (Contabo,
+  161.97.156.44), ежедневно в 13:15 UTC по cron;
+- `docker-cleanup.sh` — каждые 6 часов, иначе диск забивают висящие образы
+  (~780 МБ на пересборку);
+- `watchdog` — на systemd **user**-таймере, не в cron;
+- уведомления через `notify.sh` → Telegram, запасной путь — почта.
+
+Новый проект **не попадёт в копии автоматически** — путь и дамп базы надо
+явно дописать в `offsite-backup.sh`. Это отдельный пункт плана, не «потом».
+
+### Свободные порты
+
+Заняты на 127.0.0.1: 81, 7654, 8080, 8090, 8091, 13306, 18080, 18443, 19991,
+35489, 51821. Свободны и подходят: **8092** (API), **8093** (резерв под
+S3/MinIO, если дойдёт до скриншотов).
+
+---
+
+## 2. Расхождения с вводным промптом
+
+Промпт писался на домашнем ПК без доступа к серверу. Что в нём неточно:
+
+1. **«Firebase Storage → MinIO или том на диске».** В первой версии это не
+   нужно вообще: объём v1 — устройства, привязка, правила, блокировки,
+   активность. Единственные потребители Storage — скриншоты и вложения в чат,
+   а они отложены. MinIO — это ещё ~300 МБ RAM на сервере, где свободно 3.2 ГБ.
+   **Предлагаю не поднимать его в v1**, оставить порт 8093 в резерве.
+
+2. **«Ветка `selfhosted`, в `master` не пушить».** В репозитории есть ещё
+   ветка `dev`, и `AGENTS.md` объявляет её интеграционной, а `master` —
+   продакшн. Ветку `selfhosted` завёл **от `master`** (это текущий продакшн-код).
+   Уточнить: ветвиться от `master` или от `dev`.
+
+3. **«Свой JWT; у агента — токен устройства».** Формулировка ровно
+   воспроизводит ошибку №6 из списка дорого купленного знания. Сейчас в коде
+   агент доказывает свою личность `screenshotUploadToken`, который ротируется
+   при перепривязке (`functions/lib/pairing.js`), и та же строка лежит в
+   каждом документе команды как поле `uploadToken`. Ниже в разделе про auth
+   предложена схема, где право доступа привязано к неизменяемому `device_id`
+   в подписанном токене, а ротируемым остаётся только секрет обновления.
+
+4. **Node на сервере отсутствует, IPv6-маршрута нет.** Всё, что собирается и
+   тестируется, — через `docker run node:22-alpine` с монтированием репозитория
+   и `NODE_OPTIONS=--dns-result-order=ipv4first`; иначе npm падает загадочно.
+   На сборку электрона/веба на этом сервере памяти может не хватить —
+   веб-панель, возможно, придётся собирать на домашнем ПК и выкладывать артефакт.
+
+5. **«Как устроены бэкапы существующих проектов»** — ответ выше; главное, что
+   из него следует: включение нового проекта в restic это ручная правка
+   скрипта, и её надо делать в том же спринте, а не «когда-нибудь».
+
+6. Промпт не упоминает, что **правки в этот репозиторий могут идти
+   параллельно с домашнего ПК**. На сервере уже есть опыт, когда две сессии
+   мешали друг другу в общем git-индексе. Коммитить только явными путями,
+   `git add -A` не использовать.
+
+---
+
+## 3. Схема базы данных
+
+Firestore здесь древовидный, и дерево простое: всё висит под `users/{uid}`.
+Перекладывается в реляционную схему почти механически.
+
+Общие решения:
+
+- **`id` — `uuid`** везде, кроме кодов привязки (там сам код — ключ) и
+  `activity_stats` (ключ — пара устройство+дата). Firestore-идентификаторы
+  документов при миграции переносим как есть в `legacy_id`, чтобы можно было
+  перезапустить импорт идемпотентно.
+- **`created_at`/`updated_at` — `timestamptz default now()`**. `serverTimestamp()`
+  превращается в `now()` на стороне БД, а не в клиентское время.
+- **Гибкие поля — `jsonb`**. Правило (`rules`) в Firestore — свободный объект,
+  и его поля меняются от релиза к релизу. Тянуть каждое поле в колонку —
+  значит писать миграцию на каждый новый вид блокировки. Колонками выносим
+  только то, по чему фильтруем: `status`, `kind`, `created_at`.
+- **Каскады.** Удаление устройства должно уносить его правила, команды, логи
+  и статистику — `on delete cascade`, а не подчистка в коде.
+
+### Таблицы
+
+```
+users
+  id uuid pk
+  email citext unique not null
+  password_hash text            -- argon2id
+  email_verified boolean default false
+  created_at, updated_at
+
+profiles                        -- users/{uid}/profile/data
+  user_id uuid pk references users on delete cascade
+  plan text default 'free'
+  role text default 'owner'
+  owner_id uuid references users
+  chat_name text
+  storage_used_bytes bigint default 0
+  storage_quota_bytes bigint default 104857600
+  pause_all_rules boolean default false   -- было в корневом users/{uid}
+  updated_at
+
+devices                         -- users/{uid}/devices/{deviceId}
+  id uuid pk
+  owner_id uuid not null references users on delete cascade
+  hostname text
+  os_type text
+  device_name text
+  alias text
+  agent_version text
+  status text default 'offline'
+  last_seen timestamptz
+  paired_at timestamptz
+  settings jsonb default '{}'
+  pomodoro_state jsonb
+  recent_logs jsonb             -- последние 100 строк, как сейчас
+  legacy_id text unique
+  created_at, updated_at
+  index (owner_id)
+
+device_secrets                  -- то, что раньше было screenshotUploadToken
+  device_id uuid pk references devices on delete cascade
+  secret_hash text not null     -- argon2id от секрета, сам секрет не хранится
+  rotated_at timestamptz
+  created_at
+
+rules                           -- .../rules/{ruleId}
+  id uuid pk
+  device_id uuid not null references devices on delete cascade
+  slug text                     -- 'global_pomodoro' и подобные фиксированные id
+  status text not null default 'active'   -- active | inactive
+  payload jsonb not null default '{}'
+  created_at, updated_at
+  unique (device_id, slug)
+  index (device_id, status)
+
+installed_apps                  -- .../installedApps/{appId}
+  device_id uuid references devices on delete cascade
+  app_id text                   -- идентификатор от агента
+  name text, path text, publisher text, version text
+  updated_at
+  primary key (device_id, app_id)
+
+commands                        -- .../commands/{cmdId}
+  id uuid pk
+  device_id uuid not null references devices on delete cascade
+  action text not null
+  payload jsonb default '{}'    -- message, appId, requestedAtClientMs
+  status text not null default 'pending'   -- pending | completed | failed
+  error text
+  created_at, completed_at
+  index (device_id, status) where status = 'pending'
+
+activity_logs                   -- .../activityLogs/{id}
+  id bigserial pk
+  device_id uuid not null references devices on delete cascade
+  ts timestamptz not null default now()
+  kind text not null            -- app | dns | ...
+  payload jsonb not null
+  index (device_id, ts desc)
+
+activity_stats                  -- .../activityStats/{YYYY-MM-DD}
+  device_id uuid references devices on delete cascade
+  date date not null
+  counters jsonb not null default '{}'
+  updated_at
+  primary key (device_id, date)
+
+alerts                          -- users/{uid}/alerts/{id}
+  id uuid pk
+  owner_id uuid not null references users on delete cascade
+  device_id uuid references devices on delete set null
+  type text not null
+  details text
+  device_hostname text
+  acknowledged boolean default false
+  created_at
+  index (owner_id, created_at desc)
+
+pairing_codes                   -- корневая коллекция pairingCodes
+  code text pk                  -- 6 символов из ABCDEFGHJKLMNPQRSTUVWXYZ23456789
+  owner_id uuid not null references users on delete cascade
+  target_device_id uuid references devices on delete cascade
+  used boolean default false
+  used_at timestamptz
+  device_id uuid
+  expires_at timestamptz not null
+  created_at
+
+refresh_tokens                  -- сессии родителя
+  id uuid pk
+  user_id uuid references users on delete cascade
+  token_hash text not null
+  user_agent text
+  expires_at timestamptz not null
+  revoked_at timestamptz
+  created_at
+```
+
+Отложено до второй версии, схему пишем позже: `chats`, `chat_messages`,
+`screenshots`, `parent_invitations`, `parent_access`.
+
+Инкремент счётчиков активности (`increment()` в Firestore) ложится на
+`insert ... on conflict (device_id, date) do update set counters = ...`
+с `jsonb` слиянием — одним запросом, без чтения перед записью.
+
+---
+
+## 4. Поверхность API
+
+Базовый путь `/api/v1`. Два класса вызывающих — **родитель** (веб и Electron)
+и **агент**. У них разные токены и разные маршруты, чтобы права нельзя было
+перепутать по невнимательности.
+
+### Родитель
+
+```
+POST   /auth/register            {email, password}          → {access, refresh}
+POST   /auth/login               {email, password}          → {access, refresh}
+POST   /auth/refresh             {refresh}                  → {access, refresh}
+POST   /auth/logout              {refresh}
+GET    /me                                                  → профиль
+
+GET    /devices                                             → список
+PATCH  /devices/:id              {alias|deviceName|settings}
+DELETE /devices/:id
+
+GET    /devices/:id/rules
+POST   /devices/:id/rules        {payload}                  → {id}
+PATCH  /devices/:id/rules/:ruleId
+PUT    /devices/:id/rules/slug/:slug   -- на месте savePomodoroRule
+DELETE /devices/:id/rules/:ruleId
+
+GET    /devices/:id/apps
+GET    /devices/:id/activity/logs?date=YYYY-MM-DD
+GET    /devices/:id/activity/stats?from=&to=
+
+POST   /devices/:id/commands     {action, ...}              → {commandId}
+
+GET    /alerts
+POST   /alerts/:id/ack
+POST   /alerts/ack-all           {ids: []}
+
+POST   /pairing/codes                                       → {code, expiresAt}
+POST   /pairing/codes/repair     {deviceId}                 → {code, expiresAt}
+```
+
+### Агент
+
+```
+POST   /agent/pair               {code, hostname, osType, agentVersion}
+                                 → {ownerId, deviceId, deviceSecret}
+POST   /agent/token              {deviceId, deviceSecret}   → {access, expiresIn}
+POST   /agent/heartbeat          {agentVersion, status}
+POST   /agent/activity           {logs: [], stats: {}}      -- батч
+POST   /agent/apps               {apps: []}                 -- батч, upsert
+POST   /agent/alerts             {type, details}
+PATCH  /agent/commands/:id       {status, error?}
+PATCH  /agent/rules/:id          {status}                   -- энфорсер гасит правило
+POST   /agent/pomodoro           {state}
+POST   /agent/logs               {lines: []}
+```
+
+`/agent/pair` — единственный маршрут агента без токена, и он же
+единственное место, где выдаётся секрет устройства.
+
+### Авторизация — и почему не так, как в промпте
+
+Родитель: `access` — JWT на 15 минут, `refresh` — непрозрачная строка на 30 дней,
+хранится в БД хешем, ротируется при каждом обновлении.
+
+Агент: пара **`device_id` (неизменяемый) + `device_secret` (ротируемый)**.
+Секрет живёт только в `pairing.json` на машине ребёнка и в виде argon2-хеша в
+`device_secrets`. Обменивается на `access`-JWT с `sub = device:<device_id>`.
+
+Ключевая разница с тем, что есть сейчас: **любая проверка прав смотрит на
+`device_id` из подписанного токена, а не сравнивает секрет со строкой в БД.**
+Сегодня в `commands` каждое сообщение носит `uploadToken` внутри себя, и
+агент подписывается на команды фильтром по нему — то есть право читать команду
+привязано к ротируемой строке. При перепривязке секрет меняется, и старые
+записи становятся недостижимы. В новой схеме команда адресована `device_id`,
+и ротация секрета на это не влияет.
+
+Секрет ротируем при перепривязке (как сейчас) и по требованию родителя.
+Ротация не трогает ни одну существующую запись.
+
+---
+
+## 5. Realtime
+
+Сегодня 40 точек `onSnapshot`. Все они — либо «подписка на коллекцию под
+устройством», либо «подписка на документ». Заменяем одним WebSocket.
+
+**Транспорт.** `/ws` — родитель (токен в первом кадре, не в query-строке,
+чтобы не оседал в логах nginx), `/ws/agent` — агент. Библиотека `ws`:
+она работает на голых `net`/`tls`, без `undici` и без глобального `fetch`,
+то есть переживает сборку `pkg` на Node 18.5. Это прямо снимает грабли №1.
+
+**Протокол.**
+
+```
+→ {t:'sub', ch:'devices'}                    подписка
+← {t:'snap', ch:'devices', data:[...]}       полный снимок при подписке
+← {t:'patch', ch:'devices', op:'upsert'|'remove', data:{...}}
+→ {t:'unsub', ch:'devices'}
+← {t:'ping'} / → {t:'pong'}                  раз в 30 с
+```
+
+Каналы: `devices`, `device:<id>`, `rules:<id>`, `apps:<id>`, `alerts`,
+`activity:<id>:<date>`, `commands:<id>` (только для агента), `profile`.
+
+Смысл в том, что сигнатура репозиториев не меняется:
+`subscribeToRules(uid, deviceId, cb)` по-прежнему возвращает функцию отписки.
+Слой UI не узнает о замене.
+
+**Откуда сервер узнаёт об изменениях.** `LISTEN`/`NOTIFY` в PostgreSQL:
+триггеры на `devices`, `rules`, `commands`, `alerts` шлют `notify` с
+`{table, op, owner_id, device_id, id}`, процесс API слушает и рассылает по
+подписчикам. Это переживает несколько процессов API и не требует Redis.
+
+**Обязательное для агента.** Разрыв связи — не повод умирать (грабли №4) и не
+повод перестать блокировать (грабли №3). Планировщик энфорсера ставится **до**
+подключения WebSocket, правила читаются из дискового кеша. Переподключение —
+экспоненциальная пауза от 1 до 60 секунд, без ограничения по числу попыток,
+без `process.exit`.
+
+---
+
+## 6. Раскладка контейнеров
+
+```
+~/docker/kidscontrol/
+  repo/                     клон KidsControlPC, ветка selfhosted   ← уже создан
+    server/                 новый код бэкенда (в git)
+      Dockerfile
+      compose.yaml
+      migrations/
+      src/
+    docs/selfhosted/PLAN.md этот файл
+  .env                      секреты, вне git
+```
+
+```yaml
+services:
+  db:
+    image: postgres:16-alpine
+    mem_limit: 512m
+    volumes: [./pgdata:/var/lib/postgresql/data]
+    networks: [kidscontrol_internal]
+    # порт наружу не публикуется вообще
+
+  api:
+    build: ./server
+    mem_limit: 384m
+    ports: ['127.0.0.1:8092:8092']
+    networks: [kidscontrol_internal, proxy-network]
+    depends_on: [db]
+
+networks:
+  kidscontrol_internal:
+  proxy-network:
+    external: true
+```
+
+Совпадает с конвенцией сервера: наружу ничего, кроме уже открытых 80/443 у NPM,
+в него — записью для нового домена. Существующие контейнеры и сети не трогаются.
+
+**Нужно решение владельца: домен.** Варианты — поддомен на существующем
+`sarsembai.dev`, отдельный `.kz`-домен (уместнее для проекта, который ссылается
+на локализацию данных в РК), или поддомен `kazpayment.kz` (не советую —
+смешивает платёжный проект с детским).
+
+---
+
+## 7. Порядок работ
+
+Каждый пункт заканчивается работающим и проверяемым состоянием.
+
+1. **Каркас.** compose, PostgreSQL, миграции, `/health`. Проверка: контейнеры
+   поднимаются, база доступна, остальные проекты живы.
+2. **Регистрация и вход родителя.** JWT, refresh, argon2.
+3. **Устройства и привязка.** Коды, `/agent/pair`, `/agent/token`.
+4. **Правила.** CRUD плюс WebSocket-канал.
+5. **Слой репозиториев.** Вторая реализация `shared/` за теми же сигнатурами,
+   переключатель по переменной окружения. Firebase-версия продолжает работать.
+6. **Веб-панель на новом бэкенде.** Сборка, выкладка через NPM, домен.
+7. **Агент.** Замена Firestore на HTTP+WS. Самый рискованный пункт, отдельный
+   релиз, обязательная проверка на живой Windows-машине.
+8. **Активность.** Логи, статистика, ретеншен-задание вместо `onSchedule`.
+9. **Бэкапы.** Дамп базы в `offsite-backup.sh`, проверка восстановления.
+10. **Миграция данных** из Firestore.
+11. Отложенное: чат, скриншоты (тогда же MinIO), второй родитель, верификация почты.
+
+Пункты 1–5 не касаются продакшна вообще. Firebase-версия ломается только на
+шаге 6–7, и то на отдельном домене.
+
+---
+
+## 8. Миграция данных из Firestore
+
+Экспорт скриптом на `firebase-admin` с сервисным ключом **на чтение**, в JSON,
+затем импорт с сохранением `legacy_id` — так импорт можно повторять, не
+задваивая записи.
+
+Сложное место одно — **пароли родителей**. Firebase Auth отдаёт хеши через
+`firebase auth:export`, вместе с параметрами scrypt проекта; их можно проверять
+у себя, реализовав вариант scrypt от Firebase. Это возможно, но это
+криптографический код ради разовой задачи.
+
+Предлагаю проще: аккаунты переносим с email, а пароль пользователь задаёт
+заново по письму со ссылкой. Почта у нас своя — mailcow на этом же сервере,
+`mail.kazpayment.kz`. Если пользователей единицы, вопрос вообще не стоит.
+
+**Устройства перенести молча нельзя.** Агент на машине ребёнка ходит в
+Firestore и о новом бэкенде не знает; переключение требует новой версии агента.
+Порядок: сначала бэкенд, потом релиз агента, умеющего новый протокол, потом
+перепривязка (`createRepairPairingCode` сохраняет правила и историю устройства).
+
+---
+
+## 9. Юридическая часть — что ещё предстоит, кроме хранения
+
+Хранение данных на территории РК — необходимое, но не единственное условие.
+Закон РК «О персональных данных и их защите» от 21.05.2013 № 94-V. Перенос
+базы закрывает вопрос места хранения; отдельно останутся:
+
+- **согласие законного представителя** на сбор данных ребёнка и понятная форма
+  этого согласия в интерфейсе;
+- **уведомление уполномоченного органа** о сборе персональных данных;
+- политика обработки, сроки хранения и удаление по требованию;
+- перечень собираемых данных: посещённые сайты, активность, а в перспективе
+  скриншоты и переписка — это чувствительная категория.
+
+Точные формулировки статей и порядок уведомления проверю отдельно по
+актуальной редакции закона, когда дойдём до этого пункта — не на память.
+
+---
+
+## 10. Решения владельца (2026-08-23)
+
+1. **Домен — `kidscontrol.kz`**, куплен в день составления плана. Он и
+   зашивается в агента как адрес бэкенда. API — на поддомене `api.kidscontrol.kz`,
+   панель — на корне.
+2. Ветка `selfhosted` ведётся **от `master`**.
+3. **MinIO в v1 не поднимаем.** Порт 8093 остаётся в резерве под тот момент,
+   когда дойдёт очередь до скриншотов.
+4. **Пароли при миграции не переносим** — пользователь задаёт заново по письму
+   через mailcow. Реализация scrypt Firebase не нужна.
+5. **Бэкап новой базы дописывается в `offsite-backup.sh` на шаге 1**, вместе с
+   каркасом, а не в конце работ.
+6. С домашнего ПК (Windows 11) делаются **только сборки агента под Windows**.
+   Параллельных правок кода оттуда не будет, но бампы версии агента и релизы —
+   будут. Коммитить всё равно явными путями, перед пушем сверяться с `origin`.
+
+### Осталось невыясненным
+
+- Нужен ли `ufw` на хосте и есть ли фильтр на стороне провайдера — проверить
+  не смог, `sudo` требует пароль.

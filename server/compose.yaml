@@ -1,0 +1,75 @@
+name: kidscontrol
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: kidscontrol-db
+    restart: unless-stopped
+    # Deliberately no `ports:` — the database is reachable only from the
+    # internal network. Backups run through `docker exec ... pg_dump`.
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Server locale is C; without this initdb picks a collation that sorts
+      # Cyrillic by byte value, which shows up much later as wrongly ordered
+      # device names in the panel.
+      LANG: C.UTF-8
+    command:
+      - postgres
+      # 7.7 GB box with ~3.2 GB free and swap already in use. These keep
+      # Postgres inside the 512 MB limit below instead of being OOM-killed.
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - max_connections=50
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    mem_limit: 512m
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - internal
+
+  api:
+    build: .
+    container_name: kidscontrol-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # Same reason as in the Dockerfile, but for runtime: any outbound call
+      # (mail, webhooks) hangs on Happy Eyeballs without both flags. Set here
+      # as well so it can be changed without rebuilding the image.
+      NODE_OPTIONS: --dns-result-order=ipv4first --no-network-family-autoselection
+    # Bound to loopback only; Nginx Proxy Manager reaches it by container name
+    # over proxy-network. Same convention as every other project on this box.
+    ports:
+      - '127.0.0.1:8092:8092'
+    mem_limit: 384m
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:8092/health || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - internal
+      - proxy-network
+
+volumes:
+  pgdata:
+
+networks:
+  internal:
+  proxy-network:
+    external: true
