@@ -128,54 +128,52 @@ function subscribeToCommands(token) {
   })
 }
 
-export async function initFirebaseSync(pUid, dId) {
-  parentUid = pUid
-  deviceId = dId
-
-  // Best-effort auth. Primary: custom token via getAgentToken CF called with plain
-  // https.request (Node.js built-in, works in pkg). Fallback: legacy unauthenticated
-  // mode (Firestore rules allow writes when agentUid == null). MUST NOT be fatal.
-  // The agent must end up as `agent_<deviceId>` — the uid getAgentToken mints after
-  // verifying screenshotUploadToken. Checking `!auth.currentUser` was not enough:
-  // runPairingFlow() used to signInAnonymously() and that session is restored from
-  // agent_auth.json on every later start, so this branch was skipped forever and the
-  // agent ran as an anonymous user that matches no security rule.
+// True once the agent holds the `agent_<deviceId>` identity that the security rules
+// require. Kept separate from initFirebaseSync so it can be retried: if the network is
+// down at startup — routine after a Windows 11 Modern Standby resume — the agent used
+// to stay unauthenticated for its whole lifetime, which the legacy open rules happened
+// to tolerate. They no longer will.
+export async function ensureAgentAuth() {
   const expectedUid = `agent_${deviceId}`
-  if (auth.currentUser?.uid !== expectedUid) {
-    if (auth.currentUser) {
-      log(`Replacing stale session ${auth.currentUser.uid} with the device agent identity`)
-    }
-    try {
-      const pairing = existsSync(PAIRING_FILE)
-        ? JSON.parse(readFileSync(PAIRING_FILE, 'utf8'))
-        : null
-      if (!pairing?.screenshotUploadToken) {
-        throw new Error('pairing.json has no screenshotUploadToken — re-pair this device')
-      }
-      const result = await callCF('getAgentToken', {
-        parentUid, deviceId,
-        uploadToken: pairing.screenshotUploadToken
-      })
-      await signInWithCustomToken(auth, result.token)
-      log(`Signed in with custom token: ${auth.currentUser.uid}`)
-    } catch (err) {
-      log(`Custom token auth failed: ${err.message}`)
-      log('Continuing in legacy unauthenticated mode')
-    }
-  } else {
-    log(`Using persisted agent session: ${auth.currentUser.uid}`)
-  }
+  if (auth.currentUser?.uid === expectedUid) return true
 
-  // Register this agent's UID in the device doc so Firestore rules can verify it.
-  // Only when authenticated; otherwise stay in legacy (agentUid == null) mode.
   if (auth.currentUser) {
+    log(`Replacing stale session ${auth.currentUser.uid} with the device agent identity`)
+  }
+  try {
+    const pairing = existsSync(PAIRING_FILE)
+      ? JSON.parse(readFileSync(PAIRING_FILE, 'utf8'))
+      : null
+    if (!pairing?.screenshotUploadToken) {
+      throw new Error('pairing.json has no screenshotUploadToken — re-pair this device')
+    }
+    const result = await callCF('getAgentToken', {
+      parentUid, deviceId,
+      uploadToken: pairing.screenshotUploadToken
+    })
+    await signInWithCustomToken(auth, result.token)
+    log(`Signed in with custom token: ${auth.currentUser.uid}`)
+
     try {
       await callCF('registerAgentUid', { parentUid, deviceId })
-      log(`Agent UID registered in device doc`)
+      log('Agent UID registered in device doc')
     } catch (err) {
-      log(`Warning: registerAgentUid failed: ${err.message} — continuing with legacy open rules`)
+      log(`Warning: registerAgentUid failed: ${err.message}`)
     }
+    return true
+  } catch (err) {
+    log(`Custom token auth failed: ${err.message}`)
+    return false
   }
+}
+
+// onSnapshot kills a listener permanently on a terminal error (permission-denied while
+// unauthenticated, for instance) and never retries by itself. Re-subscribing keeps rule
+// delivery alive instead of leaving the agent running with stale cached rules forever.
+function subscribeAll() {
+  if (unsubParent) unsubParent()
+  if (unsubDevice) unsubDevice()
+  if (unsubRules) unsubRules()
 
   const parentRef = doc(db, 'users', parentUid)
   unsubParent = onSnapshot(parentRef, (snap) => {
@@ -183,6 +181,7 @@ export async function initFirebaseSync(pUid, dId) {
     setParentConfig(snap.data())
   }, (err) => {
     log(`Firestore parent config error: ${err.message}`)
+    scheduleResubscribe()
   })
 
   const deviceRef = doc(db, 'users', parentUid, 'devices', deviceId)
@@ -193,6 +192,7 @@ export async function initFirebaseSync(pUid, dId) {
     subscribeToCommands(deviceConfig.screenshotUploadToken)
   }, (err) => {
     log(`Firestore device config error: ${err.message}`)
+    scheduleResubscribe()
   })
 
   const qRules = query(
@@ -205,7 +205,27 @@ export async function initFirebaseSync(pUid, dId) {
     setActiveRules(rules)
   }, (err) => {
     log(`Firestore rules error: ${err.message}`)
+    scheduleResubscribe()
   })
+}
+
+let resubscribeTimer = null
+function scheduleResubscribe() {
+  if (resubscribeTimer) return
+  resubscribeTimer = setTimeout(async () => {
+    resubscribeTimer = null
+    log('Re-authenticating and re-subscribing after listener failure')
+    await ensureAgentAuth()
+    subscribeAll()
+  }, 30_000)
+}
+
+export async function initFirebaseSync(pUid, dId) {
+  parentUid = pUid
+  deviceId = dId
+
+  await ensureAgentAuth()
+  subscribeAll()
 }
 
 export function stopFirebaseSync() {
@@ -240,6 +260,13 @@ async function resetFirestoreConnection() {
 
 export async function sendHeartbeat() {
   if (!parentUid || !deviceId) return
+
+  // Recovers the case where the network was unavailable during startup.
+  if (auth.currentUser?.uid !== `agent_${deviceId}`) {
+    const ok = await ensureAgentAuth()
+    if (ok) subscribeAll()
+  }
+
   try {
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Heartbeat timeout')), 15000)
