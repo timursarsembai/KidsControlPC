@@ -19,42 +19,45 @@ service cloud.firestore {
       return isOwner(userId) || activeParentAccess(userId);
     }
 
-    // True if the signed-in user is the registered agent for the given device.
-    // agentUid is written to the device doc by the pairDevice / registerAgentUid Cloud Functions.
-    // Legacy devices (paired before v1.1.92) have no agentUid and run agents that do
-    // not authenticate with Firebase. Allow any writer until agentUid is set; once set,
-    // only the registered anonymous session may write (strict UID check).
+    // The agent proves it is this device's agent by holding the custom token minted by
+    // getAgentToken, which is only issued after screenshotUploadToken is verified against
+    // the device doc. parentUid/deviceId travel as custom claims.
+    //
+    // This replaces a `storedUid == null` fallback that allowed ANY caller to read and
+    // write the device doc, its installedApps and its activityLogs. agentUid was null on
+    // every device in existence because registerAgentUid could never run: callCF() sent
+    // no Authorization header, so the Cloud Function always saw an unauthenticated caller.
+    //
+    // Reading claims costs nothing, whereas the old lookup did a get() on the device doc
+    // for every single access to it, to its rules, its apps and its logs.
     function isDeviceAgent(userId, deviceId) {
-      let storedUid = get(/databases/$(database)/documents/users/$(userId)/devices/$(deviceId)).data.get('agentUid', null);
-      return storedUid == null || (isSignedIn() && storedUid == request.auth.uid);
+      return isSignedIn()
+        && request.auth.token.get('parentUid', null) == userId
+        && request.auth.token.get('deviceId', null) == deviceId;
     }
 
-    // True for an agent signed in with the custom token minted by getAgentToken,
-    // which carries parentUid/deviceId as custom claims. Needed because a signed-in
-    // agent is neither the owner nor a parent, so `request.auth == null` (the legacy
-    // unauthenticated path) stops matching the moment the agent authenticates.
+    // True for an agent signed in with the custom token minted by getAgentToken, which
+    // carries parentUid/deviceId as custom claims. Needed because an agent is neither the
+    // owner nor a parent of the account it serves.
     // Reads the claim only — no get(), so this costs no extra document reads.
     function isAgentOfUser(userId) {
       return isSignedIn() && request.auth.token.get('parentUid', null) == userId;
     }
 
-    // Any session an agent can legitimately be in. runPairingFlow() calls
-    // signInAnonymously() and persists that session to agent_auth.json, so from the
-    // second start onward initFirebaseSync's `if (!auth.currentUser)` short-circuits
-    // and the agent runs as an ANONYMOUS user — neither `request.auth == null` nor
-    // the custom-token claim path matches it, which denied every alert/chat write.
-    // No get() here, so this costs no extra document reads.
+    // Agents used to reach these paths as unauthenticated or anonymous callers, which
+    // meant anyone on the internet could write alerts and chat messages into any account
+    // they knew the uid of. From v1.1.106 the agent always carries its custom token, so
+    // those two escape hatches are gone.
     function isAgentSession(userId) {
-      return request.auth == null
-        || (isSignedIn() && request.auth.token.firebase.sign_in_provider == 'anonymous')
-        || isAgentOfUser(userId);
+      return isAgentOfUser(userId);
     }
 
     // ── User root document (e.g. pauseAllRules flag) ─────────────────────────
-    // Agents read this to check pauseAllRules. Legacy agents run without auth,
-    // so we allow any read — the userId is not publicly guessable.
+    // Agents read this to check pauseAllRules. This used to allow every signed-in user
+    // and every anonymous caller, on the theory that the userId is not guessable - which
+    // is not an access control. Agents now authenticate, so scope it to them.
     match /users/{userId} {
-      allow read: if canManageUser(userId) || isSignedIn() || request.auth == null;
+      allow read: if canManageUser(userId) || isAgentOfUser(userId);
       allow write: if canManageUser(userId);
     }
 
@@ -136,18 +139,17 @@ service cloud.firestore {
         || (resource.data.uploadToken == deviceScreenshotToken(userId, deviceId));
     }
 
-    // Alerts - agent writes without auth in legacy mode (request.auth == null),
-    // or with its custom token once signed in. Restrict to owners/parents otherwise;
-    // exclude bare isSignedIn() to block revoked invitees.
+    // Alerts - written by the parent apps or by a device agent holding its custom token.
+    // Bare isSignedIn() is deliberately excluded so revoked invitees cannot write.
     match /users/{userId}/alerts/{alertId} {
       allow read: if canManageUser(userId);
       allow write: if canManageUser(userId) || isAgentSession(userId);
     }
 
     // ── Chats ─────────────────────────────────────────────────────────────────
-    // Legacy agents run without auth — allow unauthenticated reads/writes so
-    // the child can send and receive chat messages. Signed-in agents match via
-    // isAgentOfUser instead (they are neither owner nor parent).
+    // The child side is the agent, which matches via isAgentOfUser. Scoped to the parent
+    // rather than a single device because the agent lists all chats and filters by
+    // deviceIds client-side — a per-document condition would break that query.
     match /users/{userId}/chats/{chatId} {
       allow read: if canManageUser(userId) || isAgentSession(userId);
       allow create: if canManageUser(userId);
@@ -155,7 +157,7 @@ service cloud.firestore {
       allow delete: if isOwner(userId) || (isSignedIn() && resource.data.createdBy == request.auth.uid);
     }
 
-    // ── Activity logs & stats — agent writes via authenticated anonymous session ──
+    // ── Activity logs & stats — written by the device's authenticated agent ──
     match /users/{userId}/devices/{deviceId}/activityLogs/{logId} {
       allow read: if canManageUser(userId);
       allow write: if isDeviceAgent(userId, deviceId);
