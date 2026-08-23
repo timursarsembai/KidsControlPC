@@ -1,5 +1,6 @@
 import { addDoc, collection, doc, setDoc, increment, serverTimestamp } from 'firebase/firestore'
 import { db } from '../network/firebaseSync.js'
+import { IS_SELF_HOSTED, bumpActivityStat, queueActivityLog } from '../network/sync.js'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import { writeFileSync, unlinkSync, existsSync } from 'fs'
@@ -135,6 +136,15 @@ export async function tickDnsTracking(parentUid, deviceId) {
   }
 
   if (!newDomains.length) return
+
+  if (IS_SELF_HOSTED) {
+    for (const domain of newDomains) {
+      queueActivityLog('site_visit', { name: domain, detail: '' })
+      bumpActivityStat(todayStr(), `sitesVisited.${domain}`, 1)
+    }
+    log(`Logged ${newDomains.length} new domains: ${newDomains.slice(0, 5).join(', ')}`)
+    return
+  }
 
   const logsRef = collection(db, 'users', parentUid, 'devices', deviceId, 'activityLogs')
   const statsRef = doc(db, 'users', parentUid, 'devices', deviceId, 'activityStats', todayStr())

@@ -1,4 +1,4 @@
-/* global __KIDSCONTROL_ENV__ */
+/* global __KIDSCONTROL_ENV__, __KIDSCONTROL_BACKEND__ */
 
 import { join } from 'path'
 
@@ -44,6 +44,27 @@ export const AGENT_AUTH_FILE = join(process.cwd(), APP_ENV === 'production' ? 'a
 
 // Firebase Cloud Functions region.
 export const FUNCTIONS_REGION = 'us-central1'
+
+// ── Which backend this build talks to ───────────────────────────────────────
+//
+// 'firebase' is the production default and must stay that way: agents already
+// installed on children's PCs update themselves from GitHub Releases, and a
+// build that silently switched backends would leave those machines talking to
+// a server they were never paired with — that is, with no rules at all.
+//
+// The self-hosted build is selected at build time (--define:__KIDSCONTROL_BACKEND__)
+// or at run time through the environment, which is what the pairing installer
+// uses when a parent points an agent at their own server.
+const buildBackend = typeof __KIDSCONTROL_BACKEND__ !== 'undefined' ? __KIDSCONTROL_BACKEND__ : null
+
+export const BACKEND = process.env.KIDSCONTROL_BACKEND || buildBackend || 'firebase'
+export const IS_SELF_HOSTED = BACKEND === 'selfhosted'
+
+export const API_BASE_URL = process.env.KIDSCONTROL_API_BASE_URL || 'https://api.kidscontrol.kz'
+export const API_PREFIX = '/api/v1'
+// ws:// for a plain http API, wss:// otherwise — derived so there is one
+// setting to get wrong instead of two that can disagree.
+export const WS_BASE_URL = API_BASE_URL.replace(/^http/, 'ws')
 
 // Shared, user-writable folder for IPC files between the SYSTEM service and the
 // interactive ChatTrayApp (which runs as a limited user and cannot write to

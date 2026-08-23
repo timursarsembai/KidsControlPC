@@ -11,7 +11,9 @@ import { deviceSecretMatches, generateDeviceSecret, hashDeviceSecret } from '../
 import { signAgentToken } from '../auth/tokens.js'
 import { config } from '../config.js'
 import { normalizePairingCode } from '../pairing/codes.js'
-import { COMMAND_COLUMNS, RULE_COLUMNS, serializeCommand, serializeRule } from '../serializers.js'
+import {
+  COMMAND_COLUMNS, RULE_COLUMNS, serializeCommand, serializeDevice, serializeRule
+} from '../serializers.js'
 
 const pairSchema = {
   type: 'object',
@@ -220,17 +222,34 @@ export default async function agentRoutes(app) {
         },
         body: {
           type: 'object',
-          required: ['status'],
-          properties: { status: { type: 'string', enum: ['active', 'inactive'] } },
-          additionalProperties: false
+          properties: {
+            status: { type: 'string', enum: ['active', 'inactive'] },
+            // The enforcer reports whether the program this rule covers is
+            // running right now, so the panel can show it. Free-form rule
+            // fields stay off limits: an agent that could rewrite a rule could
+            // rewrite its own limits.
+            isRunning: { type: 'boolean' },
+            lastSeenRunningAt: { type: ['string', 'null'], maxLength: 40 }
+          },
+          additionalProperties: false,
+          minProperties: 1
         }
       }
     }, async (request) => {
+      const runtime = {}
+      if (request.body.isRunning !== undefined) runtime.isRunning = request.body.isRunning
+      if (request.body.lastSeenRunningAt !== undefined) {
+        runtime.lastSeenRunningAt = request.body.lastSeenRunningAt
+      }
+
       const { rows } = await query(
-        `update rules set status = $3, updated_at = now()
+        `update rules
+            set status = coalesce($3, status),
+                payload = payload || $4::jsonb,
+                updated_at = now()
           where id = $1 and device_id = $2
           returning ${RULE_COLUMNS}`,
-        [request.params.ruleId, request.deviceId, request.body.status]
+        [request.params.ruleId, request.deviceId, request.body.status ?? null, JSON.stringify(runtime)]
       )
       if (!rows[0]) throw notFound('rule_not_found', 'Rule not found.')
       return serializeRule(rows[0])
@@ -334,6 +353,79 @@ export default async function agentRoutes(app) {
       return { saved: apps.length }
     })
 
+    // Activity: what was on screen and which hosts were looked up. Logs and
+    // per-day counters arrive together because the agent produces them
+    // together — one request per tick instead of two.
+    secured.post('/agent/activity', {
+      schema: {
+        body: {
+          type: 'object',
+          properties: {
+            logs: {
+              type: 'array',
+              maxItems: 200,
+              items: {
+                type: 'object',
+                required: ['kind'],
+                properties: {
+                  kind: { type: 'string', maxLength: 50 },
+                  ts: { type: 'string', maxLength: 40 },
+                  payload: { type: 'object' }
+                },
+                additionalProperties: false
+              }
+            },
+            // { '2026-08-23': { screenTimeSec: 120, 'apps.chrome': 60 } }
+            // Values are added to what is already stored, the way Firestore's
+            // increment() worked — the agent reports a delta per tick and has
+            // no idea what the running total is.
+            stats: { type: 'object' }
+          },
+          additionalProperties: false
+        }
+      }
+    }, async (request) => {
+      const logs = request.body.logs ?? []
+      const stats = request.body.stats ?? {}
+
+      if (logs.length > 0) {
+        await query(
+          `insert into activity_logs (device_id, ts, kind, payload)
+           select $1, coalesce(t.ts::timestamptz, now()), t.kind, t.payload::jsonb
+             from unnest($2::text[], $3::text[], $4::text[]) as t(ts, kind, payload)`,
+          [
+            request.deviceId,
+            logs.map(l => l.ts ?? null),
+            logs.map(l => l.kind),
+            logs.map(l => JSON.stringify(l.payload ?? {}))
+          ]
+        )
+      }
+
+      for (const [date, counters] of Object.entries(stats)) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          throw badRequest('invalid_date', `Bad activity date: ${date}`)
+        }
+        // Merge by adding: two agents can never write the same device, but a
+        // retried request can, and a retry that overwrote would lose whatever
+        // the first attempt had already counted.
+        await query(
+          `insert into activity_stats (device_id, date, counters)
+           values ($1, $2, $3::jsonb)
+           on conflict (device_id, date) do update
+             set counters = (
+                   select jsonb_object_agg(key, coalesce((activity_stats.counters ->> key)::numeric, 0)
+                                                + coalesce((excluded.counters ->> key)::numeric, 0))
+                     from jsonb_object_keys(activity_stats.counters || excluded.counters) as key
+                 ),
+                 updated_at = now()`,
+          [request.deviceId, date, JSON.stringify(counters)]
+        )
+      }
+
+      return { logs: logs.length, days: Object.keys(stats).length }
+    })
+
     // Alerts the agent raises: a blocked program was launched, self-protection
     // tripped, and so on. Deduplication stays on the agent, which already
     // suppresses repeats within a minute.
@@ -363,6 +455,26 @@ export default async function agentRoutes(app) {
       return reply.code(201).send({ id: rows[0].id })
     })
 
+    // Pomodoro state, so the panel can show what phase the child's timer is in.
+    // Stored as-is: the shape belongs to the agent's engine and changes with it.
+    secured.post('/agent/pomodoro', {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['state'],
+          properties: { state: { type: ['object', 'null'] } },
+          additionalProperties: false
+        }
+      }
+    }, async (request) => {
+      const { rowCount } = await query(
+        'update devices set pomodoro_state = $2::jsonb, updated_at = now() where id = $1',
+        [request.deviceId, JSON.stringify(request.body.state ?? null)]
+      )
+      if (rowCount === 0) throw notFound('device_removed', 'Device has been removed from the account.')
+      return { ok: true }
+    })
+
     // Recent log lines, pushed on a fetch_logs command. Capped server-side as
     // well as in the agent: a log that grows without limit is how the agent
     // once lost its own start-up diagnostics.
@@ -388,6 +500,37 @@ export default async function agentRoutes(app) {
       )
       if (rowCount === 0) throw notFound('device_removed', 'Device has been removed from the account.')
       return { saved: request.body.lines.length }
+    })
+
+    /**
+     * The device as the agent must see it: every setting the parent has set,
+     * plus the account-wide pause switch.
+     *
+     * This is what the agent polls when the live channel is unavailable, so it
+     * has to carry the same thing the channel does — a smaller answer would
+     * overwrite the cached config with less than it had, and the first casualty
+     * would be isLocked: a locked screen would quietly unlock itself.
+     */
+    secured.get('/agent/device', async (request) => {
+      const { rows } = await query(
+        `select d.id, d.hostname, d.os_type, d.device_name, d.alias,
+                d.agent_version, d.status, d.last_seen, d.paired_at,
+                d.settings, d.pomodoro_state,
+                p.pause_all_rules
+           from devices d
+           join device_secrets s on s.device_id = d.id
+           left join profiles p on p.user_id = d.owner_id
+          where d.id = $1`,
+        [request.deviceId]
+      )
+      if (!rows[0]) throw unauthorized('device_unpaired', 'Device is no longer paired. Re-pair it.')
+
+      return {
+        device: serializeDevice(rows[0]),
+        // Emergency unlock lives on the account, not the device. The agent
+        // checks it before enforcing anything.
+        pauseAllRules: Boolean(rows[0].pause_all_rules)
+      }
     })
 
     // Lets an agent confirm what it is paired to without a heartbeat write —

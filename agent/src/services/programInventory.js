@@ -1,5 +1,6 @@
 import { collection, updateDoc, doc, writeBatch, serverTimestamp } from 'firebase/firestore'
 import { db } from '../network/firebaseSync.js'
+import { IS_SELF_HOSTED, uploadInstalledApps } from '../network/sync.js'
 import { getInstalledPrograms } from '../scanner.js'
 import { delay } from '../core/utils.js'
 
@@ -57,6 +58,15 @@ export async function performProgramRescan(parentUid, deviceId, log, reason = 'm
       return
     }
 
+    if (IS_SELF_HOSTED) {
+      await uploadInstalledApps(apps.map(app => ({
+        id: app.id,
+        name: app.name,
+        path: app.path,
+        publisher: app.publisher || '',
+        version: app.version || ''
+      })))
+    } else {
     const appsRef = collection(db, 'users', parentUid, 'devices', deviceId, 'installedApps')
     for (let i = 0; i < apps.length; i += 400) {
       const batch = writeBatch(db)
@@ -78,6 +88,7 @@ export async function performProgramRescan(parentUid, deviceId, log, reason = 'm
       installedAppsCount: apps.length,
       lastScanAt: new Date().toISOString()
     })
+    }
 
     lastUploadedAppsSignature = appsSignature
     installedBasenames = new Set(apps.map(a => a.exeBasename).filter(Boolean))

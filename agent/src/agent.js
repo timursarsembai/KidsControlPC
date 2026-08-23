@@ -6,13 +6,15 @@ initErrorTracking()
 initLogCapture()
 
 import { loadConfigCache, getDeviceConfig } from './core/configManager.js'
+import { IS_SELF_HOSTED } from './config.js'
 import {
-  initFirebaseSync,
-  stopFirebaseSync,
+  initSync,
+  stopSync,
+  flushActivity,
   sendHeartbeat,
   sendAlert,
   markDeviceOffline
-} from './network/firebaseSync.js'
+} from './network/sync.js'
 import { startIpcServer } from './network/ipcServer.js'
 import { startTimerWidgetIfNeeded, ensureWidgetLocked, getIsWidgetLocked } from './services/widgetManager.js'
 import { enforceRules } from './services/enforcer.js'
@@ -55,10 +57,14 @@ async function shutdown(reason) {
 
   const p1 = sendAlert('agent_stopped', reason).catch(() => {})
   const p2 = markDeviceOffline().catch(() => {})
+  // Whatever the child did in the last fifteen seconds is still only in the
+  // buffer. Racing it with the same two-second budget as the rest: shutting
+  // down slowly is worse than losing a few seconds of screen time.
+  const p3 = IS_SELF_HOSTED ? flushActivity().catch(() => {}) : Promise.resolve()
 
   try {
     await Promise.race([
-      Promise.all([p1, p2]),
+      Promise.all([p1, p2, p3]),
       delay(2000)
     ])
   } catch (err) { }
@@ -66,7 +72,7 @@ async function shutdown(reason) {
   clearHostsBlock()
   stopScreenshotService()
   stopChatSync()
-  stopFirebaseSync()
+  stopSync()
   process.exit(0)
 }
 
@@ -147,20 +153,28 @@ async function main() {
   // Everything below needs the network. Each step is capped so a slow or missing
   // connection can delay startup but can never stall it.
   await withOperationTimeout(
-    initFirebaseSync(parentUid, deviceId),
+    initSync(parentUid, deviceId),
     STARTUP_STEP_TIMEOUT_MS,
-    'initFirebaseSync timed out'
+    'initSync timed out'
   ).catch(e => log(`⚠️ ${e.message} — continuing offline, listeners retry on their own`))
 
-  startScreenshotService(parentUid, deviceId)
+  // Screenshots and chat need object storage and a chat backend, neither of
+  // which the self-hosted version has yet. Starting them anyway would mean an
+  // agent paired to this parent's own server quietly writing into the Firebase
+  // project it is no longer part of.
+  if (IS_SELF_HOSTED) {
+    log('ℹ️ Screenshots and chat are not available on this backend — skipped')
+  } else {
+    startScreenshotService(parentUid, deviceId)
 
-  const chatDeviceName = dc?.alias || dc?.hostname || hostname()
-  withOperationTimeout(
-    initChatSync(parentUid, deviceId, chatDeviceName),
-    STARTUP_STEP_TIMEOUT_MS,
-    'initChatSync timed out'
-  ).catch(e => log(`⚠️ ${e.message}`))
-  startChatWidgetIfNeeded().catch(e => log(`⚠️ Chat widget launch failed: ${e.message}`))
+    const chatDeviceName = dc?.alias || dc?.hostname || hostname()
+    withOperationTimeout(
+      initChatSync(parentUid, deviceId, chatDeviceName),
+      STARTUP_STEP_TIMEOUT_MS,
+      'initChatSync timed out'
+    ).catch(e => log(`⚠️ ${e.message}`))
+    startChatWidgetIfNeeded().catch(e => log(`⚠️ Chat widget launch failed: ${e.message}`))
+  }
 
   sendHeartbeat().catch(() => {})
   sendAlert('agent_started', 'Background program was started').catch(() => {})

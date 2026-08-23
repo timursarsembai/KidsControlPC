@@ -6,7 +6,8 @@ import { getRunningProcesses } from '../scanner.js'
 import { processReminders } from '../reminder.js'
 import { enforceProcessRules } from '../processEnforcer.js'
 import { extractDomains, applyHostsBlock } from '../hostsBlocker.js'
-import { sendAlert, db } from '../network/firebaseSync.js'
+import { sendAlert, updateRule, IS_SELF_HOSTED } from '../network/sync.js'
+import { db } from '../network/firebaseSync.js'
 import { evaluatePomodoroState } from './pomodoroEngine.js'
 import { executePowerAction } from './powerActions.js'
 import {
@@ -49,10 +50,17 @@ async function updateRunningStatuses(parentUid, deviceId, currentProcesses) {
     if (runningStateCache[rule.id] !== isRunning) {
       runningStateCache[rule.id] = isRunning
       try {
-        await updateDoc(doc(db, 'users', parentUid, 'devices', deviceId, 'rules', rule.id), {
-          isRunning,
-          lastSeenRunningAt: isRunning ? serverTimestamp() : null
-        })
+        if (IS_SELF_HOSTED) {
+          await updateRule(rule.id, {
+            isRunning,
+            lastSeenRunningAt: isRunning ? new Date().toISOString() : null
+          })
+        } else {
+          await updateDoc(doc(db, 'users', parentUid, 'devices', deviceId, 'rules', rule.id), {
+            isRunning,
+            lastSeenRunningAt: isRunning ? serverTimestamp() : null
+          })
+        }
       } catch (err) { }
     }
   }

@@ -14,6 +14,7 @@ import { isChangeListenerConnected, startChangeListener, stopChangeListener } fr
 import { startDispatcher } from './realtime/dispatch.js'
 import { Hub } from './realtime/hub.js'
 import websocketRoutes from './realtime/ws.js'
+import activityRoutes from './routes/activity.js'
 import agentRoutes from './routes/agent.js'
 import alertRoutes from './routes/alerts.js'
 import authRoutes from './routes/auth.js'
@@ -134,6 +135,7 @@ async function registerPlugins() {
   await app.register(ruleRoutes, { prefix: '/api/v1' })
   await app.register(alertRoutes, { prefix: '/api/v1' })
   await app.register(commandRoutes, { prefix: '/api/v1' })
+  await app.register(activityRoutes, { prefix: '/api/v1' })
   await app.register(agentRoutes, { prefix: '/api/v1' })
   await app.register(websocketRoutes, { hub })
 }

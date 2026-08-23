@@ -10,6 +10,7 @@
 
 import { addDoc, collection, doc, setDoc, increment, serverTimestamp } from 'firebase/firestore'
 import { db } from '../network/firebaseSync.js'
+import { IS_SELF_HOSTED, bumpActivityStat, queueActivityLog } from '../network/sync.js'
 import { getInstalledBasenames, getInstalledPathPrefixes, getInstalledNameMap } from './programInventory.js'
 
 function log(msg) {
@@ -158,12 +159,16 @@ export async function trackAppDelta(processes, parentUid, deviceId) {
       const proc = userProcs.find(p => p.base === base)
       launchNames[base] = friendlyName(base, proc?.name)
       try {
-        await addDoc(activityLogsRef(parentUid, deviceId), {
-          type: 'app_launch',
-          ts: serverTimestamp(),
-          name: launchNames[base],
-          detail: proc?.path || '',
-        })
+        if (IS_SELF_HOSTED) {
+          queueActivityLog('app_launch', { name: launchNames[base], detail: proc?.path || '' })
+        } else {
+          await addDoc(activityLogsRef(parentUid, deviceId), {
+            type: 'app_launch',
+            ts: serverTimestamp(),
+            name: launchNames[base],
+            detail: proc?.path || '',
+          })
+        }
       } catch (e) {
         log(`app_launch write error: ${e.message}`)
       }
@@ -187,18 +192,23 @@ export async function trackAppDelta(processes, parentUid, deviceId) {
       delete launchNames[base]
 
       try {
-        await addDoc(activityLogsRef(parentUid, deviceId), {
-          type: 'app_close',
-          ts: serverTimestamp(),
-          name: displayName,
-          detail: '',
-          duration: durationSec,
-        })
-        // Roll up into daily stats
-        await setDoc(activityStatsRef(parentUid, deviceId, todayStr()), {
-          date: todayStr(),
-          appsUsage: { [base]: increment(durationSec) },
-        }, { merge: true })
+        if (IS_SELF_HOSTED) {
+          queueActivityLog('app_close', { name: displayName, detail: '', duration: durationSec })
+          bumpActivityStat(todayStr(), `appsUsage.${base}`, durationSec)
+        } else {
+          await addDoc(activityLogsRef(parentUid, deviceId), {
+            type: 'app_close',
+            ts: serverTimestamp(),
+            name: displayName,
+            detail: '',
+            duration: durationSec,
+          })
+          // Roll up into daily stats
+          await setDoc(activityStatsRef(parentUid, deviceId, todayStr()), {
+            date: todayStr(),
+            appsUsage: { [base]: increment(durationSec) },
+          }, { merge: true })
+        }
       } catch (e) {
         log(`app_close write error: ${e.message}`)
       }
@@ -231,10 +241,14 @@ export async function tickScreenTime(parentUid, deviceId, intervalSec = 30) {
     lastFlushAt = now
 
     try {
-      await setDoc(activityStatsRef(parentUid, deviceId, todayStr()), {
-        date: todayStr(),
-        screenTimeSec: increment(toFlush),
-      }, { merge: true })
+      if (IS_SELF_HOSTED) {
+        bumpActivityStat(todayStr(), 'screenTimeSec', toFlush)
+      } else {
+        await setDoc(activityStatsRef(parentUid, deviceId, todayStr()), {
+          date: todayStr(),
+          screenTimeSec: increment(toFlush),
+        }, { merge: true })
+      }
     } catch (e) {
       // On failure, don't lose the seconds — add back
       pendingScreenSec += toFlush
@@ -269,6 +283,11 @@ export async function trackBlockedDomains(domains, parentUid, deviceId) {
   for (const domain of newDomains) {
     loggedBlockedDomains.add(domain)
     try {
+      if (IS_SELF_HOSTED) {
+        queueActivityLog('site_blocked', { name: domain, detail: '' })
+        bumpActivityStat(todayStr(), `sitesBlocked.${domain}`, 1)
+        continue
+      }
       await addDoc(activityLogsRef(parentUid, deviceId), {
         type: 'site_blocked',
         ts: serverTimestamp(),

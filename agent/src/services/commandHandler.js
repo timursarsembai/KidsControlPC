@@ -3,7 +3,7 @@ import {
   markCommandCompleted,
   markCommandFailed,
   pushRecentLogs
-} from '../network/firebaseSync.js'
+} from '../network/sync.js'
 import { ensureWidgetLocked } from './widgetManager.js'
 import { takeScreenshot } from './screenshotService.js'
 import { executePowerAction } from './powerActions.js'

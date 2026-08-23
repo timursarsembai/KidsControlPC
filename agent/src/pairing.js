@@ -6,8 +6,9 @@
  */
 
 import { readFileSync, writeFileSync, existsSync } from 'fs'
-import { PAIRING_FILE, AGENT_VERSION } from './config.js'
+import { PAIRING_FILE, AGENT_VERSION, IS_SELF_HOSTED } from './config.js'
 import { callCF } from './network/firebaseSync.js'
+import { api } from './network/httpClient.js'
 import { hostname, type as osType } from 'os'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
@@ -87,20 +88,32 @@ export async function runPairingFlow() {
     console.log(isRu ? '\n⏳ Проверяю код...' : '\n⏳ Checking code...')
 
     try {
-      const result = await callCF('pairDevice', {
+      const payload = {
         code: normalized,
         hostname: hostname(),
         osType: osType(),
         agentVersion: AGENT_VERSION
-      })
+      }
 
-      const { parentUid, deviceId, screenshotUploadToken } = result
+      // Both backends answer with the same three things under different
+      // names: who owns this device, which device it is, and the secret it
+      // will trade for tokens from now on.
+      const result = IS_SELF_HOSTED
+        ? await api.post('/agent/pair', payload, { auth: false })
+        : await callCF('pairDevice', payload)
+
+      const parentUid = result.parentUid ?? result.ownerId
+      const deviceId = result.deviceId
+      const deviceSecret = result.deviceSecret ?? result.screenshotUploadToken
       const deviceHostname = hostname()
 
       const pairingData = {
         parentUid,
         deviceId,
-        screenshotUploadToken,
+        // Written under both names so a pairing file survives a build being
+        // switched from one backend to the other without a re-pair.
+        deviceSecret,
+        screenshotUploadToken: deviceSecret,
         deviceHostname,
         pairedAt: new Date().toISOString()
       }

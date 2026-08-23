@@ -1,7 +1,7 @@
 import { eventBus, EVENTS } from '../core/eventBus.js'
 import { getDeviceConfig } from '../core/configManager.js'
 import { sendToWidget } from './widgetManager.js'
-import { publishPomodoroState } from '../network/firebaseSync.js'
+import { publishPomodoroState } from '../network/sync.js'
 
 let lastPomodoroStateKey = ''
 

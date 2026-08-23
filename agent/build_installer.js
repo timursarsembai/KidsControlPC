@@ -7,6 +7,11 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const distDir = path.join(__dirname, 'dist')
 const buildEnvironment = process.env.KIDSCONTROL_ENV === 'staging' ? 'staging' : 'production'
+// Which backend this executable will talk to. 'firebase' unless asked
+// otherwise: agents already on children's PCs update themselves from GitHub
+// Releases, and a build that changed backends by accident would leave those
+// machines pointed at a server they were never paired with — with no rules.
+const buildBackend = process.env.KIDSCONTROL_BACKEND === 'selfhosted' ? 'selfhosted' : 'firebase'
 const isStaging = buildEnvironment === 'staging'
 const serviceId = isStaging ? 'KidsControlPCAgentDev' : 'KidsControlPCAgent'
 const serviceName = isStaging ? 'KidsControlPC Agent Dev' : 'KidsControlPC Agent'
@@ -109,7 +114,7 @@ async function build() {
     console.log('📦 1/5 Bundling agent with esbuild...')
     // Fix import.meta.url issue for CommonJS by injecting a define
     // Do NOT wrap version in single quotes inside the define, just double quotes so it becomes a string literal
-    execSync(`npx esbuild src/agent.js --bundle --platform=node --target=node18 --alias:undici=./src/network/undiciShim.js --outfile=dist/agent.cjs --define:import.meta.url=\\"file://\\" --define:__APP_VERSION__="'${version}'" --define:__KIDSCONTROL_ENV__="'${buildEnvironment}'"`, { stdio: 'inherit' })
+    execSync(`npx esbuild src/agent.js --bundle --platform=node --target=node18 --alias:undici=./src/network/undiciShim.js --outfile=dist/agent.cjs --define:import.meta.url=\\"file://\\" --define:__APP_VERSION__="'${version}'" --define:__KIDSCONTROL_ENV__="'${buildEnvironment}'" --define:__KIDSCONTROL_BACKEND__="'${buildBackend}'"`, { stdio: 'inherit' })
 
     console.log('📦 2/5 Packaging to agent.exe with pkg...')
     execSync('npx pkg dist/agent.cjs -t node18-win-x64 -o dist/agent.exe', { stdio: 'inherit' })

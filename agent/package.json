@@ -12,6 +12,8 @@
     "dev:staging": "set KIDSCONTROL_ENV=staging&& node --watch src/agent.js",
     "build": "node build_installer.js",
     "build:staging": "set KIDSCONTROL_ENV=staging&& node build_installer.js",
+    "build:selfhosted": "set KIDSCONTROL_BACKEND=selfhosted&& node build_installer.js",
+    "start:selfhosted": "set KIDSCONTROL_BACKEND=selfhosted&& node src/agent.js",
     "service:install": "node src/installService.js",
     "service:uninstall": "node src/uninstallService.js",
     "test": "vitest run",
@@ -22,7 +24,8 @@
     "@sentry/node": "^10.63.0",
     "firebase": "^10.12.2",
     "node-fetch": "^2.7.0",
-    "node-windows": "^1.0.0-beta.8"
+    "node-windows": "^1.0.0-beta.8",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "esbuild": "^0.28.0",
