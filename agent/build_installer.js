@@ -434,9 +434,28 @@ SectionEnd
       return null;
     }
     
-    const nsisCache = path.join(process.env.LOCALAPPDATA || 'C:\\\\Users\\\\Timsar\\\\AppData\\\\Local', 'electron-builder', 'Cache', 'nsis')
-    const localToolsNsis = path.join(__dirname, '..', '.local-tools', 'NSIS')
-    let makensisExe = findMakensis(nsisCache) || findMakensis(localToolsNsis) || 'makensis'
+    // Standard installer locations first (winget/choco/manual install all land here),
+    // then the electron-builder cache and the repo-local copy, then PATH. The old
+    // default embedded one machine's user profile, which is useless anywhere else.
+    const searchDirs = [
+      path.join(process.env.ProgramFiles || 'C:\\Program Files', 'NSIS'),
+      path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'NSIS'),
+      process.env.LOCALAPPDATA
+        ? path.join(process.env.LOCALAPPDATA, 'electron-builder', 'Cache', 'nsis')
+        : null,
+      path.join(__dirname, '..', '.local-tools', 'NSIS')
+    ].filter(Boolean)
+
+    let makensisExe = null
+    for (const dir of searchDirs) {
+      makensisExe = findMakensis(dir)
+      if (makensisExe) break
+    }
+    if (makensisExe) console.log(`🔎 Using makensis from: ${makensisExe}`)
+    else {
+      console.log('⚠️ makensis.exe not found in the usual places — falling back to PATH')
+      makensisExe = 'makensis'
+    }
     
     execSync(`"${makensisExe}" dist/installer.nsi`, { stdio: 'inherit' })
 
