@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import Fastify from 'fastify'
 import { config } from './config.js'
 import { ping, pool } from './db.js'
@@ -19,6 +22,13 @@ const app = Fastify({
 
 const startedAt = Date.now()
 
+// Read from package.json rather than npm_package_version: the container starts
+// with `node src/index.js`, not through npm, so that variable is never set and
+// /health would report a hardcoded version forever.
+const { version } = JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8')
+)
+
 // ok=false means the service cannot do its job. A slow query or a single failed
 // request is not that; an unreachable database is. Nginx Proxy Manager and the
 // existing monitoring both read this.
@@ -35,7 +45,7 @@ app.get('/health', async (_req, reply) => {
     ok: dbOk,
     uptimeSec: Math.round((Date.now() - startedAt) / 1000),
     db: dbOk ? 'up' : 'down',
-    version: process.env.npm_package_version || '0.1.0'
+    version
   }
   if (dbError) body.error = dbError
 

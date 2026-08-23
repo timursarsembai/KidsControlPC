@@ -1,9 +1,9 @@
 import pg from 'pg'
 
-// Firestore timestamps arrive as instants and the panel renders them in the
-// child's local timezone. Keep everything UTC on the wire: node-postgres would
-// otherwise parse timestamptz into a Date using the container's zone.
-pg.types.setTypeParser(1114, (v) => new Date(v + 'Z'))  // timestamp without tz
+// Every timestamp column in the schema is timestamptz, which node-postgres
+// already parses into a correct instant. If a plain `timestamp` column ever
+// appears, it will need an explicit parser here — it would otherwise be read
+// in the container's local zone.
 
 export const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
