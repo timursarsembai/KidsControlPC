@@ -4,12 +4,14 @@ import { fileURLToPath } from 'node:url'
 import cors from '@fastify/cors'
 import rateLimit from '@fastify/rate-limit'
 import Fastify from 'fastify'
-import { pruneRefreshTokens } from './auth/tokens.js'
 import { config } from './config.js'
 import { ping, pool } from './db.js'
 import { errorHandler } from './errors.js'
+import { runMaintenance } from './maintenance.js'
 import { runMigrations } from './migrate.js'
+import agentRoutes from './routes/agent.js'
 import authRoutes from './routes/auth.js'
+import deviceRoutes from './routes/devices.js'
 
 const app = Fastify({
   logger: {
@@ -105,6 +107,8 @@ async function registerPlugins() {
   })
 
   await app.register(authRoutes, { prefix: '/api/v1' })
+  await app.register(deviceRoutes, { prefix: '/api/v1' })
+  await app.register(agentRoutes, { prefix: '/api/v1' })
 }
 
 async function start() {
@@ -131,13 +135,11 @@ async function start() {
   await app.listen({ port: config.port, host: config.host })
   app.log.info(`kidscontrol api listening on ${config.host}:${config.port}`)
 
-  // Expired and revoked sessions accumulate forever otherwise. unref() so a
+  // Spent sessions and pairing codes accumulate forever otherwise. Runs once
+  // at startup so a box that reboots daily still gets cleaned; unref() so a
   // pending timer never holds up shutdown.
-  pruneTimer = setInterval(() => {
-    pruneRefreshTokens()
-      .then(n => { if (n > 0) app.log.info(`pruned ${n} expired refresh token(s)`) })
-      .catch(err => app.log.warn(`refresh token prune failed: ${err.message}`))
-  }, 6 * 60 * 60 * 1000)
+  runMaintenance(app.log)
+  pruneTimer = setInterval(() => runMaintenance(app.log), 6 * 60 * 60 * 1000)
   pruneTimer.unref()
 }
 

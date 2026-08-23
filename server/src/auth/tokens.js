@@ -28,6 +28,23 @@ export function signAccessToken(userId) {
   })
 }
 
+/**
+ * Access token for a paired agent.
+ *
+ * ownerId travels as a claim so device routes need no lookup to know whose
+ * account they are touching, but authorisation always rests on `sub` — the
+ * device id, which never changes. The device secret can rotate underneath
+ * this without invalidating a single stored row.
+ */
+export function signAgentToken(deviceId, ownerId) {
+  return jwt.sign({ typ: AUDIENCE_AGENT, ownerId }, config.jwtSecret, {
+    subject: deviceId,
+    issuer: ISSUER,
+    audience: AUDIENCE_AGENT,
+    expiresIn: config.agentTokenTtlSec
+  })
+}
+
 // Returns the payload, or null for anything wrong — expired, tampered with, or
 // an agent token presented on a parent route. The audience check is what keeps
 // those two apart: an agent token must never open the parent API.
