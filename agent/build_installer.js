@@ -29,6 +29,49 @@ const processCleanupCommands = isStaging
   nsExec::ExecToLog 'taskkill /F /IM node.exe'
 `
 
+// System.Speech.dll (used by TimerWidget/ReminderWidget/ScreenBlockerWidget for TTS)
+// lives in different places depending on which targeting packs are installed, so
+// probe instead of hardcoding. The old hardcoded v3.0 path under Program Files only
+// exists on machines with legacy reference assemblies and is absent on a clean Win11.
+function findSystemSpeech() {
+  const roots = [
+    process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)',
+    process.env.ProgramFiles || 'C:\\Program Files'
+  ]
+  const found = []
+
+  for (const root of roots) {
+    const netfx = path.join(root, 'Reference Assemblies', 'Microsoft', 'Framework', '.NETFramework')
+    if (fs.existsSync(netfx)) {
+      // Newest targeting pack first (v4.8 before v4.6.1).
+      for (const v of fs.readdirSync(netfx).sort().reverse()) {
+        const candidate = path.join(netfx, v, 'System.Speech.dll')
+        if (fs.existsSync(candidate)) found.push(candidate)
+      }
+    }
+    const legacy = path.join(root, 'Reference Assemblies', 'Microsoft', 'Framework', 'v3.0', 'System.Speech.dll')
+    if (fs.existsSync(legacy)) found.push(legacy)
+  }
+
+  // Shipped with the .NET Framework runtime itself, so present even without a SDK.
+  const gac = path.join(process.env.SystemRoot || 'C:\\Windows', 'Microsoft.NET', 'assembly', 'GAC_MSIL', 'System.Speech')
+  if (fs.existsSync(gac)) {
+    for (const v of fs.readdirSync(gac)) {
+      const candidate = path.join(gac, v, 'System.Speech.dll')
+      if (fs.existsSync(candidate)) found.push(candidate)
+    }
+  }
+
+  if (!found.length) {
+    throw new Error(
+      'System.Speech.dll not found. Install the ".NET Framework 4.x Developer Pack" ' +
+      'from https://dotnet.microsoft.com/download/dotnet-framework, or copy the DLL ' +
+      'from another machine.'
+    )
+  }
+  return found[0]
+}
+
 // 1. Prepare dist dir
 if (!fs.existsSync(distDir)) {
   fs.mkdirSync(distDir)
@@ -66,14 +109,18 @@ async function build() {
     console.log('📦 2/5 Packaging to agent.exe with pkg...')
     execSync('npx pkg dist/agent.cjs -t node18-win-x64 -o dist/agent.exe', { stdio: 'inherit' })
 
+    const speechDll = findSystemSpeech()
+    console.log(`🔎 Using System.Speech from: ${speechDll}`)
+    const speechRef = `/reference:"${speechDll}"`
+
     console.log('📦 2.5/5 Compiling TimerWidget.cs...')
-    execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /reference:System.Web.Extensions.dll /reference:"C:\\Program Files\\Reference Assemblies\\Microsoft\\Framework\\v3.0\\System.Speech.dll" /target:winexe /out:dist\\TimerWidget.exe src\\widget\\TimerWidget.cs', { stdio: 'inherit' })
+    execSync(`C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /reference:System.Web.Extensions.dll ${speechRef} /target:winexe /out:dist\\TimerWidget.exe src\\widget\\TimerWidget.cs`, { stdio: 'inherit' })
 
     console.log('📦 2.6/5 Compiling ReminderWidget.cs...')
-    execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /reference:"C:\\Program Files\\Reference Assemblies\\Microsoft\\Framework\\v3.0\\System.Speech.dll" /target:winexe /out:dist\\ReminderWidget.exe src\\widget\\ReminderWidget.cs', { stdio: 'inherit' })
+    execSync(`C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo ${speechRef} /target:winexe /out:dist\\ReminderWidget.exe src\\widget\\ReminderWidget.cs`, { stdio: 'inherit' })
 
     console.log('📦 2.7/5 Compiling ScreenBlockerWidget.cs...')
-    execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /reference:"C:\\Program Files\\Reference Assemblies\\Microsoft\\Framework\\v3.0\\System.Speech.dll" /target:winexe /out:dist\\ScreenBlockerWidget.exe src\\widget\\ScreenBlockerWidget.cs', { stdio: 'inherit' })
+    execSync(`C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo ${speechRef} /target:winexe /out:dist\\ScreenBlockerWidget.exe src\\widget\\ScreenBlockerWidget.cs`, { stdio: 'inherit' })
 
     console.log('📦 2.8/5 Compiling CustomDialogWidget.cs...')
     execSync('C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe /nologo /target:winexe /out:dist\\CustomDialogWidget.exe src\\widget\\CustomDialogWidget.cs', { stdio: 'inherit' })
