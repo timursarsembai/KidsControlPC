@@ -11,6 +11,7 @@ import { deviceSecretMatches, generateDeviceSecret, hashDeviceSecret } from '../
 import { signAgentToken } from '../auth/tokens.js'
 import { config } from '../config.js'
 import { normalizePairingCode } from '../pairing/codes.js'
+import { RULE_COLUMNS, serializeRule } from '../serializers.js'
 
 const pairSchema = {
   type: 'object',
@@ -193,6 +194,46 @@ export default async function agentRoutes(app) {
         throw unauthorized('device_unpaired', 'Device is no longer paired. Re-pair it.')
       }
       return { ok: true }
+    })
+
+    // The agent's fallback when the WebSocket is not up: after a reboot, or on
+    // a link that keeps dropping. Rules must reach the child's PC even when
+    // live delivery does not work — enforcement is the whole product.
+    secured.get('/agent/rules', async (request) => {
+      const { rows } = await query(
+        `select ${RULE_COLUMNS} from rules where device_id = $1 order by created_at desc`,
+        [request.deviceId]
+      )
+      return { rules: rows.map(serializeRule) }
+    })
+
+    // The enforcer switching a rule off — a one-shot rule that has fired, for
+    // instance. Status is all an agent may change: the rule itself belongs to
+    // the parent, and an agent that could rewrite it could rewrite its own
+    // limits.
+    secured.patch('/agent/rules/:ruleId', {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['ruleId'],
+          properties: { ruleId: { type: 'string', format: 'uuid' } }
+        },
+        body: {
+          type: 'object',
+          required: ['status'],
+          properties: { status: { type: 'string', enum: ['active', 'inactive'] } },
+          additionalProperties: false
+        }
+      }
+    }, async (request) => {
+      const { rows } = await query(
+        `update rules set status = $3, updated_at = now()
+          where id = $1 and device_id = $2
+          returning ${RULE_COLUMNS}`,
+        [request.params.ruleId, request.deviceId, request.body.status]
+      )
+      if (!rows[0]) throw notFound('rule_not_found', 'Rule not found.')
+      return serializeRule(rows[0])
     })
 
     // Lets an agent confirm what it is paired to without a heartbeat write —

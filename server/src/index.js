@@ -3,15 +3,21 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import cors from '@fastify/cors'
 import rateLimit from '@fastify/rate-limit'
+import websocket from '@fastify/websocket'
 import Fastify from 'fastify'
 import { config } from './config.js'
 import { ping, pool } from './db.js'
 import { errorHandler } from './errors.js'
 import { runMaintenance } from './maintenance.js'
 import { runMigrations } from './migrate.js'
+import { isChangeListenerConnected, startChangeListener, stopChangeListener } from './realtime/changes.js'
+import { startDispatcher } from './realtime/dispatch.js'
+import { Hub } from './realtime/hub.js'
+import websocketRoutes from './realtime/ws.js'
 import agentRoutes from './routes/agent.js'
 import authRoutes from './routes/auth.js'
 import deviceRoutes from './routes/devices.js'
+import ruleRoutes from './routes/rules.js'
 
 const app = Fastify({
   logger: {
@@ -57,6 +63,10 @@ app.get('/health', async (_req, reply) => {
     ok: dbOk,
     uptimeSec: Math.round((Date.now() - startedAt) / 1000),
     db: dbOk ? 'up' : 'down',
+    // Reported, but not part of ok: without it clients fall back to the REST
+    // routes. Listed separately so a real problem is still visible here.
+    realtime: isChangeListenerConnected() ? 'up' : 'down',
+    sockets: hub.size,
     version
   }
   if (dbError) body.error = dbError
@@ -66,6 +76,7 @@ app.get('/health', async (_req, reply) => {
 
 app.setErrorHandler(errorHandler)
 
+const hub = new Hub()
 let pruneTimer = null
 
 async function registerPlugins() {
@@ -106,9 +117,21 @@ async function registerPlugins() {
     // gets overwritten anyway.
   })
 
+  // The rate limiter counts HTTP requests; a WebSocket is one upgrade and then
+  // lives for hours, so the cap does not apply to what flows through it.
+  await app.register(websocket, {
+    options: {
+      // A subscribe frame is a few dozen bytes. Anything larger is not a
+      // client of this API.
+      maxPayload: 16 * 1024
+    }
+  })
+
   await app.register(authRoutes, { prefix: '/api/v1' })
   await app.register(deviceRoutes, { prefix: '/api/v1' })
+  await app.register(ruleRoutes, { prefix: '/api/v1' })
   await app.register(agentRoutes, { prefix: '/api/v1' })
+  await app.register(websocketRoutes, { hub })
 }
 
 async function start() {
@@ -132,6 +155,14 @@ async function start() {
 
   await registerPlugins()
 
+  // Live updates start before the socket opens, so the first client to connect
+  // already has a listener behind it. A failure here does not stop the API:
+  // clients fall back to polling the REST routes, which is degraded, not down.
+  startDispatcher(hub, app.log)
+  startChangeListener(app.log).catch(err => {
+    app.log.warn(`change listener failed to start: ${err.message}`)
+  })
+
   await app.listen({ port: config.port, host: config.host })
   app.log.info(`kidscontrol api listening on ${config.host}:${config.port}`)
 
@@ -148,6 +179,7 @@ for (const signal of ['SIGTERM', 'SIGINT']) {
     app.log.info(`${signal} received, shutting down`)
     try {
       if (pruneTimer) clearInterval(pruneTimer)
+      await stopChangeListener()
       await app.close()
       await pool.end()
     } finally {
