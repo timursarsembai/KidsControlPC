@@ -1,5 +1,5 @@
-import { addRule, deleteRule, updateRule } from '../../firebase/rules.repo.js'
-import { serverTimestamp } from '../../firebase/timestamps.js'
+import { addRule, deleteRule, updateRule } from '../../data/rules.js'
+import { serverTimestamp } from '../../data/timestamps.js'
 import { logger } from '../../utils/logger.js'
 
 // Returns null when there's no signed-in user/selected device (callers bail out).

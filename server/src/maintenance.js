@@ -18,10 +18,34 @@ async function pruneExpiredPairingCodes() {
   return rowCount
 }
 
+// Replaces the cleanupOldCommands scheduled function: finished commands are
+// kept a week, which is long enough to answer "did that lock actually reach
+// the PC" and short enough not to grow forever.
+async function pruneOldCommands() {
+  const { rowCount } = await query(
+    `delete from commands
+      where status <> 'pending' and created_at < now() - interval '7 days'`
+  )
+  return rowCount
+}
+
+// Acknowledged alerts are history the parent has already seen. Unacknowledged
+// ones are kept regardless of age: an alert nobody looked at is exactly the
+// one that should still be there.
+async function pruneOldAlerts() {
+  const { rowCount } = await query(
+    `delete from alerts
+      where acknowledged = true and created_at < now() - interval '30 days'`
+  )
+  return rowCount
+}
+
 export async function runMaintenance(log) {
   const tasks = [
     ['refresh tokens', pruneRefreshTokens],
-    ['pairing codes', pruneExpiredPairingCodes]
+    ['pairing codes', pruneExpiredPairingCodes],
+    ['commands', pruneOldCommands],
+    ['alerts', pruneOldAlerts]
   ]
 
   for (const [name, task] of tasks) {

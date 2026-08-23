@@ -1,7 +1,7 @@
 import {
   acknowledgeAlert as fsAcknowledgeAlert,
   acknowledgeAllAlerts as fsAcknowledgeAllAlerts
-} from '../../firebase/alerts.repo.js'
+} from '../../data/alerts.js'
 
 export const createAlertsSlice = (set, get) => ({
   alerts: [],

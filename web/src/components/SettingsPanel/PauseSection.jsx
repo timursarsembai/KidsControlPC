@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import { doc, onSnapshot, updateDoc } from 'firebase/firestore'
-import { db } from '@kidscontrol/shared/firebase/config'
+import { setPauseAllRules, subscribeToPauseAllRules } from '@kidscontrol/shared/data/profile'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 
 export default function PauseSection() {
@@ -11,17 +10,15 @@ export default function PauseSection() {
 
   useEffect(() => {
     if (!ownerUid) return
-    const unsub = onSnapshot(doc(db, 'users', ownerUid), (snap) => {
-      if (snap.exists()) setPaused(!!snap.data().pauseAllRules)
-    })
-    return unsub
+    return subscribeToPauseAllRules(ownerUid, setPaused)
   }, [ownerUid])
 
   const toggle = async () => {
     if (!ownerUid || saving) return
     setSaving(true)
     try {
-      await updateDoc(doc(db, 'users', ownerUid), { pauseAllRules: !paused })
+      await setPauseAllRules(ownerUid, !paused)
+      setPaused(!paused)
     } finally {
       setSaving(false)
     }

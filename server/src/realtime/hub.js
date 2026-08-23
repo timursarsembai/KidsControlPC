@@ -86,5 +86,8 @@ export class Hub {
 export const channelFor = {
   devices: (ownerId) => `devices:${ownerId}`,
   device: (deviceId) => `device:${deviceId}`,
-  rules: (deviceId) => `rules:${deviceId}`
+  rules: (deviceId) => `rules:${deviceId}`,
+  alerts: (ownerId) => `alerts:${ownerId}`,
+  commands: (deviceId) => `commands:${deviceId}`,
+  apps: (deviceId) => `apps:${deviceId}`
 }

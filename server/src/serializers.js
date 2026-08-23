@@ -48,6 +48,54 @@ export function serializeDevice(row, { includeLogs = false } = {}) {
   return device
 }
 
+export const ALERT_COLUMNS = `id, owner_id, device_id, type, details,
+                              device_hostname, acknowledged, created_at`
+
+export function serializeAlert(row) {
+  return {
+    id: row.id,
+    type: row.type,
+    details: row.details,
+    deviceId: row.device_id,
+    deviceHostname: row.device_hostname,
+    acknowledged: row.acknowledged,
+    // The panel sorts and formats by `timestamp`; the column is created_at.
+    timestamp: row.created_at ? new Date(row.created_at).toISOString() : null
+  }
+}
+
+export const COMMAND_COLUMNS = `id, device_id, action, payload, status, error,
+                                created_at, completed_at`
+
+export function serializeCommand(row) {
+  return {
+    ...(row.payload ?? {}),
+    id: row.id,
+    deviceId: row.device_id,
+    action: row.action,
+    // The agent's command handler reads `command` in some paths and `action`
+    // in others. Both were present in the Firestore document; keeping both
+    // means the handler does not have to be touched to switch backends.
+    command: row.action,
+    status: row.status,
+    error: row.error,
+    timestamp: row.created_at ? new Date(row.created_at).toISOString() : null,
+    completedAt: row.completed_at ? new Date(row.completed_at).toISOString() : null
+  }
+}
+
+export const APP_COLUMNS = 'device_id, app_id, name, path, publisher, version, updated_at'
+
+export function serializeApp(row) {
+  return {
+    id: row.app_id,
+    name: row.name,
+    path: row.path,
+    publisher: row.publisher,
+    version: row.version
+  }
+}
+
 export const RULE_COLUMNS = 'id, device_id, slug, status, payload, created_at, updated_at'
 
 // The rule's own fields are spread at the top level, the way the Firestore

@@ -1,4 +1,4 @@
-import { addRule, deleteRule, updateRule } from '../../firebase/rules.repo.js'
+import { addRule, deleteRule, updateRule } from '../../data/rules.js'
 
 export const createProfilesSlice = (set, get) => ({
   addProfileMode: async (profileName, profileIcon = '🧩') => {

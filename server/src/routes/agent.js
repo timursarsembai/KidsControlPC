@@ -11,7 +11,7 @@ import { deviceSecretMatches, generateDeviceSecret, hashDeviceSecret } from '../
 import { signAgentToken } from '../auth/tokens.js'
 import { config } from '../config.js'
 import { normalizePairingCode } from '../pairing/codes.js'
-import { RULE_COLUMNS, serializeRule } from '../serializers.js'
+import { COMMAND_COLUMNS, RULE_COLUMNS, serializeCommand, serializeRule } from '../serializers.js'
 
 const pairSchema = {
   type: 'object',
@@ -234,6 +234,160 @@ export default async function agentRoutes(app) {
       )
       if (!rows[0]) throw notFound('rule_not_found', 'Rule not found.')
       return serializeRule(rows[0])
+    })
+
+    // Commands waiting for this device. The socket pushes them as they are
+    // created; this is what the agent calls on start-up and after being
+    // offline, when there is a backlog rather than an event.
+    secured.get('/agent/commands', async (request) => {
+      const { rows } = await query(
+        `select ${COMMAND_COLUMNS} from commands
+          where device_id = $1 and status = 'pending'
+          order by created_at asc`,
+        [request.deviceId]
+      )
+      return { commands: rows.map(serializeCommand) }
+    })
+
+    secured.patch('/agent/commands/:commandId', {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['commandId'],
+          properties: { commandId: { type: 'string', format: 'uuid' } }
+        },
+        body: {
+          type: 'object',
+          required: ['status'],
+          properties: {
+            status: { type: 'string', enum: ['completed', 'failed'] },
+            error: { type: 'string', maxLength: 1000 }
+          },
+          additionalProperties: false
+        }
+      }
+    }, async (request) => {
+      const { rows } = await query(
+        `update commands
+            set status = $3, error = $4, completed_at = now()
+          where id = $1 and device_id = $2
+          returning ${COMMAND_COLUMNS}`,
+        [request.params.commandId, request.deviceId, request.body.status, request.body.error ?? null]
+      )
+      if (!rows[0]) throw notFound('command_not_found', 'Command not found.')
+      return serializeCommand(rows[0])
+    })
+
+    // The installed program list, uploaded whole. Chunked by the agent; each
+    // call upserts, so a partial upload leaves the list usable rather than
+    // half-deleted.
+    secured.post('/agent/apps', {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['apps'],
+          properties: {
+            apps: {
+              type: 'array',
+              maxItems: 500,
+              items: {
+                type: 'object',
+                required: ['id'],
+                properties: {
+                  id: { type: 'string', maxLength: 200 },
+                  name: { type: 'string', maxLength: 200 },
+                  path: { type: 'string', maxLength: 500 },
+                  publisher: { type: 'string', maxLength: 200 },
+                  version: { type: 'string', maxLength: 50 }
+                },
+                additionalProperties: false
+              }
+            }
+          },
+          additionalProperties: false
+        }
+      }
+    }, async (request) => {
+      const apps = request.body.apps
+      if (apps.length === 0) return { saved: 0 }
+
+      // One statement for the whole chunk: unnest turns the arrays into rows,
+      // which beats 500 round trips from a machine on a home connection.
+      await query(
+        `insert into installed_apps (device_id, app_id, name, path, publisher, version, updated_at)
+         select $1, * , now() from unnest($2::text[], $3::text[], $4::text[], $5::text[], $6::text[])
+         on conflict (device_id, app_id) do update
+           set name = excluded.name,
+               path = excluded.path,
+               publisher = excluded.publisher,
+               version = excluded.version,
+               updated_at = now()`,
+        [
+          request.deviceId,
+          apps.map(a => a.id),
+          apps.map(a => a.name ?? null),
+          apps.map(a => a.path ?? null),
+          apps.map(a => a.publisher ?? null),
+          apps.map(a => a.version ?? null)
+        ]
+      )
+      return { saved: apps.length }
+    })
+
+    // Alerts the agent raises: a blocked program was launched, self-protection
+    // tripped, and so on. Deduplication stays on the agent, which already
+    // suppresses repeats within a minute.
+    secured.post('/agent/alerts', {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['type'],
+          properties: {
+            type: { type: 'string', maxLength: 100 },
+            details: { type: 'string', maxLength: 1000 },
+            deviceHostname: { type: 'string', maxLength: 100 }
+          },
+          additionalProperties: false
+        }
+      }
+    }, async (request, reply) => {
+      const { rows } = await query(
+        `insert into alerts (owner_id, device_id, type, details, device_hostname)
+         select d.owner_id, d.id, $2, $3, coalesce($4, d.hostname)
+           from devices d where d.id = $1
+         returning id`,
+        [request.deviceId, request.body.type, request.body.details ?? null,
+          request.body.deviceHostname ?? null]
+      )
+      if (!rows[0]) throw notFound('device_removed', 'Device has been removed from the account.')
+      return reply.code(201).send({ id: rows[0].id })
+    })
+
+    // Recent log lines, pushed on a fetch_logs command. Capped server-side as
+    // well as in the agent: a log that grows without limit is how the agent
+    // once lost its own start-up diagnostics.
+    secured.post('/agent/logs', {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['lines'],
+          properties: {
+            lines: {
+              type: 'array',
+              maxItems: 100,
+              items: { type: 'string', maxLength: 2000 }
+            }
+          },
+          additionalProperties: false
+        }
+      }
+    }, async (request) => {
+      const { rowCount } = await query(
+        'update devices set recent_logs = $2::jsonb, updated_at = now() where id = $1',
+        [request.deviceId, JSON.stringify(request.body.lines.slice(-100))]
+      )
+      if (rowCount === 0) throw notFound('device_removed', 'Device has been removed from the account.')
+      return { saved: request.body.lines.length }
     })
 
     // Lets an agent confirm what it is paired to without a heartbeat write —

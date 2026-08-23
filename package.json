@@ -12,6 +12,7 @@
     "web:dev:staging": "npm run dev:staging --workspace=web",
     "web:build": "npm run build --workspace=web",
     "web:build:staging": "npm run build:staging --workspace=web",
+    "web:build:selfhosted": "npm run build:selfhosted --workspace=web",
     "web:preview:staging": "npm run preview:staging --workspace=web",
     "web:deploy": "npm run deploy --workspace=web",
     "web:deploy:staging": "npm run build:staging --workspace=web && firebase deploy --only hosting --project dev",

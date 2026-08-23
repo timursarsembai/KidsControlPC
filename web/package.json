@@ -8,6 +8,7 @@
     "dev:staging": "vite --mode staging",
     "build": "vite build",
     "build:staging": "vite build --mode staging",
+    "build:selfhosted": "vite build --mode selfhosted",
     "lint": "eslint .",
     "preview": "vite preview",
     "preview:staging": "vite preview --mode staging"

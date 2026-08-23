@@ -1,7 +1,7 @@
-import { subscribeToInstalledApps } from '../../firebase/apps.repo.js'
-import { removeDevice, updateDeviceAlias } from '../../firebase/devices.repo.js'
-import { subscribeToRules } from '../../firebase/rules.repo.js'
-import { subscribeToScreenshots } from '../../firebase/screenshots.repo.js'
+import { subscribeToInstalledApps } from '../../data/apps.js'
+import { removeDevice, updateDeviceAlias } from '../../data/devices.js'
+import { subscribeToRules } from '../../data/rules.js'
+import { subscribeToScreenshots } from '../../data/screenshots.js'
 import { logger } from '../../utils/logger.js'
 
 export const createDevicesSlice = (set, get) => ({

@@ -7,7 +7,10 @@
 
 import { query } from '../db.js'
 import { AUDIENCE_AGENT, AUDIENCE_PARENT, verifyAccessToken } from '../auth/tokens.js'
-import { DEVICE_COLUMNS, RULE_COLUMNS, serializeDevice, serializeRule } from '../serializers.js'
+import {
+  ALERT_COLUMNS, APP_COLUMNS, COMMAND_COLUMNS, DEVICE_COLUMNS, RULE_COLUMNS,
+  serializeAlert, serializeApp, serializeCommand, serializeDevice, serializeRule
+} from '../serializers.js'
 import { channelFor } from './hub.js'
 
 const AUTH_TIMEOUT_MS = 10_000
@@ -51,6 +54,33 @@ async function snapshotRules(deviceId) {
   return rows.map(serializeRule)
 }
 
+async function snapshotAlerts(ownerId) {
+  const { rows } = await query(
+    `select ${ALERT_COLUMNS} from alerts where owner_id = $1 order by created_at desc limit 200`,
+    [ownerId]
+  )
+  return rows.map(serializeAlert)
+}
+
+async function snapshotCommands(deviceId, { pendingOnly = false } = {}) {
+  const { rows } = await query(
+    `select ${COMMAND_COLUMNS} from commands
+      where device_id = $1 ${pendingOnly ? "and status = 'pending'" : ''}
+      order by created_at desc
+      limit 100`,
+    [deviceId]
+  )
+  return rows.map(serializeCommand)
+}
+
+async function snapshotApps(deviceId) {
+  const { rows } = await query(
+    `select ${APP_COLUMNS} from installed_apps where device_id = $1 order by lower(name)`,
+    [deviceId]
+  )
+  return rows.map(serializeApp)
+}
+
 async function ownsDevice(ownerId, deviceId) {
   const { rows } = await query(
     'select 1 from devices where id = $1 and owner_id = $2',
@@ -58,6 +88,8 @@ async function ownsDevice(ownerId, deviceId) {
   )
   return rows.length > 0
 }
+
+const PER_DEVICE_CHANNELS = new Set(['device', 'rules', 'commands', 'apps'])
 
 /**
  * Resolves a channel name the client asked for into an internal one, or null
@@ -70,27 +102,36 @@ async function ownsDevice(ownerId, deviceId) {
 async function resolveChannel(client, requested) {
   if (client.kind === AUDIENCE_PARENT) {
     if (requested === 'devices') return channelFor.devices(client.userId)
+    if (requested === 'alerts') return channelFor.alerts(client.userId)
 
     const [kind, id] = requested.split(':')
     if (!id || !UUID_RE.test(id)) return null
-    if (kind !== 'device' && kind !== 'rules') return null
+    if (!PER_DEVICE_CHANNELS.has(kind)) return null
     if (!await ownsDevice(client.userId, id)) return null
 
-    return kind === 'device' ? channelFor.device(id) : channelFor.rules(id)
+    return channelFor[kind](id)
   }
 
   // An agent may only watch itself. Its own device id comes from the token, so
   // the id in the request is not even consulted.
   if (requested === 'device') return channelFor.device(client.deviceId)
   if (requested === 'rules') return channelFor.rules(client.deviceId)
+  if (requested === 'commands') return channelFor.commands(client.deviceId)
   return null
 }
 
-async function snapshotFor(channel) {
+async function snapshotFor(channel, client) {
   const [kind, id] = channel.split(':')
   if (kind === 'devices') return snapshotDevices(id)
   if (kind === 'device') return snapshotDevice(id)
   if (kind === 'rules') return snapshotRules(id)
+  if (kind === 'alerts') return snapshotAlerts(id)
+  if (kind === 'apps') return snapshotApps(id)
+  if (kind === 'commands') {
+    // The agent only wants what it still has to do; the panel wants recent
+    // history, including what already ran, to show a command's outcome.
+    return snapshotCommands(id, { pendingOnly: client?.kind === AUDIENCE_AGENT })
+  }
   return []
 }
 
@@ -149,7 +190,7 @@ export default async function websocketRoutes(app, { hub }) {
     hub.subscribe(client, channel)
     // The snapshot is sent after subscribing, not before: a change landing in
     // between then arrives as a patch on top of it. The other order loses it.
-    const data = await snapshotFor(channel)
+    const data = await snapshotFor(channel, client)
     socket.send(JSON.stringify({ t: 'snap', ch: requested, data }))
   }
 
@@ -210,6 +251,7 @@ export default async function websocketRoutes(app, { hub }) {
             if (client.kind === AUDIENCE_AGENT) {
               await handleSubscribe(socket, client, 'rules')
               await handleSubscribe(socket, client, 'device')
+              await handleSubscribe(socket, client, 'commands')
             }
             return
           }

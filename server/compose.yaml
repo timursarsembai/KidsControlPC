@@ -66,6 +66,26 @@ services:
       - internal
       - proxy-network
 
+  # The parent panel: static files behind the same Nginx Proxy Manager that
+  # fronts everything else on this box. Built from the repository root because
+  # it imports the shared workspace.
+  web:
+    build:
+      context: ..
+      dockerfile: web/Dockerfile
+    container_name: kidscontrol-web
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:8094:80'
+    mem_limit: 64m
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1/health || exit 1']
+      interval: 60s
+      timeout: 5s
+      retries: 3
+    networks:
+      - proxy-network
+
 volumes:
   pgdata:
 

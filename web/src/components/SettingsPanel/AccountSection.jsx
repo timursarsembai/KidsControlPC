@@ -1,7 +1,11 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { signOut, deleteUser } from 'firebase/auth'
-import { auth } from '@kidscontrol/shared/firebase/config'
+import {
+  authErrorMessage,
+  deleteAccount,
+  requiresPasswordToDelete,
+  signOutUser
+} from '@kidscontrol/shared/data/auth'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 
 export default function AccountSection({ user }) {
@@ -11,6 +15,7 @@ export default function AccountSection({ user }) {
   const [saved, setSaved] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  const [deletePassword, setDeletePassword] = useState('')
   const [deleting, setDeleting] = useState(false)
 
   const handleSaveChatName = async () => {
@@ -23,15 +28,20 @@ export default function AccountSection({ user }) {
     setDeleteError('')
     setDeleting(true)
     try {
-      await deleteUser(auth.currentUser)
+      await deleteAccount(deletePassword)
     } catch (err) {
       if (err.code === 'auth/requires-recent-login') {
         setDeleteError('Для удаления аккаунта выйдите и войдите снова, затем повторите.')
+      } else if (err.code === 'invalid_credentials') {
+        setDeleteError('Неверный пароль.')
+        setDeleting(false)
+        return
       } else {
-        setDeleteError(`Ошибка: ${err.message}`)
+        setDeleteError(authErrorMessage(err))
       }
       setConfirmDelete(false)
     } finally {
+      setDeletePassword('')
       setDeleting(false)
     }
   }
@@ -84,7 +94,7 @@ export default function AccountSection({ user }) {
 
       <button
         className="btn btn-danger"
-        onClick={() => signOut(auth)}
+        onClick={() => signOutUser()}
         style={{ width: '100%' }}
         type="button"
       >
@@ -108,11 +118,23 @@ export default function AccountSection({ user }) {
             Удалить аккаунт
           </button>
         ) : (
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div>
+            {requiresPasswordToDelete && (
+              <input
+                type="password"
+                className="input"
+                placeholder="Подтвердите паролем"
+                value={deletePassword}
+                onChange={e => setDeletePassword(e.target.value)}
+                autoComplete="current-password"
+                style={{ marginBottom: 8 }}
+              />
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
             <button
               className="btn btn-danger"
               onClick={handleDeleteAccount}
-              disabled={deleting}
+              disabled={deleting || (requiresPasswordToDelete && !deletePassword)}
               style={{ flex: 1 }}
               type="button"
             >
@@ -126,6 +148,7 @@ export default function AccountSection({ user }) {
             >
               Отмена
             </button>
+            </div>
           </div>
         )}
       </div>

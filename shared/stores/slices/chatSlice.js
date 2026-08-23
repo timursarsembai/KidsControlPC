@@ -6,8 +6,8 @@ import {
   sendMessage,
   subscribeToMessages,
   markMessagesRead
-} from '../../firebase/chats.repo.js'
-import { updateChatName } from '../../firebase/profile.repo.js'
+} from '../../data/chats.js'
+import { updateChatName } from '../../data/profile.js'
 
 export const createChatSlice = (set, get) => ({
   chats: [],

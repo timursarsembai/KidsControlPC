@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react'
-import { auth, functions } from '@kidscontrol/shared/firebase/config'
+import { functions } from '@kidscontrol/shared/firebase/config'
 import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-  onAuthStateChanged,
-  signOut
-} from 'firebase/auth'
+  authErrorMessage,
+  getCurrentUser,
+  onAuthChanged,
+  reloadUser,
+  sendPasswordReset,
+  signIn,
+  signOutUser,
+  signUp,
+  supportsEmailVerification
+} from '@kidscontrol/shared/data/auth'
 import { httpsCallable } from 'firebase/functions'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import Dashboard from './components/Dashboard/Dashboard'
@@ -15,7 +19,9 @@ import EmailActionPage from './components/EmailActionPage'
 import { useTranslation } from 'react-i18next'
 import './App.css'
 
-const sendVerificationEmailFn = httpsCallable(functions, 'sendVerificationEmail')
+// Built on demand rather than at module load: on the self-hosted backend there
+// are no Cloud Functions to call, and there is no verification step either.
+const sendVerificationEmail = () => httpsCallable(functions, 'sendVerificationEmail')()
 
 export default function App() {
   const { t } = useTranslation()
@@ -32,13 +38,13 @@ export default function App() {
 
   const { user, initFirebase, cleanup } = useRulesStore()
 
-  // Listen to Firebase auth state
+  // Sign-in state, from whichever backend is configured.
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        if (firebaseUser.emailVerified) {
+    const unsub = onAuthChanged(async (signedInUser) => {
+      if (signedInUser) {
+        if (signedInUser.emailVerified) {
           setVerifyPending(false)
-          await initFirebase(firebaseUser)
+          await initFirebase(signedInUser)
         } else {
           setVerifyPending(true)
         }
@@ -65,37 +71,30 @@ export default function App() {
     setLoading(true)
     try {
       if (mode === 'login') {
-        await signInWithEmailAndPassword(auth, email, password)
+        await signIn(email, password)
       } else if (mode === 'register') {
-        await createUserWithEmailAndPassword(auth, email, password)
-        await sendVerificationEmailFn()
+        await signUp(email, password)
+        if (supportsEmailVerification) await sendVerificationEmail()
       } else if (mode === 'reset') {
-        await sendPasswordResetEmail(auth, email)
+        await sendPasswordReset(email)
         setResetMsg(`Письмо отправлено на ${email}. Обязательно проверьте папку «Спам»!`)
       }
     } catch (err) {
-      const msgs = {
-        'auth/user-not-found':       'Пользователь не найден',
-        'auth/wrong-password':       'Неверный пароль',
-        'auth/email-already-in-use': 'Email уже зарегистрирован',
-        'auth/invalid-email':        'Неверный формат email',
-        'auth/invalid-credential':   'Неверный email или пароль',
-      }
-      setError(msgs[err.code] || `Ошибка: ${err.message}`)
+      setError(authErrorMessage(err))
     } finally {
       setLoading(false)
     }
   }
 
   const handleSignOut = async () => {
-    await signOut(auth)
+    await signOutUser()
   }
 
   const handleResendVerification = async () => {
     setResendMsg('')
     try {
-      await sendVerificationEmailFn()
-      setResendMsg(`Письмо отправлено на ${auth.currentUser?.email}. Проверьте папку «Спам»!`)
+      await sendVerificationEmail()
+      setResendMsg(`Письмо отправлено на ${getCurrentUser()?.email}. Проверьте папку «Спам»!`)
     } catch {
       setResendMsg('Не удалось отправить письмо. Попробуйте позже.')
     }
@@ -104,10 +103,10 @@ export default function App() {
   const handleCheckVerified = async () => {
     setResendMsg('')
     try {
-      await auth.currentUser.reload()
-      if (auth.currentUser.emailVerified) {
+      const refreshed = await reloadUser()
+      if (refreshed?.emailVerified) {
         setVerifyPending(false)
-        await initFirebase(auth.currentUser)
+        await initFirebase(refreshed)
       } else {
         setResendMsg('Email ещё не подтверждён. Проверьте почту.')
       }
@@ -150,7 +149,7 @@ export default function App() {
             </div>
           </div>
           <div className="auth-note" style={{ marginBottom: 16 }}>
-            Мы отправили письмо на <strong>{auth.currentUser?.email}</strong>. Перейдите по ссылке в письме, затем нажмите кнопку ниже.
+            Мы отправили письмо на <strong>{getCurrentUser()?.email}</strong>. Перейдите по ссылке в письме, затем нажмите кнопку ниже.
           </div>
           {resendMsg && (
             <div className="auth-note" style={{ color: 'var(--success, #20c997)', backgroundColor: 'rgba(32,201,151,0.1)', borderColor: 'rgba(32,201,151,0.2)', marginBottom: 12 }}>

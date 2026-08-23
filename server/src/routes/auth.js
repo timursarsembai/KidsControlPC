@@ -134,6 +134,59 @@ export default async function authRoutes(app) {
     return reply.code(204).send()
   })
 
+  // Emergency unlock: turns every rule on every device off at once. Lives on
+  // the profile because it is an account-wide switch, not a device one.
+  app.patch('/me', {
+    preHandler: requireParent,
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          pauseAllRules: { type: 'boolean' },
+          chatName: { type: 'string', maxLength: 100 }
+        },
+        additionalProperties: false,
+        minProperties: 1
+      }
+    }
+  }, async (request) => {
+    const { rows } = await query(
+      `update profiles
+          set pause_all_rules = coalesce($2, pause_all_rules),
+              chat_name = coalesce($3, chat_name),
+              updated_at = now()
+        where user_id = $1
+        returning pause_all_rules, chat_name`,
+      [request.userId, request.body.pauseAllRules ?? null, request.body.chatName ?? null]
+    )
+    if (!rows[0]) throw unauthorized('invalid_token', 'Сессия истекла, войдите заново.')
+    return { pauseAllRules: rows[0].pause_all_rules, chatName: rows[0].chat_name }
+  })
+
+  // Deleting the account takes the devices, rules and history with it. The
+  // password is asked for again because an access token left open on a shared
+  // computer should not be enough to erase a family's account.
+  app.delete('/me', {
+    preHandler: requireParent,
+    schema: {
+      body: {
+        type: 'object',
+        required: ['password'],
+        properties: { password: { type: 'string', minLength: 1, maxLength: 200 } },
+        additionalProperties: false
+      }
+    }
+  }, async (request, reply) => {
+    const { rows } = await query('select password_hash from users where id = $1', [request.userId])
+    if (!rows[0]) throw unauthorized('invalid_token', 'Сессия истекла, войдите заново.')
+
+    const ok = await verifyPassword(request.body.password, rows[0].password_hash)
+    if (!ok) throw unauthorized('invalid_credentials', 'Неверный пароль.')
+
+    await query('delete from users where id = $1', [request.userId])
+    return reply.code(204).send()
+  })
+
   app.get('/me', { preHandler: requireParent }, async (request) => {
     const { rows } = await query(
       `select u.id, u.email, u.email_verified,

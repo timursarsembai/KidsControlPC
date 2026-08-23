@@ -5,7 +5,10 @@
 // REST routes produce.
 
 import { query } from '../db.js'
-import { DEVICE_COLUMNS, RULE_COLUMNS, serializeDevice, serializeRule } from '../serializers.js'
+import {
+  ALERT_COLUMNS, APP_COLUMNS, COMMAND_COLUMNS, DEVICE_COLUMNS, RULE_COLUMNS,
+  serializeAlert, serializeApp, serializeCommand, serializeDevice, serializeRule
+} from '../serializers.js'
 import { changes } from './changes.js'
 import { channelFor } from './hub.js'
 
@@ -59,11 +62,68 @@ async function dispatchRule(hub, change) {
   hub.broadcast(channel, patch('upsert', serializeRule(rows[0])))
 }
 
+async function dispatchAlert(hub, change) {
+  if (!change.ownerId) return
+  const channel = channelFor.alerts(change.ownerId)
+  if (!hub.hasSubscribers(channel)) return
+
+  if (change.op === 'delete') {
+    hub.broadcast(channel, patch('remove', { id: change.id }))
+    return
+  }
+
+  const { rows } = await query(`select ${ALERT_COLUMNS} from alerts where id = $1`, [change.id])
+  if (!rows[0]) return
+
+  hub.broadcast(channel, patch('upsert', serializeAlert(rows[0])))
+}
+
+async function dispatchCommand(hub, change) {
+  const channel = channelFor.commands(change.deviceId)
+  if (!hub.hasSubscribers(channel)) return
+
+  if (change.op === 'delete') {
+    hub.broadcast(channel, patch('remove', { id: change.id }))
+    return
+  }
+
+  const { rows } = await query(`select ${COMMAND_COLUMNS} from commands where id = $1`, [change.id])
+  if (!rows[0]) return
+
+  hub.broadcast(channel, patch('upsert', serializeCommand(rows[0])))
+}
+
+async function dispatchApp(hub, change) {
+  const channel = channelFor.apps(change.deviceId)
+  if (!hub.hasSubscribers(channel)) return
+
+  if (change.op === 'delete') {
+    hub.broadcast(channel, patch('remove', { id: change.id }))
+    return
+  }
+
+  // installed_apps is keyed by (device_id, app_id), so the change id is the
+  // app id — unique only within its device.
+  const { rows } = await query(
+    `select ${APP_COLUMNS} from installed_apps where device_id = $1 and app_id = $2`,
+    [change.deviceId, change.id]
+  )
+  if (!rows[0]) return
+
+  hub.broadcast(channel, patch('upsert', serializeApp(rows[0])))
+}
+
+const HANDLERS = {
+  devices: dispatchDevice,
+  rules: dispatchRule,
+  alerts: dispatchAlert,
+  commands: dispatchCommand,
+  installed_apps: dispatchApp
+}
+
 export function startDispatcher(hub, log) {
   changes.on('change', (change) => {
-    const handler = change.table === 'devices' ? dispatchDevice
-      : change.table === 'rules' ? dispatchRule
-        : null
+    const handler = HANDLERS[change.table]
     if (!handler) return
 
     // A failed dispatch must not take down the listener: the next change still

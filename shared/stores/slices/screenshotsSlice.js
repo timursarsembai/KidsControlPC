@@ -1,10 +1,10 @@
-import { sendDeviceCommand as fsSendDeviceCommand } from '../../firebase/commands.repo.js'
+import { sendDeviceCommand as fsSendDeviceCommand } from '../../data/commands.js'
 import {
   deleteScreenshot as fsDeleteScreenshot,
   getScreenshotDownloadURL as fsGetScreenshotDownloadURL,
   getScreenshotFullDownloadURL as fsGetScreenshotFullDownloadURL,
   markScreenshotDownloaded as fsMarkScreenshotDownloaded
-} from '../../firebase/screenshots.repo.js'
+} from '../../data/screenshots.js'
 import { logger } from '../../utils/logger.js'
 
 export const createScreenshotsSlice = (set, get) => ({

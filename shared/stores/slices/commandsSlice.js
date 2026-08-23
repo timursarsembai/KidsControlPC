@@ -1,5 +1,5 @@
-import { sendDeviceCommand as fsSendDeviceCommand } from '../../firebase/commands.repo.js'
-import { updateDeviceSettings as fsUpdateDeviceSettings } from '../../firebase/devices.repo.js'
+import { sendDeviceCommand as fsSendDeviceCommand } from '../../data/commands.js'
+import { updateDeviceSettings as fsUpdateDeviceSettings } from '../../data/devices.js'
 import { logger } from '../../utils/logger.js'
 
 export const createCommandsSlice = (set, get) => ({

@@ -6,6 +6,7 @@
 // the current user and again whenever that changes.
 
 import { api } from './client.js'
+import { deleteAccount as deleteProfileAccount } from './profile.repo.js'
 import { clearTokens, getAccessToken, getRefreshToken, onTokensChanged, setTokens } from './tokens.js'
 
 let currentUser = null
@@ -98,3 +99,12 @@ export async function restoreSession() {
 onTokensChanged((signedIn) => {
   if (!signedIn && currentUser) setUser(null)
 })
+
+// Deleting the account ends the session with it: the tokens now point at
+// nothing, and leaving them in storage would show a signed-in shell over an
+// account that is gone.
+export async function deleteAccount(password) {
+  await deleteProfileAccount(password)
+  clearTokens()
+  setUser(null)
+}

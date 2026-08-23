@@ -15,7 +15,9 @@ import { startDispatcher } from './realtime/dispatch.js'
 import { Hub } from './realtime/hub.js'
 import websocketRoutes from './realtime/ws.js'
 import agentRoutes from './routes/agent.js'
+import alertRoutes from './routes/alerts.js'
 import authRoutes from './routes/auth.js'
+import commandRoutes from './routes/commands.js'
 import deviceRoutes from './routes/devices.js'
 import ruleRoutes from './routes/rules.js'
 
@@ -130,6 +132,8 @@ async function registerPlugins() {
   await app.register(authRoutes, { prefix: '/api/v1' })
   await app.register(deviceRoutes, { prefix: '/api/v1' })
   await app.register(ruleRoutes, { prefix: '/api/v1' })
+  await app.register(alertRoutes, { prefix: '/api/v1' })
+  await app.register(commandRoutes, { prefix: '/api/v1' })
   await app.register(agentRoutes, { prefix: '/api/v1' })
   await app.register(websocketRoutes, { hub })
 }

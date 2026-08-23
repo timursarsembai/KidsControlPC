@@ -1,6 +1,6 @@
-import { subscribeToAlerts } from '../../firebase/alerts.repo.js'
-import { subscribeToDevices } from '../../firebase/devices.repo.js'
-import { initUserProfile, subscribeToProfile } from '../../firebase/profile.repo.js'
+import { subscribeToAlerts } from '../../data/alerts.js'
+import { subscribeToDevices } from '../../data/devices.js'
+import { initUserProfile, subscribeToProfile } from '../../data/profile.js'
 
 export const createAuthSlice = (set, get) => ({
   user: null,

@@ -1,5 +1,5 @@
-import { savePomodoroRule } from '../../firebase/rules.repo.js'
-import { serverTimestamp } from '../../firebase/timestamps.js'
+import { savePomodoroRule } from '../../data/rules.js'
+import { serverTimestamp } from '../../data/timestamps.js'
 
 export const createPomodoroSlice = (set, get) => ({
   getPomodoroSession: () => {

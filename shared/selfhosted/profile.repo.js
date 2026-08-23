@@ -29,3 +29,29 @@ export function subscribeToProfile(_ownerUid, callback) {
 export async function initUserProfile(_uid, _email) {
   return api.get('/me')
 }
+
+// Account-wide emergency unlock. No live channel for it: the parent flipping
+// the switch is the only thing that changes it, and the agent polls the same
+// value through its own device config.
+export function subscribeToPauseAllRules(_ownerUid, callback) {
+  let cancelled = false
+  api.get('/me')
+    .then(profile => { if (!cancelled) callback(Boolean(profile.pauseAllRules)) })
+    .catch(() => { if (!cancelled) callback(false) })
+  return () => { cancelled = true }
+}
+
+export async function setPauseAllRules(_ownerUid, paused) {
+  await api.patch('/me', { pauseAllRules: paused })
+}
+
+export async function updateChatName(_uid, chatName) {
+  await api.patch('/me', { chatName: chatName || '' })
+}
+
+// Deleting the account takes its devices, rules and history with it. The
+// password is required again on purpose — a token left open on a shared
+// computer must not be enough to erase a family's account.
+export async function deleteAccount(password) {
+  await api.delete('/me', { body: { password } })
+}

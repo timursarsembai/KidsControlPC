@@ -1,4 +1,5 @@
-import { getDoc, setDoc, onSnapshot } from 'firebase/firestore'
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore'
+import { db } from './config.js'
 import { profileDoc } from './paths.js'
 import { serverTimestamp } from './timestamps.js'
 
@@ -53,4 +54,17 @@ export async function initUserProfile(uid, email) {
   }
 
   return { ...profile, ...updates }
+}
+
+// Account-wide emergency unlock. Lives in the root users/{uid} document rather
+// than the profile subdocument because that is where the agent reads it from.
+export function subscribeToPauseAllRules(ownerUid, callback) {
+  if (!ownerUid) return () => {}
+  return onSnapshot(doc(db, 'users', ownerUid), (snap) => {
+    callback(snap.exists() ? !!snap.data().pauseAllRules : false)
+  })
+}
+
+export async function setPauseAllRules(ownerUid, paused) {
+  await setDoc(doc(db, 'users', ownerUid), { pauseAllRules: paused }, { merge: true })
 }
