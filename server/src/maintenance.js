@@ -115,7 +115,14 @@ async function sweepOrphanFiles(log) {
   const files = await listStoredFiles()
   if (files.length === 0) return 0
 
-  const { rows } = await query('select path from screenshots')
+  // Every table that owns a file has to be listed here. Miss one and the
+  // sweep deletes its files a day later, quietly and for good — chat
+  // attachments were exactly one such near miss.
+  const { rows } = await query(
+    `select path from screenshots
+     union all
+     select file_path as path from chat_messages where file_path is not null`
+  )
   const known = new Set(rows.map(row => row.path))
 
   const { stat } = await import('node:fs/promises')

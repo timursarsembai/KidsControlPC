@@ -39,5 +39,10 @@ export const uploadInstalledApps = selfhosted.uploadInstalledApps
 export const updateRuleStatus = selfhosted.updateRuleStatus
 export const updateRule = selfhosted.updateRule
 export const uploadScreenshot = selfhosted.uploadScreenshot
+export const fetchChats = selfhosted.fetchChats
+export const fetchChatMessages = selfhosted.fetchChatMessages
+export const sendChatMessage = selfhosted.sendChatMessage
+export const markChatDelivered = selfhosted.markChatDelivered
+export const markChatRead = selfhosted.markChatRead
 
 export { IS_SELF_HOSTED }

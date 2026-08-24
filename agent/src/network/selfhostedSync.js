@@ -470,3 +470,59 @@ export async function uploadScreenshot(buffer, { source, width, quality } = {}) 
     return null
   }
 }
+
+// ── Chat ────────────────────────────────────────────────────────────────────
+//
+// The widget on the child's PC talks to the agent over IPC; the agent is what
+// talks to the server. Chats this device is in are polled rather than pushed:
+// they change when a parent creates or renames one, which is rare, and a
+// device must not get a channel keyed by account — that would show it the
+// other children's conversations.
+
+export async function fetchChats() {
+  if (!deviceId) return []
+  if (!await ensureAgentAuth()) return []
+  try {
+    const result = await api.get('/agent/chats')
+    return result.chats ?? []
+  } catch (err) {
+    log(`Could not fetch chats: ${err.message}`)
+    return []
+  }
+}
+
+export async function fetchChatMessages(chatId) {
+  if (!chatId || !await ensureAgentAuth()) return []
+  try {
+    const result = await api.get(`/agent/chats/${chatId}/messages`)
+    return result.messages ?? []
+  } catch (err) {
+    log(`Could not fetch messages for ${chatId}: ${err.message}`)
+    return []
+  }
+}
+
+export async function sendChatMessage(chatId, text, senderName) {
+  if (!chatId || !text?.trim()) return null
+  if (!await ensureAgentAuth()) return null
+  try {
+    return await api.post(`/agent/chats/${chatId}/messages`, { text, senderName })
+  } catch (err) {
+    log(`Could not send message: ${err.message}`)
+    return null
+  }
+}
+
+export async function markChatDelivered(chatId) {
+  if (!chatId || !await ensureAgentAuth()) return
+  try {
+    await api.post(`/agent/chats/${chatId}/delivered`, {})
+  } catch { /* the next tick reports it again */ }
+}
+
+export async function markChatRead(chatId) {
+  if (!chatId || !await ensureAgentAuth()) return
+  try {
+    await api.post(`/agent/chats/${chatId}/read`, {})
+  } catch { /* the next tick reports it again */ }
+}

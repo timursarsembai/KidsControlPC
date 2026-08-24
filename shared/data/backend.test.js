@@ -43,26 +43,27 @@ describe(`data facade (${BACKEND})`, () => {
     }
   })
 
-  // Deferred features still get mounted by the panel. Subscribing has to be
-  // harmless, or the screen that shows them takes the dashboard down with it.
-  it('keeps deferred subscriptions harmless', () => {
-    let screenshotList = null
-    const unsubShots = screenshots.subscribeToScreenshots('u', 'd', list => { screenshotList = list })
-    let chatList = null
-    const unsubChats = chats.subscribeToChats('u', list => { chatList = list })
+  // Screenshots and chat used to be stubs here. They are implemented now, so
+  // what is worth checking is that both backends still expose the same shape —
+  // a subscription that hands back a way to cancel it.
+  it('subscriptions return an unsubscribe function', () => {
+    const unsubShots = screenshots.subscribeToScreenshots('u', 'd', () => {})
+    const unsubChats = chats.subscribeToChats('u', () => {})
 
-    if (isSelfHosted) {
-      expect(screenshotList).toEqual([])
-      expect(chatList).toEqual([])
-    }
     expect(typeof unsubShots).toBe('function')
     expect(typeof unsubChats).toBe('function')
     unsubShots()
     unsubChats()
   })
 
-  it.runIf(isSelfHosted)('refuses deferred writes out loud', async () => {
-    await expect(chats.sendMessage('u', 'c', {})).rejects.toThrow(/Чат пока недоступен/)
-    await expect(profile.recalcStorageUsed('u', 0)).rejects.toThrow(/Storage/)
+  // Only the self-hosted implementation promises this. The Firebase one builds
+  // a Firestore path straight from the id and throws on a missing one; the
+  // panel never calls it that way, and rewriting live Firebase code to satisfy
+  // a test would be a risk taken for nothing.
+  it.runIf(isSelfHosted)('subscribing without a device is harmless', () => {
+    // The panel mounts these before a device is selected, and passing no id
+    // must not throw — it simply has nothing to watch yet.
+    expect(typeof screenshots.subscribeToScreenshots('u', null, () => {})).toBe('function')
+    expect(typeof chats.subscribeToMessages('u', null, () => {})).toBe('function')
   })
 })

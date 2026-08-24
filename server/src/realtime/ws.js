@@ -82,6 +82,78 @@ async function snapshotApps(deviceId) {
   return rows.map(serializeApp)
 }
 
+async function snapshotChats(ownerId, userId) {
+  const { rows } = await query(
+    `select id, owner_id, type, name, created_by, device_ids, parent_ids,
+            last_message, created_at, updated_at
+       from chats
+      where owner_id = $1 and (type <> 'direct' or created_by is null or created_by = $2)
+      order by updated_at desc`,
+    [ownerId, userId]
+  )
+  return rows.map(row => ({
+    id: row.id,
+    type: row.type,
+    name: row.name,
+    ownerUid: row.owner_id,
+    createdBy: row.created_by,
+    deviceIds: row.device_ids ?? [],
+    parentUids: row.parent_ids ?? [],
+    lastMessage: row.last_message ?? null,
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+    updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null
+  }))
+}
+
+async function snapshotMessages(chatId) {
+  const { rows } = await query(
+    `select id, chat_id, text, sender_type, sender_user_id, sender_device_id,
+            sender_name, file_path, file_name, file_size, mime_type, file_deleted,
+            gif_url, gif_preview_url, read_by, delivered_to, created_at
+       from chat_messages where chat_id = $1 order by created_at asc limit 200`,
+    [chatId]
+  )
+  return rows.map(row => ({
+    id: row.id,
+    chatId: row.chat_id,
+    text: row.text,
+    senderType: row.sender_type,
+    senderUid: row.sender_user_id,
+    senderDeviceId: row.sender_device_id,
+    senderName: row.sender_name,
+    fileName: row.file_name,
+    fileSize: row.file_size === null ? null : Number(row.file_size),
+    mimeType: row.mime_type,
+    fileDeleted: row.file_deleted,
+    fileUrl: row.file_path && !row.file_deleted ? `/chats/messages/${row.id}/file` : null,
+    gifUrl: row.gif_url,
+    gifPreviewUrl: row.gif_preview_url,
+    readBy: row.read_by ?? [],
+    deliveredTo: row.delivered_to ?? [],
+    timestamp: row.created_at ? new Date(row.created_at).toISOString() : null
+  }))
+}
+
+// Whether this client may watch a conversation. A parent has to own it; a
+// device has to be in it — the agent's own id comes from its token, so it
+// cannot ask about a chat it was never added to.
+async function canWatchChat(client, chatId) {
+  if (client.kind === AUDIENCE_PARENT) {
+    const { rows } = await query(
+      `select 1 from chats
+        where id = $1 and owner_id = $2
+          and (type <> 'direct' or created_by is null or created_by = $3)`,
+      [chatId, client.ownerId, client.userId]
+    )
+    return rows.length > 0
+  }
+  const { rows } = await query(
+    'select 1 from chats where id = $1 and $2 = any(device_ids)',
+    [chatId, client.deviceId]
+  )
+  return rows.length > 0
+}
+
 async function snapshotScreenshots(deviceId) {
   const { rows } = await query(
     `select id, device_id, size_bytes, source, width, quality, status, created_at, expires_at
@@ -123,6 +195,14 @@ async function resolveChannel(client, requested) {
   if (client.kind === AUDIENCE_PARENT) {
     if (requested === 'devices') return channelFor.devices(client.ownerId)
     if (requested === 'alerts') return channelFor.alerts(client.ownerId)
+    if (requested === 'chats') return channelFor.chats(client.ownerId)
+
+    if (requested.startsWith('messages:')) {
+      const chatId = requested.slice('messages:'.length)
+      if (!UUID_RE.test(chatId)) return null
+      if (!await canWatchChat(client, chatId)) return null
+      return channelFor.messages(chatId)
+    }
 
     const [kind, id] = requested.split(':')
     if (!id || !UUID_RE.test(id)) return null
@@ -137,6 +217,16 @@ async function resolveChannel(client, requested) {
   if (requested === 'device') return channelFor.device(client.deviceId)
   if (requested === 'rules') return channelFor.rules(client.deviceId)
   if (requested === 'commands') return channelFor.commands(client.deviceId)
+
+  // An agent watches conversations it is part of. It deliberately gets no
+  // channel of chats: that one is keyed by account, and a device would see
+  // every conversation on it, including those of the other children.
+  if (requested.startsWith('messages:')) {
+    const chatId = requested.slice('messages:'.length)
+    if (!UUID_RE.test(chatId)) return null
+    if (!await canWatchChat(client, chatId)) return null
+    return channelFor.messages(chatId)
+  }
   return null
 }
 
@@ -148,6 +238,8 @@ async function snapshotFor(channel, client) {
   if (kind === 'alerts') return snapshotAlerts(id)
   if (kind === 'apps') return snapshotApps(id)
   if (kind === 'screenshots') return snapshotScreenshots(id)
+  if (kind === 'chats') return snapshotChats(id, client?.userId)
+  if (kind === 'messages') return snapshotMessages(id)
   if (kind === 'commands') {
     // The agent only wants what it still has to do; the panel wants recent
     // history, including what already ran, to show a command's outcome.

@@ -143,13 +143,87 @@ async function dispatchScreenshot(hub, change) {
   }))
 }
 
+async function dispatchChat(hub, change) {
+  if (!change.ownerId) return
+  const channel = channelFor.chats(change.ownerId)
+  if (!hub.hasSubscribers(channel)) return
+
+  if (change.op === 'delete') {
+    hub.broadcast(channel, patch('remove', { id: change.id }))
+    return
+  }
+
+  const { rows } = await query(
+    `select id, owner_id, type, name, created_by, device_ids, parent_ids,
+            last_message, created_at, updated_at
+       from chats where id = $1`,
+    [change.id]
+  )
+  if (!rows[0]) return
+  const row = rows[0]
+  hub.broadcast(channel, patch('upsert', {
+    id: row.id,
+    type: row.type,
+    name: row.name,
+    ownerUid: row.owner_id,
+    createdBy: row.created_by,
+    deviceIds: row.device_ids ?? [],
+    parentUids: row.parent_ids ?? [],
+    lastMessage: row.last_message ?? null,
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+    updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null
+  }))
+}
+
+async function dispatchChatMessage(hub, change) {
+  if (!change.chatId) return
+  const channel = channelFor.messages(change.chatId)
+  if (!hub.hasSubscribers(channel)) return
+
+  if (change.op === 'delete') {
+    hub.broadcast(channel, patch('remove', { id: change.id }))
+    return
+  }
+
+  const { rows } = await query(
+    `select id, chat_id, text, sender_type, sender_user_id, sender_device_id,
+            sender_name, file_path, file_name, file_size, mime_type, file_deleted,
+            gif_url, gif_preview_url, read_by, delivered_to, created_at
+       from chat_messages where id = $1`,
+    [change.id]
+  )
+  if (!rows[0]) return
+  const row = rows[0]
+  hub.broadcast(channel, patch('upsert', {
+    id: row.id,
+    chatId: row.chat_id,
+    text: row.text,
+    senderType: row.sender_type,
+    senderUid: row.sender_user_id,
+    senderDeviceId: row.sender_device_id,
+    senderName: row.sender_name,
+    fileName: row.file_name,
+    fileSize: row.file_size === null ? null : Number(row.file_size),
+    mimeType: row.mime_type,
+    fileDeleted: row.file_deleted,
+    fileUrl: row.file_path && !row.file_deleted ? `/chats/messages/${row.id}/file` : null,
+    gifUrl: row.gif_url,
+    gifPreviewUrl: row.gif_preview_url,
+    readBy: row.read_by ?? [],
+    deliveredTo: row.delivered_to ?? [],
+    timestamp: row.created_at ? new Date(row.created_at).toISOString() : null
+  }))
+}
+
 const HANDLERS = {
   devices: dispatchDevice,
   rules: dispatchRule,
   alerts: dispatchAlert,
   commands: dispatchCommand,
   installed_apps: dispatchApp,
-  screenshots: dispatchScreenshot
+  screenshots: dispatchScreenshot,
+  chats: dispatchChat,
+  chat_messages: dispatchChatMessage
 }
 
 export function startDispatcher(hub, log) {
