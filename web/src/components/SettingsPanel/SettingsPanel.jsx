@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
+import { supportsChildren } from '@kidscontrol/shared/data/children'
 import AccountSection from './AccountSection'
 import AppLogsSection from './AppLogsSection'
 import AboutSection from './AboutSection'
@@ -10,7 +11,8 @@ import PauseSection from './PauseSection'
 import './SettingsPanel.css'
 
 const TABS = [
-  { id: 'devices', label: 'Устройства', icon: '🖥️' },
+  // В Firebase-версии профилей детей нет, и обещать их в меню нельзя.
+  { id: 'devices', label: supportsChildren ? 'Профили и устройства' : 'Устройства', icon: '🖥️' },
   { id: 'account', label: 'Аккаунт', icon: '👤' },
   { id: 'parents', label: 'Добавить родителя', icon: '👥' },
   { id: 'pause', label: 'Снять блокировки', icon: '🔓' },

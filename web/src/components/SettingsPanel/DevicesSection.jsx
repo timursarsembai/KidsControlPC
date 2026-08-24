@@ -4,6 +4,7 @@ import { createPairingCode, createRepairPairingCode } from '@kidscontrol/shared/
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import { supportsChildren } from '@kidscontrol/shared/data/children'
 import { withCount } from '@kidscontrol/shared/utils/plural'
+import ChildDialog from '../ChildDialog/ChildDialog'
 import { logger } from '@kidscontrol/shared/utils/logger'
 
 function DeviceCard({ device, ownerUid, onRemove, onRename, deleting, childProfiles = [], onAssign }) {
@@ -154,8 +155,9 @@ export default function DevicesSection({ uid: ownerUid }) {
   const { t } = useTranslation()
   const {
     devices, renameDevice, deleteDevice,
-    children, pairingChildId, assignDeviceToChild
+    children, pairingChildId, assignDeviceToChild, addChild
   } = useRulesStore()
+  const [dialogOpen, setDialogOpen] = useState(false)
   const [code, setCode] = useState('')
   // Чей это код: id профиля, null — «без профиля». Код показывается внутри
   // своей группы, иначе после нажатия в одном профиле он появлялся бы
@@ -275,9 +277,15 @@ export default function DevicesSection({ uid: ownerUid }) {
       <div className="settings-section-header">
         <div className="settings-section-icon">🖥️</div>
         <div>
-          <h2 className="settings-section-title">{t('settings.devices.title', 'ПК ребёнка')}</h2>
+          <h2 className="settings-section-title">
+            {supportsChildren
+              ? t('settings.devices.title', 'Профили и устройства')
+              : t('settings.devices.title_devices_only', 'ПК ребёнка')}
+          </h2>
           <p className="settings-section-desc">
-            {t('settings.devices.desc', 'Привяжите компьютер ребёнка — агент будет получать правила блокировки из облака')}
+            {supportsChildren
+              ? t('settings.devices.desc', 'Заведите профиль ребёнка и добавьте в него компьютеры, за которыми он сидит')
+              : t('settings.devices.desc_devices_only', 'Привяжите компьютер ребёнка — агент будет получать правила блокировки из облака')}
           </p>
         </div>
       </div>
@@ -323,6 +331,10 @@ export default function DevicesSection({ uid: ownerUid }) {
               {renderPairing(null)}
             </div>
           )}
+
+          <button className="btn btn-ghost settings-add-child" onClick={() => setDialogOpen(true)}>
+            {t('settings.devices.add_child', 'Добавить профиль')}
+          </button>
         </div>
       ) : (
         <>
@@ -338,6 +350,12 @@ export default function DevicesSection({ uid: ownerUid }) {
         </>
       )}
 
+      {dialogOpen && (
+        <ChildDialog
+          onClose={() => setDialogOpen(false)}
+          onSave={(values) => addChild(values)}
+        />
+      )}
     </section>
   )
 }

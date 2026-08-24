@@ -29,15 +29,18 @@
     "language": "Language",
     "theme": "Theme",
     "devices": {
-      "title": "Child's PC",
-      "desc": "Link your child's computer — the agent will receive blocking rules from the cloud",
+      "title": "Profiles and devices",
+      "desc": "Create a profile for your child and add the computers they use to it",
       "empty": "No linked devices",
       "add_new": "Add new device",
       "add_hint": "Install the agent on the child's PC and enter the code during the first launch",
       "code_gen": "Generate Code",
       "code_active": "Code active for 15 minutes",
       "remove": "Remove",
-      "rename": "Rename"
+      "rename": "Rename",
+      "title_devices_only": "Child's PC",
+      "desc_devices_only": "Pair your child's computer — the agent will receive blocking rules from the cloud",
+      "add_child": "Add profile"
     },
     "account": {
       "title": "Account",

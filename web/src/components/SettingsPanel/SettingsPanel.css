@@ -867,3 +867,11 @@
 }
 
 .settings-add-device:hover { border-color: var(--accent); color: var(--accent); }
+
+.settings-add-child {
+  align-self: flex-start;
+  border: 1px solid var(--border-strong);
+  font-size: 12px;
+}
+
+.settings-add-child:hover { border-color: var(--accent); color: var(--accent); }

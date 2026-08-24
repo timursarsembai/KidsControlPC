@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import { supportsChildren } from '@kidscontrol/shared/data/children'
 import { withCount } from '@kidscontrol/shared/utils/plural'
-import ChildDialog from './ChildDialog'
+import ChildDialog from '../ChildDialog/ChildDialog'
 import './DeviceSidebar.css'
 
 function formatStorageBytes(bytes) {
