@@ -7,6 +7,7 @@
 
 import { api } from './client.js'
 import { realtime } from './realtime.js'
+import { withTimestamps } from './timestamp.js'
 
 function byPairedAtDesc(a, b) {
   return new Date(b.pairedAt ?? 0) - new Date(a.pairedAt ?? 0)
@@ -14,7 +15,8 @@ function byPairedAtDesc(a, b) {
 
 export function subscribeToDevices(_uid, callback) {
   return realtime().subscribe('devices', (devices) => {
-    callback([...devices].sort(byPairedAtDesc))
+    const shaped = devices.map(device => withTimestamps({ ...device }, ['lastSeen', 'pairedAt']))
+    callback(shaped.sort(byPairedAtDesc))
   })
 }
 

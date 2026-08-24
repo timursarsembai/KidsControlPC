@@ -4,6 +4,7 @@ import { API_BASE_URL, API_PREFIX } from './config.js'
 import { api } from './client.js'
 import { realtime } from './realtime.js'
 import { getAccessToken } from './tokens.js'
+import { timestamp as toTimestamp, withTimestamps } from './timestamp.js'
 
 function byUpdatedAtDesc(a, b) {
   return new Date(b.updatedAt ?? 0) - new Date(a.updatedAt ?? 0)
@@ -15,7 +16,16 @@ function byTimestampAsc(a, b) {
 
 export function subscribeToChats(_ownerUid, callback) {
   return realtime().subscribe('chats', (chats) => {
-    callback([...chats].sort(byUpdatedAtDesc))
+    const shaped = chats.map(chat => {
+      const copy = withTimestamps({ ...chat }, ['createdAt', 'updatedAt'])
+      // The chat list shows when the last line was written, and it is nested
+      // one level down.
+      if (copy.lastMessage?.timestamp) {
+        copy.lastMessage = { ...copy.lastMessage, timestamp: toTimestamp(copy.lastMessage.timestamp) }
+      }
+      return copy
+    })
+    callback(shaped.sort(byUpdatedAtDesc))
   })
 }
 
@@ -24,7 +34,9 @@ export function subscribeToMessages(_ownerUid, chatId, callback, msgLimit = 100)
   return realtime().subscribe(`messages:${chatId}`, (messages) => {
     // Oldest first, and only the tail: a conversation is read from the bottom,
     // and the panel asks for a window rather than the whole history.
-    const ordered = [...messages].sort(byTimestampAsc)
+    const ordered = [...messages]
+      .sort(byTimestampAsc)
+      .map(message => withTimestamps({ ...message }, ['timestamp']))
     callback(ordered.slice(-msgLimit))
   })
 }

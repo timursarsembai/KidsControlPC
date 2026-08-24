@@ -2,6 +2,7 @@
 
 import { api } from './client.js'
 import { realtime } from './realtime.js'
+import { withTimestamps } from './timestamp.js'
 
 function byTimestampDesc(a, b) {
   return new Date(b.timestamp ?? 0) - new Date(a.timestamp ?? 0)
@@ -9,7 +10,8 @@ function byTimestampDesc(a, b) {
 
 export function subscribeToAlerts(_uid, callback) {
   return realtime().subscribe('alerts', (alerts) => {
-    callback([...alerts].sort(byTimestampDesc))
+    const shaped = alerts.map(alert => withTimestamps({ ...alert }, ['timestamp']))
+    callback(shaped.sort(byTimestampDesc))
   })
 }
 

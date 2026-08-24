@@ -2,6 +2,7 @@
 
 import { api } from './client.js'
 import { realtime } from './realtime.js'
+import { withTimestamps } from './timestamp.js'
 
 const POMODORO_SLUG = 'global_pomodoro'
 
@@ -16,7 +17,8 @@ function byCreatedAtDesc(a, b) {
 export function subscribeToRules(_uid, deviceId, callback) {
   if (!deviceId) return () => {}
   return realtime().subscribe(`rules:${deviceId}`, (rules) => {
-    callback([...rules].sort(byCreatedAtDesc))
+    const shaped = rules.map(rule => withTimestamps({ ...rule }, ['createdAt', 'updatedAt']))
+    callback(shaped.sort(byCreatedAtDesc))
   })
 }
 

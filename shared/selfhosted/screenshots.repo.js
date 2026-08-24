@@ -10,6 +10,7 @@ import { API_BASE_URL, API_PREFIX } from './config.js'
 import { api } from './client.js'
 import { realtime } from './realtime.js'
 import { getAccessToken } from './tokens.js'
+import { withTimestamps } from './timestamp.js'
 
 function byTimestampDesc(a, b) {
   return new Date(b.timestamp ?? 0) - new Date(a.timestamp ?? 0)
@@ -18,7 +19,8 @@ function byTimestampDesc(a, b) {
 export function subscribeToScreenshots(_uid, deviceId, callback) {
   if (!deviceId) return () => {}
   return realtime().subscribe(`screenshots:${deviceId}`, (shots) => {
-    callback([...shots].sort(byTimestampDesc))
+    const shaped = shots.map(shot => withTimestamps({ ...shot }, ['timestamp', 'expiresAt']))
+    callback(shaped.sort(byTimestampDesc))
   })
 }
 
