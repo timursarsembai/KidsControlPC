@@ -263,20 +263,26 @@
 @keyframes spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 760px) {
+  /* Одна колонка на всю мобильную ширину, а не перенос по два в ряд:
+     при переносе поиск, выпадающий список и кнопка вставали парами и
+     переставали помещаться. Раньше колонка включалась только с 520px, и
+     между 521 и 760 — а это обычная ширина крупного телефона — оставалась
+     та самая теснота. */
   .panel-controls {
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .search-wrap {
-    flex: 1 1 100%;
-  }
-
-  .filter-select {
-    width: min(180px, 100%);
+  .search-wrap,
+  .filter-select,
+  .filter-btn {
+    width: 100%;
+    flex: 0 0 auto;
+    margin-left: 0;
   }
 
   .filter-btn {
-    margin-left: 0;
+    justify-content: center;
   }
 
   .panel-footer {
@@ -301,18 +307,7 @@
     gap: var(--space-3);
   }
 
-  .panel-controls {
-    flex-direction: column;
-  }
-
-  .filter-select,
-  .filter-btn {
-    width: 100%;
-  }
-
-  .filter-btn {
-    justify-content: center;
-  }
+  /* Колонка и ширина в 100% заданы уже с 760px — здесь повторять нечего. */
 
   .prog-path {
     max-width: 220px;
