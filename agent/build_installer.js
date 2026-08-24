@@ -87,18 +87,50 @@ if (!fs.existsSync(distDir)) {
   fs.mkdirSync(distDir)
 }
 
-function download(url, dest) {
+/**
+ * Downloads a file, following redirects.
+ *
+ * The write stream is opened only after the response turns out to be the file
+ * itself. Opening it first — as this did — meant that on a redirect (and
+ * GitHub Releases always redirects) two streams ended up writing to the same
+ * path, and the outer one was never closed. On Windows that handle keeps the
+ * file locked, so the build got as far as NSIS and died with
+ * "File: failed opening file .\WinSW.exe" — on a clean machine every time,
+ * and never on one where the file had been downloaded before.
+ *
+ * A non-200 is refused outright: saving an error page under the name of an
+ * executable produces a build that fails much later and much less clearly.
+ */
+function download(url, dest, redirectsLeft = 5) {
   return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(dest)
     https.get(url, (response) => {
-      if (response.statusCode === 301 || response.statusCode === 302) {
-        return download(response.headers.location, dest).then(resolve).catch(reject)
+      const { statusCode, headers } = response
+
+      if (statusCode >= 300 && statusCode < 400 && headers.location) {
+        response.resume()
+        if (redirectsLeft === 0) {
+          reject(new Error(`Too many redirects downloading ${url}`))
+          return
+        }
+        download(headers.location, dest, redirectsLeft - 1).then(resolve, reject)
+        return
       }
-      response.pipe(file)
-      file.on('finish', () => {
-        file.close()
-        resolve()
+
+      if (statusCode !== 200) {
+        response.resume()
+        reject(new Error(`Download failed with HTTP ${statusCode}: ${url}`))
+        return
+      }
+
+      const file = fs.createWriteStream(dest)
+      file.on('error', (err) => {
+        fs.unlink(dest, () => {})
+        reject(err)
       })
+      response.pipe(file)
+      // close() takes a callback: resolving before the handle is released
+      // hands the next step a file Windows still considers busy.
+      file.on('finish', () => file.close((err) => err ? reject(err) : resolve()))
     }).on('error', (err) => {
       fs.unlink(dest, () => {})
       reject(err)
