@@ -1,6 +1,7 @@
 import { createInterface } from 'readline'
 import { hostname } from 'os'
 import { initLogCapture } from './core/logBuffer.js'
+import { safeInterval } from './core/safeInterval.js'
 import { initErrorTracking, captureError, setAgentContext } from './core/errorTracking.js'
 initErrorTracking()
 initLogCapture()
@@ -142,12 +143,29 @@ async function main() {
   // of main(), so a single hung startup call (initChatSync's getDocs has no timeout)
   // left the service "running" with no enforcement and no heartbeat at all.
   let _dnsTick = 0
-  setInterval(() => {
-    sendHeartbeat()
-    if (!getIsWidgetLocked()) tickScreenTime(parentUid, deviceId, HEARTBEAT_INTERVAL_MS / 1000).catch(() => {})
-    if (++_dnsTick % 2 === 0) tickDnsTracking(parentUid, deviceId).catch(() => {})
-  }, HEARTBEAT_INTERVAL_MS)
-  setInterval(() => enforceRules(parentUid, deviceId, isShuttingDown), ENFORCE_INTERVAL_MS)
+  safeInterval('Отчёт о состоянии', HEARTBEAT_INTERVAL_MS, () => sendHeartbeat(), {
+    maxRunMs: 2 * HEARTBEAT_INTERVAL_MS,
+    log
+  })
+
+  // Отдельно от отчёта, и это важно: учёт прибавляет ровно столько секунд,
+  // сколько прошло между запусками. Если бы он ждал ответа сервера, то на
+  // медленной связи проходы пропускались бы — и экранное время ребёнка
+  // считалось бы меньше настоящего.
+  safeInterval('Учёт экранного времени', HEARTBEAT_INTERVAL_MS, async () => {
+    if (!getIsWidgetLocked()) {
+      await tickScreenTime(parentUid, deviceId, HEARTBEAT_INTERVAL_MS / 1000).catch(() => {})
+    }
+    if (++_dnsTick % 2 === 0) await tickDnsTracking(parentUid, deviceId).catch(() => {})
+  }, { maxRunMs: 2 * HEARTBEAT_INTERVAL_MS, log })
+  safeInterval(
+    'Проверка правил',
+    ENFORCE_INTERVAL_MS,
+    () => enforceRules(parentUid, deviceId, isShuttingDown),
+    // Проверка правил ходит к списку процессов и к экрану блокировки; на
+    // задыхающейся машине это может занять и полминуты.
+    { maxRunMs: 60_000, log }
+  )
   log('🛡️ Enforcement scheduled (works offline from cached rules)')
 
   // Everything below needs the network. Each step is capped so a slow or missing
@@ -203,7 +221,57 @@ async function main() {
     }
   }, 2 * 60 * 1000)
 
+  watchMemory(log)
+
   log(`✅ Agent started and monitoring processes (DeviceID: ${deviceId})`)
+}
+
+// Отвергнутый промис, до которого никто не добрался. В Node 18 это по
+// умолчанию убивает процесс — а значит, из-за одной оборвавшейся сетевой
+// операции ребёнок остаётся без присмотра до перезапуска службы. Записать и
+// жить дальше правильнее: то, что действительно сломалось, всё равно всплывёт
+// проверкой правил.
+process.on('unhandledRejection', (reason) => {
+  const message = reason?.message || String(reason)
+  console.log(`⚠️ Необработанный промис: ${message}`)
+  captureError(reason instanceof Error ? reason : new Error(message), { phase: 'unhandledRejection' })
+})
+
+/**
+ * Сторож памяти.
+ *
+ * Служба живёт неделями, и утечка в ней — вопрос времени. На компьютере, где
+ * памяти и без того мало, разбухший агент делает плохо всей системе: своп,
+ * тормоза, в пределе — Windows убивает что-нибудь другое.
+ *
+ * Порог высокий: обычный расход агента — десятки мегабайт, и 400 МБ означают
+ * не «нагрузка», а «что-то течёт». Три превышения подряд, а не одно: разовый
+ * всплеск даёт, например, скриншот большого экрана.
+ *
+ * Перезапуск здесь дешёвый — правила лежат в кэше на диске и применяются
+ * заново раньше, чем агент дойдёт до сети.
+ */
+const MEMORY_LIMIT_BYTES = 400 * 1024 * 1024
+let overLimitStreak = 0
+
+function watchMemory(log) {
+  safeInterval('Сторож памяти', 60_000, async () => {
+    const rss = process.memoryUsage().rss
+    if (rss < MEMORY_LIMIT_BYTES) {
+      overLimitStreak = 0
+      return
+    }
+
+    overLimitStreak++
+    const mb = Math.round(rss / 1024 / 1024)
+    log(`⚠️ Агент занимает ${mb} МБ (превышение подряд: ${overLimitStreak}/3)`)
+
+    if (overLimitStreak >= 3) {
+      log('♻️ Перезапуск: память не освобождается, службу поднимет Windows')
+      await sendAlert('agent_error', `Перезапуск агента: занято ${mb} МБ`).catch(() => {})
+      process.exit(1)
+    }
+  }, { log })
 }
 
 process.on('uncaughtException', async (err) => {

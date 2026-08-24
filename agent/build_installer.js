@@ -149,7 +149,15 @@ async function build() {
     execSync(`npx esbuild src/agent.js --bundle --platform=node --target=node18 --alias:undici=./src/network/undiciShim.js --outfile=dist/agent.cjs --define:import.meta.url=\\"file://\\" --define:__APP_VERSION__="'${version}'" --define:__KIDSCONTROL_ENV__="'${buildEnvironment}'" --define:__KIDSCONTROL_BACKEND__="'${buildBackend}'"`, { stdio: 'inherit' })
 
     console.log('📦 2/5 Packaging to agent.exe with pkg...')
-    execSync('npx pkg dist/agent.cjs -t node18-win-x64 -o dist/agent.exe', { stdio: 'inherit' })
+    // max-old-space-size: на компьютере, где памяти мало, V8 по умолчанию
+    // считает, что ему можно занять её заметную долю, и тянет со сборкой
+    // мусора до последнего. Потолок заставляет прибираться раньше, а при
+    // настоящей утечке агент падает сам и его поднимает служба — это лучше,
+    // чем тащить в своп всю систему.
+    execSync(
+      'npx pkg dist/agent.cjs -t node18-win-x64 -o dist/agent.exe --options max-old-space-size=256',
+      { stdio: 'inherit' }
+    )
 
     const speechDll = findSystemSpeech()
     console.log(`🔎 Using System.Speech from: ${speechDll}`)
