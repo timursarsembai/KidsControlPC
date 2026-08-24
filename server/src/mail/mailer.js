@@ -27,7 +27,8 @@ async function transport() {
         // 465 is implicit TLS; 587 upgrades with STARTTLS. Getting this wrong
         // fails in a way that reads like a wrong password.
         secure: config.smtp.port === 465,
-        auth: config.smtp.user ? { user: config.smtp.user, pass: config.smtp.pass } : undefined
+        auth: config.smtp.user ? { user: config.smtp.user, pass: config.smtp.pass } : undefined,
+        ...(config.smtp.allowSelfSigned ? { tls: { rejectUnauthorized: false } } : {})
       })
     })()
   }

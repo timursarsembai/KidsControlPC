@@ -66,6 +66,38 @@ services:
       - internal
       - proxy-network
 
+  # Outgoing mail for kidscontrol.kz, and only for it.
+  #
+  # Not mailcow: that one relays everything through Resend on a single account,
+  # whose free plan covers one domain — the payment project's. Rewiring it to
+  # route per-domain means editing the Postfix config of a live mail server
+  # that other people's money depends on, to add a second domain that sends a
+  # handful of password-recovery letters a month.
+  #
+  # This one delivers straight to the recipient's MX and signs with its own
+  # DKIM key. No ports published: it is reachable only from the API container.
+  mail:
+    image: boky/postfix:latest
+    container_name: kidscontrol-mail
+    restart: unless-stopped
+    environment:
+      # The name used in HELO and in the DKIM signature. Has to match the DNS
+      # records, or every check on the receiving side fails at once.
+      HOSTNAME: mail.kidscontrol.kz
+      ALLOWED_SENDER_DOMAINS: kidscontrol.kz
+      DKIM_SELECTOR: mail
+      # Without this the image starts happily with no key and signs nothing —
+      # and unsigned mail from an address whose PTR belongs to the hosting
+      # provider goes straight to spam.
+      DKIM_AUTOGENERATE: "true"
+      # Only the API container may hand it mail.
+      MYNETWORKS: 172.16.0.0/12
+    volumes:
+      - dkim:/etc/opendkim/keys
+    mem_limit: 96m
+    networks:
+      - internal
+
   # The parent panel: static files behind the same Nginx Proxy Manager that
   # fronts everything else on this box. Built from the repository root because
   # it imports the shared workspace.
@@ -88,6 +120,9 @@ services:
 
 volumes:
   pgdata:
+  # The DKIM key. Generated once on first start; losing it means every
+  # signature stops verifying until a new key reaches DNS.
+  dkim:
 
 networks:
   internal:

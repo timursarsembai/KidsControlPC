@@ -41,7 +41,15 @@ export const config = {
     port: Number(process.env.SMTP_PORT) || 587,
     user: process.env.SMTP_USER || null,
     pass: process.env.SMTP_PASS || null,
-    from: process.env.MAIL_FROM || null
+    from: process.env.MAIL_FROM || null,
+    // Accept a self-signed certificate from the mail server.
+    //
+    // Only ever true for a relay inside this machine's docker network — the
+    // local sender uses a self-signed certificate, and the connection never
+    // leaves the host. For an outside provider this stays off: there the
+    // certificate is the only thing proving you are talking to them and not
+    // to whoever intercepted the connection.
+    allowSelfSigned: process.env.SMTP_ALLOW_SELF_SIGNED === 'true'
   },
 
   accessTokenTtlSec: 15 * 60,
