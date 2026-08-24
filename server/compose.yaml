@@ -52,6 +52,10 @@ services:
     # over proxy-network. Same convention as every other project on this box.
     ports:
       - '127.0.0.1:8092:8092'
+    volumes:
+      # Скриншоты. Отдельный том: образ пересобирается при каждом выкате, а
+      # снимки экрана переживать выкат обязаны.
+      - files:/var/lib/kidscontrol/files
     mem_limit: 384m
     depends_on:
       db:
@@ -120,6 +124,7 @@ services:
 
 volumes:
   pgdata:
+  files:
   # The DKIM key. Generated once on first start; losing it means every
   # signature stops verifying until a new key reaches DNS.
   dkim:

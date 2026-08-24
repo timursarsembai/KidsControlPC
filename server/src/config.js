@@ -23,6 +23,10 @@ export const config = {
   jwtSecret: process.env.JWT_SECRET,
   publicOrigin: process.env.PUBLIC_ORIGIN || 'https://kidscontrol.kz',
 
+  // Куда складываются скриншоты. Отдельный том, а не каталог образа: образ
+  // пересобирается при каждом выкате.
+  storageRoot: process.env.STORAGE_ROOT || '/var/lib/kidscontrol/files',
+
   // Whose X-Forwarded-For header is believed: the proxy-network subnet, where
   // Nginx Proxy Manager lives, and nothing else. Loopback is deliberately not
   // here — local probes send no forwarding header, so they lose nothing, and

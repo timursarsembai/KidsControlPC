@@ -1,5 +1,6 @@
 import * as firebase from '../firebase/profile.repo.js'
 import * as selfhosted from '../selfhosted/profile.repo.js'
+import * as selfhostedScreenshots from '../selfhosted/screenshots.repo.js'
 import { isSelfHosted } from './backend.js'
 
 const impl = isSelfHosted ? selfhosted : firebase
@@ -11,12 +12,10 @@ export const initUserProfile = impl.initUserProfile
 export const subscribeToPauseAllRules = impl.subscribeToPauseAllRules
 export const setPauseAllRules = impl.setPauseAllRules
 
-// Storage is not part of the self-hosted first version — screenshots and chat
-// attachments are the only things that use it, and both are deferred. Calling
-// this against the self-hosted backend is a mistake worth failing loudly on
-// rather than a no-op that quietly reports the wrong number to a parent.
+// Recounts what is actually stored. The running total is maintained
+// incrementally, and any counter kept that way eventually drifts.
 export const recalcStorageUsed = isSelfHosted
-  ? async () => { throw new Error('Storage is not available on the self-hosted backend yet') }
+  ? selfhostedScreenshots.recalcStorageUsed
   : firebase.recalcStorageUsed
 
 // Kept working on both: it is the parent's display name in the chat, and the

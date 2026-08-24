@@ -4,6 +4,7 @@ import { notFound } from '../errors.js'
 import { requireParent } from '../auth/guard.js'
 import { DEVICE_COLUMNS, serializeDevice } from '../serializers.js'
 import { generatePairingCode } from '../pairing/codes.js'
+import { deleteDirectory } from '../storage/files.js'
 
 const patchSchema = {
   type: 'object',
@@ -124,11 +125,27 @@ export default async function deviceRoutes(app) {
 
   // Cascades to rules, commands, activity, alerts and the device secret.
   app.delete('/devices/:id', { schema: { params: deviceParams } }, async (request, reply) => {
-    const { rowCount } = await query(
-      'delete from devices where id = $1 and owner_id = $2',
+    const { rows } = await query(
+      `delete from devices where id = $1 and owner_id = $2
+       returning (select coalesce(sum(size_bytes), 0) from screenshots where device_id = $1) as freed`,
       [request.params.id, request.ownerId]
     )
-    if (rowCount === 0) throw notFound('device_not_found', 'Устройство не найдено.')
+    if (!rows[0]) throw notFound('device_not_found', 'Устройство не найдено.')
+
+    // The rows go by cascade; the files do not. Without this every deleted
+    // device leaves its screenshots on disk forever, and the quota it freed
+    // is freed only on paper.
+    const freed = Number(rows[0].freed ?? 0)
+    if (freed > 0) {
+      await query(
+        `update profiles set storage_used_bytes = greatest(0, storage_used_bytes - $2),
+                             updated_at = now()
+          where user_id = $1`,
+        [request.ownerId, freed]
+      )
+    }
+    await deleteDirectory(`${request.ownerId}/${request.params.id}`)
+
     return reply.code(204).send()
   })
 

@@ -7,6 +7,7 @@ import {
   issueRefreshToken, revokeAllForUser, revokeRefreshToken, rotateRefreshToken, signAccessToken
 } from '../auth/tokens.js'
 import { requireParent } from '../auth/guard.js'
+import { deleteDirectory } from '../storage/files.js'
 
 // Same value as the column default and as DEFAULT_QUOTA_BYTES in
 // shared/firebase/profile.repo.js — the free plan's 100 MB.
@@ -225,6 +226,10 @@ export default async function authRoutes(app) {
     if (!ok) throw unauthorized('invalid_credentials', 'Неверный пароль.')
 
     await query('delete from users where id = $1', [request.userId])
+    // Everything this account stored goes with it. Deleting an account and
+    // leaving the children's screenshots on the disk would be the opposite of
+    // what the parent asked for.
+    await deleteDirectory(request.userId)
     return reply.code(204).send()
   })
 

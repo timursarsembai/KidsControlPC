@@ -89,5 +89,6 @@ export const channelFor = {
   rules: (deviceId) => `rules:${deviceId}`,
   alerts: (ownerId) => `alerts:${ownerId}`,
   commands: (deviceId) => `commands:${deviceId}`,
-  apps: (deviceId) => `apps:${deviceId}`
+  apps: (deviceId) => `apps:${deviceId}`,
+  screenshots: (deviceId) => `screenshots:${deviceId}`
 }

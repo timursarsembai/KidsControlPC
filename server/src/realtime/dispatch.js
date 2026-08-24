@@ -113,12 +113,43 @@ async function dispatchApp(hub, change) {
   hub.broadcast(channel, patch('upsert', serializeApp(rows[0])))
 }
 
+async function dispatchScreenshot(hub, change) {
+  const channel = channelFor.screenshots(change.deviceId)
+  if (!hub.hasSubscribers(channel)) return
+
+  if (change.op === 'delete') {
+    hub.broadcast(channel, patch('remove', { id: change.id }))
+    return
+  }
+
+  const { rows } = await query(
+    `select id, device_id, size_bytes, source, width, quality, status, created_at, expires_at
+       from screenshots where id = $1`,
+    [change.id]
+  )
+  if (!rows[0]) return
+
+  const row = rows[0]
+  hub.broadcast(channel, patch('upsert', {
+    id: row.id,
+    deviceId: row.device_id,
+    source: row.source,
+    size: Number(row.size_bytes),
+    width: row.width,
+    quality: row.quality,
+    status: row.status,
+    timestamp: row.created_at ? new Date(row.created_at).toISOString() : null,
+    expiresAt: row.expires_at ? new Date(row.expires_at).toISOString() : null
+  }))
+}
+
 const HANDLERS = {
   devices: dispatchDevice,
   rules: dispatchRule,
   alerts: dispatchAlert,
   commands: dispatchCommand,
-  installed_apps: dispatchApp
+  installed_apps: dispatchApp,
+  screenshots: dispatchScreenshot
 }
 
 export function startDispatcher(hub, log) {

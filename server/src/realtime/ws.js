@@ -82,6 +82,25 @@ async function snapshotApps(deviceId) {
   return rows.map(serializeApp)
 }
 
+async function snapshotScreenshots(deviceId) {
+  const { rows } = await query(
+    `select id, device_id, size_bytes, source, width, quality, status, created_at, expires_at
+       from screenshots where device_id = $1 order by created_at desc limit 200`,
+    [deviceId]
+  )
+  return rows.map(row => ({
+    id: row.id,
+    deviceId: row.device_id,
+    source: row.source,
+    size: Number(row.size_bytes),
+    width: row.width,
+    quality: row.quality,
+    status: row.status,
+    timestamp: row.created_at ? new Date(row.created_at).toISOString() : null,
+    expiresAt: row.expires_at ? new Date(row.expires_at).toISOString() : null
+  }))
+}
+
 async function ownsDevice(ownerId, deviceId) {
   const { rows } = await query(
     'select 1 from devices where id = $1 and owner_id = $2',
@@ -90,7 +109,7 @@ async function ownsDevice(ownerId, deviceId) {
   return rows.length > 0
 }
 
-const PER_DEVICE_CHANNELS = new Set(['device', 'rules', 'commands', 'apps'])
+const PER_DEVICE_CHANNELS = new Set(['device', 'rules', 'commands', 'apps', 'screenshots'])
 
 /**
  * Resolves a channel name the client asked for into an internal one, or null
@@ -128,6 +147,7 @@ async function snapshotFor(channel, client) {
   if (kind === 'rules') return snapshotRules(id)
   if (kind === 'alerts') return snapshotAlerts(id)
   if (kind === 'apps') return snapshotApps(id)
+  if (kind === 'screenshots') return snapshotScreenshots(id)
   if (kind === 'commands') {
     // The agent only wants what it still has to do; the panel wants recent
     // history, including what already ran, to show a command's outcome.

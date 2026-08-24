@@ -19,6 +19,11 @@ COPY migrations ./migrations
 # same database connection the service itself does.
 COPY scripts ./scripts
 
+# Каталог для скриншотов создаётся здесь, а не томом: пустой том наследует
+# владельца от каталога в образе, и без этого он достаётся root, а процесс
+# работает от node и писать туда не может.
+RUN mkdir -p /var/lib/kidscontrol/files && chown -R node:node /var/lib/kidscontrol
+
 USER node
 EXPOSE 8092
 CMD ["node", "src/index.js"]

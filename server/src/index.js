@@ -23,6 +23,7 @@ import deviceRoutes from './routes/devices.js'
 import emailAuthRoutes from './routes/emailAuth.js'
 import parentRoutes from './routes/parents.js'
 import ruleRoutes from './routes/rules.js'
+import screenshotRoutes from './routes/screenshots.js'
 
 const app = Fastify({
   logger: {
@@ -140,6 +141,7 @@ async function registerPlugins() {
   await app.register(commandRoutes, { prefix: '/api/v1' })
   await app.register(activityRoutes, { prefix: '/api/v1' })
   await app.register(parentRoutes, { prefix: '/api/v1' })
+  await app.register(screenshotRoutes, { prefix: '/api/v1' })
   await app.register(agentRoutes, { prefix: '/api/v1' })
   await app.register(websocketRoutes, { hub })
 }

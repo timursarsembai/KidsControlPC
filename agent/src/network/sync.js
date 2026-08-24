@@ -38,5 +38,6 @@ export const flushActivity = selfhosted.flushActivity
 export const uploadInstalledApps = selfhosted.uploadInstalledApps
 export const updateRuleStatus = selfhosted.updateRuleStatus
 export const updateRule = selfhosted.updateRule
+export const uploadScreenshot = selfhosted.uploadScreenshot
 
 export { IS_SELF_HOSTED }

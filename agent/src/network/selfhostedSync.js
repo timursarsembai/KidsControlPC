@@ -14,7 +14,9 @@ import { AGENT_VERSION, PAIRING_FILE } from '../config.js'
 import { eventBus, EVENTS } from '../core/eventBus.js'
 import { setActiveRules, setDeviceConfig, setParentConfig } from '../core/configManager.js'
 import { getRecentLogs } from '../core/logBuffer.js'
-import { api, clearAccessToken, getAccessToken, HttpError, isTokenExpired, setAccessToken } from './httpClient.js'
+import {
+  api, clearAccessToken, getAccessToken, HttpError, isTokenExpired, setAccessToken, upload
+} from './httpClient.js'
 import { createLiveChannel } from './wsClient.js'
 
 let parentUid = null
@@ -438,4 +440,33 @@ export function updateRuleStatus(ruleId, status) {
 
 export function getParentUid() {
   return parentUid
+}
+
+/**
+ * Sends a screenshot.
+ *
+ * Returns null instead of throwing when the account is out of space: the
+ * child's PC cannot fix that, and a failed upload must not become a crash loop
+ * on the machine whose job is to keep enforcing rules.
+ */
+export async function uploadScreenshot(buffer, { source, width, quality } = {}) {
+  if (!deviceId || !buffer?.length) return null
+  if (!await ensureAgentAuth()) return null
+
+  const params = new URLSearchParams()
+  if (source) params.set('source', source)
+  if (width) params.set('width', String(width))
+  if (quality) params.set('quality', String(quality))
+  const suffix = params.toString() ? `?${params}` : ''
+
+  try {
+    return await upload(`/agent/screenshots${suffix}`, buffer)
+  } catch (err) {
+    if (err instanceof HttpError && err.code === 'storage_quota_exceeded') {
+      log('Screenshot not sent: parent storage is full')
+    } else {
+      log(`Screenshot upload failed: ${err.message}`)
+    }
+    return null
+  }
 }

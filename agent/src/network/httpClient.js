@@ -114,6 +114,61 @@ export function request(path, { method = 'GET', body, auth = true, timeoutMs = D
   })
 }
 
+/**
+ * Uploads raw bytes — a screenshot.
+ *
+ * Sent as the body with an image content type rather than as multipart: an
+ * agent packaged with pkg on Node 18.5 has no fetch and no FormData, and
+ * assembling a multipart body over the https module by hand is a lot of fiddly
+ * code that buys nothing here.
+ */
+export function upload(path, buffer, { contentType = 'image/jpeg', timeoutMs = 60_000 } = {}) {
+  return new Promise((resolve, reject) => {
+    let url
+    try {
+      url = new URL(`${API_BASE_URL}${API_PREFIX}${path}`)
+    } catch (err) {
+      reject(new Error(`Bad API URL: ${err.message}`))
+      return
+    }
+
+    const headers = {
+      Accept: 'application/json',
+      'Content-Type': contentType,
+      'Content-Length': buffer.length
+    }
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`
+
+    const transport = url.protocol === 'http:' ? http : https
+    const req = transport.request({
+      protocol: url.protocol,
+      hostname: url.hostname,
+      port: url.port || (url.protocol === 'http:' ? 80 : 443),
+      path: `${url.pathname}${url.search}`,
+      method: 'POST',
+      headers,
+      // Longer than an ordinary request: this is hundreds of kilobytes going
+      // up a home connection, and a child's PC is often on wifi.
+      timeout: timeoutMs
+    }, (res) => {
+      let raw = ''
+      res.setEncoding('utf8')
+      res.on('data', chunk => { raw += chunk })
+      res.on('end', () => {
+        let data = null
+        try { data = raw ? JSON.parse(raw) : null } catch { /* not json */ }
+        if (res.statusCode >= 200 && res.statusCode < 300) resolve(data)
+        else reject(new HttpError(res.statusCode, data?.error?.code, data?.error?.message))
+      })
+    })
+
+    req.on('timeout', () => req.destroy(new Error(`Upload timed out after ${timeoutMs}ms`)))
+    req.on('error', reject)
+    req.write(buffer)
+    req.end()
+  })
+}
+
 export const api = {
   get: (path, options) => request(path, { ...options, method: 'GET' }),
   post: (path, body, options) => request(path, { ...options, method: 'POST', body }),
