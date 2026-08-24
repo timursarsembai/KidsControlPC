@@ -91,6 +91,7 @@ export const channelFor = {
   commands: (deviceId) => `commands:${deviceId}`,
   apps: (deviceId) => `apps:${deviceId}`,
   screenshots: (deviceId) => `screenshots:${deviceId}`,
+  children: (ownerId) => `children:${ownerId}`,
   chats: (ownerId) => `chats:${ownerId}`,
   messages: (chatId) => `messages:${chatId}`
 }

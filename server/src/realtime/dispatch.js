@@ -6,8 +6,8 @@
 
 import { query } from '../db.js'
 import {
-  ALERT_COLUMNS, APP_COLUMNS, COMMAND_COLUMNS, DEVICE_COLUMNS, RULE_COLUMNS,
-  serializeAlert, serializeApp, serializeCommand, serializeDevice, serializeRule
+  ALERT_COLUMNS, APP_COLUMNS, CHILD_COLUMNS, COMMAND_COLUMNS, DEVICE_COLUMNS, RULE_COLUMNS,
+  serializeAlert, serializeApp, serializeChild, serializeCommand, serializeDevice, serializeRule
 } from '../serializers.js'
 import { changes } from './changes.js'
 import { channelFor } from './hub.js'
@@ -143,6 +143,31 @@ async function dispatchScreenshot(hub, change) {
   }))
 }
 
+async function dispatchChild(hub, change) {
+  if (!change.ownerId) return
+  const channel = channelFor.children(change.ownerId)
+  if (!hub.hasSubscribers(channel)) return
+
+  if (change.op === 'delete') {
+    hub.broadcast(channel, patch('remove', { id: change.id }))
+    return
+  }
+
+  const { rows } = await query(
+    `select ${CHILD_COLUMNS},
+            coalesce(
+              (select array_agg(d.id order by d.paired_at desc nulls last)
+                 from devices d where d.child_id = c.id),
+              '{}'
+            ) as device_ids
+       from children c where c.id = $1`,
+    [change.id]
+  )
+  if (!rows[0]) return
+
+  hub.broadcast(channel, patch('upsert', serializeChild(rows[0])))
+}
+
 async function dispatchChat(hub, change) {
   if (!change.ownerId) return
   const channel = channelFor.chats(change.ownerId)
@@ -222,6 +247,7 @@ const HANDLERS = {
   commands: dispatchCommand,
   installed_apps: dispatchApp,
   screenshots: dispatchScreenshot,
+  children: dispatchChild,
   chats: dispatchChat,
   chat_messages: dispatchChatMessage
 }

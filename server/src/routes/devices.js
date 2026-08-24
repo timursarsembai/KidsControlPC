@@ -11,6 +11,8 @@ const patchSchema = {
   properties: {
     alias: { type: ['string', 'null'], maxLength: 100 },
     deviceName: { type: 'string', minLength: 1, maxLength: 100 },
+    // null detaches the device from its child without deleting either.
+    childId: { type: ['string', 'null'], format: 'uuid' },
     settings: { type: 'object' }
   },
   additionalProperties: false,
@@ -96,7 +98,33 @@ export default async function deviceRoutes(app) {
   })
 
   app.patch('/devices/:id', { schema: { params: deviceParams, body: patchSchema } }, async (request) => {
-    const { alias, deviceName, settings } = request.body
+    const { alias, deviceName, settings, childId } = request.body
+    // Absent means "leave it alone"; null means "detach". For a uuid there is
+    // no spare value to fold those together the way alias uses '', so the
+    // statement is told separately whether the field was sent at all.
+    const childSent = Object.hasOwn(request.body, 'childId')
+
+    // A child from another account would pass the foreign key perfectly well —
+    // it exists — and the device would quietly move out of this account's
+    // sight.
+    if (childSent && childId) {
+      const { rows: owned } = await query(
+        'select 1 from children where id = $1 and owner_id = $2',
+        [childId, request.ownerId]
+      )
+      if (!owned[0]) throw notFound('child_not_found', 'Профиль ребёнка не найден.')
+    }
+
+    // Read before the update so both the old child and the new one can be
+    // told their device list changed.
+    let previousChildId = null
+    if (childSent) {
+      const { rows: before } = await query(
+        'select child_id from devices where id = $1 and owner_id = $2',
+        [request.params.id, request.ownerId]
+      )
+      previousChildId = before[0]?.child_id ?? null
+    }
 
     // Settings merge rather than replace: the panel edits one switch at a
     // time and must not wipe keys it does not know about — including ones
@@ -106,6 +134,7 @@ export default async function deviceRoutes(app) {
           set alias       = coalesce($3, alias),
               device_name = coalesce($4, device_name),
               settings    = settings || coalesce($5::jsonb, '{}'::jsonb),
+              child_id    = case when $6 then $7::uuid else child_id end,
               updated_at  = now()
         where id = $1 and owner_id = $2
         returning ${DEVICE_COLUMNS}`,
@@ -116,10 +145,23 @@ export default async function deviceRoutes(app) {
         // passed through as an empty string rather than folded into coalesce.
         alias === null ? '' : alias ?? null,
         deviceName ?? null,
-        settings ? JSON.stringify(settings) : null
+        settings ? JSON.stringify(settings) : null,
+        childSent,
+        childSent ? childId : null
       ]
     )
     if (!rows[0]) throw notFound('device_not_found', 'Устройство не найдено.')
+
+    // Moving a device changes what each child's device list contains, but the
+    // row that changed was a device — nothing would tell a panel watching the
+    // children channel. Touching the children makes their own trigger fire.
+    if (childSent && previousChildId !== (childId ?? null)) {
+      const touched = [previousChildId, childId ?? null].filter(Boolean)
+      if (touched.length) {
+        await query('update children set updated_at = now() where id = any($1::uuid[])', [touched])
+      }
+    }
+
     return serializeDevice(rows[0])
   })
 

@@ -10,7 +10,24 @@
 const OFFLINE_AFTER_MS = 3 * 60 * 1000
 
 export const DEVICE_COLUMNS = `id, hostname, os_type, device_name, alias, agent_version,
-                               status, last_seen, paired_at, settings, pomodoro_state`
+                               status, last_seen, paired_at, settings, pomodoro_state,
+                               child_id, platform`
+
+export const CHILD_COLUMNS = 'id, name, avatar, note, created_at, updated_at'
+
+export function serializeChild(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    avatar: row.avatar,
+    note: row.note ?? null,
+    // Which devices are this child's. Sent with the child so the panel can
+    // draw the list without a second request per child.
+    deviceIds: row.device_ids ?? [],
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+    updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null
+  }
+}
 
 export function serializeDevice(row, { includeLogs = false } = {}) {
   const lastSeen = row.last_seen ? new Date(row.last_seen) : null
@@ -37,6 +54,10 @@ export function serializeDevice(row, { includeLogs = false } = {}) {
     deviceName: row.device_name,
     alias: row.alias,
     agentVersion: row.agent_version,
+    childId: row.child_id ?? null,
+    // 'windows' for every device that exists today. Phones are the reason this
+    // is a column and not an assumption spread through the code.
+    platform: row.platform ?? 'windows',
     status,
     lastSeen: lastSeen ? lastSeen.toISOString() : null,
     pairedAt: row.paired_at ? new Date(row.paired_at).toISOString() : null,

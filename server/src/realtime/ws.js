@@ -9,8 +9,8 @@ import { query } from '../db.js'
 import { AUDIENCE_AGENT, AUDIENCE_PARENT, verifyAccessToken } from '../auth/tokens.js'
 import { resolveOwnerId } from '../auth/guard.js'
 import {
-  ALERT_COLUMNS, APP_COLUMNS, COMMAND_COLUMNS, DEVICE_COLUMNS, RULE_COLUMNS,
-  serializeAlert, serializeApp, serializeCommand, serializeDevice, serializeRule
+  ALERT_COLUMNS, APP_COLUMNS, CHILD_COLUMNS, COMMAND_COLUMNS, DEVICE_COLUMNS, RULE_COLUMNS,
+  serializeAlert, serializeApp, serializeChild, serializeCommand, serializeDevice, serializeRule
 } from '../serializers.js'
 import { channelFor } from './hub.js'
 
@@ -53,6 +53,22 @@ async function snapshotRules(deviceId) {
     [deviceId]
   )
   return rows.map(serializeRule)
+}
+
+async function snapshotChildren(ownerId) {
+  const { rows } = await query(
+    `select ${CHILD_COLUMNS},
+            coalesce(
+              (select array_agg(d.id order by d.paired_at desc nulls last)
+                 from devices d where d.child_id = c.id),
+              '{}'
+            ) as device_ids
+       from children c
+      where c.owner_id = $1
+      order by c.created_at`,
+    [ownerId]
+  )
+  return rows.map(serializeChild)
 }
 
 async function snapshotAlerts(ownerId) {
@@ -195,6 +211,7 @@ async function resolveChannel(client, requested) {
   if (client.kind === AUDIENCE_PARENT) {
     if (requested === 'devices') return channelFor.devices(client.ownerId)
     if (requested === 'alerts') return channelFor.alerts(client.ownerId)
+    if (requested === 'children') return channelFor.children(client.ownerId)
     if (requested === 'chats') return channelFor.chats(client.ownerId)
 
     if (requested.startsWith('messages:')) {
@@ -238,6 +255,7 @@ async function snapshotFor(channel, client) {
   if (kind === 'alerts') return snapshotAlerts(id)
   if (kind === 'apps') return snapshotApps(id)
   if (kind === 'screenshots') return snapshotScreenshots(id)
+  if (kind === 'children') return snapshotChildren(id)
   if (kind === 'chats') return snapshotChats(id, client?.userId)
   if (kind === 'messages') return snapshotMessages(id)
   if (kind === 'commands') {

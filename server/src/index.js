@@ -19,6 +19,7 @@ import agentRoutes from './routes/agent.js'
 import alertRoutes from './routes/alerts.js'
 import authRoutes from './routes/auth.js'
 import chatRoutes from './routes/chats.js'
+import childRoutes from './routes/children.js'
 import commandRoutes from './routes/commands.js'
 import deviceRoutes from './routes/devices.js'
 import emailAuthRoutes from './routes/emailAuth.js'
@@ -144,6 +145,8 @@ async function registerPlugins() {
   await app.register(parentRoutes, { prefix: '/api/v1' })
   await app.register(screenshotRoutes, { prefix: '/api/v1' })
   await app.register(chatRoutes, { prefix: '/api/v1' })
+
+  await app.register(childRoutes, { prefix: '/api/v1' })
   await app.register(agentRoutes, { prefix: '/api/v1' })
   await app.register(websocketRoutes, { hub })
 }
