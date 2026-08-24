@@ -2,6 +2,7 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import { supportsChildren } from '@kidscontrol/shared/data/children'
+import { withCount } from '@kidscontrol/shared/utils/plural'
 import ChildDialog from './ChildDialog'
 import './DeviceSidebar.css'
 
@@ -262,7 +263,7 @@ export default function DeviceSidebar({ isMobileOpen = false, onMobileNavigate }
                     <span className="child-sub">
                       {childDevices.length === 0
                         ? 'нет устройств'
-                        : `${childDevices.length} ${childDevices.length === 1 ? 'устройство' : childDevices.length < 5 ? 'устройства' : 'устройств'}`}
+                        : withCount(childDevices.length, 'устройство', 'устройства', 'устройств')}
                     </span>
                   </span>
                   <span className={`child-chevron ${isExpanded ? 'open' : ''}`}>›</span>

@@ -815,3 +815,55 @@
 }
 
 .device-child-select:focus { outline: none; border-color: var(--accent); }
+
+/* Профили в разделе «Устройства»: у каждого свои карточки и своя кнопка
+   добавления — код привязки выдаётся сразу тому ребёнку, в чьём блоке
+   его нажали. */
+.settings-children {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.settings-child-block {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  padding: var(--space-4);
+  background: var(--bg-surface);
+}
+
+/* Профиль, из которого пришли по кнопке «добавить устройство». */
+.settings-child-block.highlighted {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.settings-child-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.settings-child-avatar { font-size: 20px; line-height: 1; }
+
+.settings-child-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.settings-child-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.settings-add-device {
+  width: 100%;
+  margin-top: var(--space-3);
+  border: 1px dashed var(--border-strong);
+  font-size: 12px;
+}
+
+.settings-add-device:hover { border-color: var(--accent); color: var(--accent); }

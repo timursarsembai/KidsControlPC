@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { createPairingCode, createRepairPairingCode } from '@kidscontrol/shared/data/pairing'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import { supportsChildren } from '@kidscontrol/shared/data/children'
+import { withCount } from '@kidscontrol/shared/utils/plural'
 import { logger } from '@kidscontrol/shared/utils/logger'
 
 function DeviceCard({ device, ownerUid, onRemove, onRename, deleting, childProfiles = [], onAssign }) {
@@ -156,22 +157,19 @@ export default function DevicesSection({ uid: ownerUid }) {
     children, pairingChildId, assignDeviceToChild
   } = useRulesStore()
   const [code, setCode] = useState('')
-  const [codeChild, setCodeChild] = useState(null)
-  // Профиль, который выбрали в боковой панели, если пришли оттуда.
-  const [targetChildId, setTargetChildId] = useState(pairingChildId ?? '')
-
-  React.useEffect(() => {
-    if (pairingChildId) setTargetChildId(pairingChildId)
-  }, [pairingChildId])
+  // Чей это код: id профиля, null — «без профиля». Код показывается внутри
+  // своей группы, иначе после нажатия в одном профиле он появлялся бы
+  // где-то внизу страницы и было бы непонятно, кому достанется устройство.
+  const [codeChildId, setCodeChildId] = useState(null)
   const [generating, setGenerating] = useState(false)
   const [deleteId, setDeleteId] = useState(null)
 
-  const generateCode = async () => {
+  const generateCode = async (childId = null) => {
     setGenerating(true)
     try {
-      const result = await createPairingCode(targetChildId || null)
+      const result = await createPairingCode(childId)
       setCode(result.code)
-      setCodeChild(children.find(c => c.id === targetChildId) ?? null)
+      setCodeChildId(childId)
       logger.info('general', `Сгенерирован код привязки: ${result.code}`)
     } catch (err) {
       console.error('Error generating pairing code:', err)
@@ -193,6 +191,85 @@ export default function DevicesSection({ uid: ownerUid }) {
     }
   }
 
+  // Устройства, разложенные по профилям.
+  const { byChild, orphans } = React.useMemo(() => {
+    const map = new Map(children.map(c => [c.id, []]))
+    const loose = []
+    for (const device of devices) {
+      const bucket = device.childId ? map.get(device.childId) : null
+      if (bucket) bucket.push(device)
+      else loose.push(device)
+    }
+    return { byChild: map, orphans: loose }
+  }, [devices, children])
+
+  // Пришли из бокового списка по кнопке «добавить устройство» — показать
+  // именно тот профиль, а не заставлять искать его глазами.
+  const highlightRef = React.useRef(null)
+  React.useEffect(() => {
+    if (pairingChildId) highlightRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [pairingChildId])
+
+  const renderCard = (device) => (
+    <DeviceCard
+      key={device.id}
+      device={device}
+      ownerUid={ownerUid}
+      childProfiles={children}
+      onAssign={assignDeviceToChild}
+      onRemove={() => removeDevice(device.id)}
+      onRename={(name) => renameDevice(device.id, name)}
+      deleting={deleteId === device.id}
+    />
+  )
+
+  // Код привязки для одного профиля: либо выданный код, либо кнопка.
+  const renderPairing = (childId) => {
+    const isMine = code && codeChildId === childId
+    if (!isMine) {
+      return (
+        <button
+          className="btn btn-ghost settings-add-device"
+          onClick={() => generateCode(childId)}
+          disabled={generating}
+        >
+          {generating ? <span className="btn-spinner-sm" /> : '+ Добавить устройство'}
+        </button>
+      )
+    }
+
+    return (
+      <div className="code-display">
+        <div className="code-label">
+          {t('settings.devices.code_active', 'Код привязки (действителен 15 минут)')}
+        </div>
+        <div className="code-value">
+          {code.split('').map((c, i) => (
+            <span key={i} className="code-char">{c}</span>
+          ))}
+        </div>
+        <div className="code-actions">
+          <button className="btn btn-ghost btn-sm" onClick={() => setCode('')}>Отмена</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => generateCode(childId)}>🔄 Новый код</button>
+        </div>
+        <div className="code-steps">
+          <div className="code-step">
+            <span className="step-num">1</span>
+            <span>Установите <strong>KidsControlPC Agent</strong> на ПК ребёнка</span>
+          </div>
+          <div className="code-step">
+            <span className="step-num">2</span>
+            <span>При запуске агент спросит код привязки — введите код выше</span>
+          </div>
+          <div className="code-step">
+            <span className="step-num">3</span>
+            <span>Устройство появится в этом профиле автоматически</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <section className="settings-section">
       <div className="settings-section-header">
@@ -205,94 +282,62 @@ export default function DevicesSection({ uid: ownerUid }) {
         </div>
       </div>
 
-      {devices.length === 0 ? (
-        <div className="devices-empty">
-          <span className="devices-empty-icon">📡</span>
-          <span>{t('settings.devices.empty', 'Нет привязанных устройств')}</span>
-        </div>
-      ) : (
-        <div className="devices-list">
-          {devices.map(device => (
-            <DeviceCard
-              key={device.id}
-              device={device}
-              ownerUid={ownerUid}
-              childProfiles={children}
-              onAssign={assignDeviceToChild}
-              onRemove={() => removeDevice(device.id)}
-              onRename={(name) => renameDevice(device.id, name)}
-              deleting={deleteId === device.id}
-            />
-          ))}
-        </div>
-      )}
-
-      <div className="pairing-card">
-        <div className="pairing-header">
-          <div className="pairing-title">{t('settings.devices.add_new', 'Добавить новое устройство')}</div>
-          <div className="pairing-hint">
-            {t('settings.devices.add_hint', 'Установите агент на ПК ребёнка и введите код при первом запуске')}
-          </div>
-        </div>
-        <div className="pairing-body" style={{ marginTop: '1rem' }}>
-          {code ? (
-            <div className="code-display">
-              <div className="code-label">
-                {t('settings.devices.code_active', 'Код привязки (действителен 15 минут)')}
-                {supportsChildren && codeChild && ` → ${codeChild.avatar} ${codeChild.name}`}
-              </div>
-              <div className="code-value">
-                {code.split('').map((c, i) => (
-                  <span key={i} className="code-char">{c}</span>
-                ))}
-              </div>
-              <div className="code-actions">
-                <button className="btn btn-ghost btn-sm" onClick={() => setCode('')}>Отмена</button>
-                <button className="btn btn-ghost btn-sm" onClick={generateCode}>🔄 Новый код</button>
-              </div>
-              <div className="code-steps">
-                <div className="code-step">
-                  <span className="step-num">1</span>
-                  <span>Установите <strong>KidsControlPC Agent</strong> на ПК ребёнка</span>
-                </div>
-                <div className="code-step">
-                  <span className="step-num">2</span>
-                  <span>При запуске агент спросит код привязки — введите код выше</span>
-                </div>
-                <div className="code-step">
-                  <span className="step-num">3</span>
-                  <span>Устройство появится в этом списке автоматически</span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <>
-            {supportsChildren && children.length > 0 && (
-              <label className="pairing-child-row">
-                <span className="device-child-label">Чьё устройство</span>
-                <select
-                  className="device-child-select"
-                  value={targetChildId}
-                  onChange={(e) => setTargetChildId(e.target.value)}
-                >
-                  {children.map(child => (
-                    <option key={child.id} value={child.id}>{child.avatar} {child.name}</option>
-                  ))}
-                  <option value="">Без профиля</option>
-                </select>
-              </label>
-            )}
-            <button
-              className="btn btn-primary pairing-btn"
-              onClick={generateCode}
-              disabled={generating}
+      {supportsChildren ? (
+        <div className="settings-children">
+          {children.map(child => (
+            <div
+              key={child.id}
+              ref={child.id === pairingChildId ? highlightRef : null}
+              className={`settings-child-block ${child.id === pairingChildId ? 'highlighted' : ''}`}
             >
-              {generating ? <><span className="btn-spinner-sm" /> ...</> : t('settings.devices.code_gen', '+ Сгенерировать код привязки')}
-            </button>
-            </>
+              <div className="settings-child-head">
+                <span className="settings-child-avatar">{child.avatar}</span>
+                <span className="settings-child-name">{child.name}</span>
+                <span className="settings-child-count">{withCount(byChild.get(child.id)?.length ?? 0, 'устройство', 'устройства', 'устройств')}</span>
+              </div>
+
+              {(byChild.get(child.id) ?? []).length > 0 && (
+                <div className="devices-list">
+                  {byChild.get(child.id).map(renderCard)}
+                </div>
+              )}
+
+              {renderPairing(child.id)}
+            </div>
+          ))}
+
+          {/* Устройства без профиля показываются отдельно, а не прячутся:
+              они всё так же работают и всё так же требуют внимания. */}
+          {(orphans.length > 0 || children.length === 0) && (
+            <div className="settings-child-block">
+              <div className="settings-child-head">
+                <span className="settings-child-avatar">🖥️</span>
+                <span className="settings-child-name">Без профиля</span>
+                <span className="settings-child-count">{withCount(orphans.length, 'устройство', 'устройства', 'устройств')}</span>
+              </div>
+
+              {orphans.length > 0 && (
+                <div className="devices-list">{orphans.map(renderCard)}</div>
+              )}
+
+              {renderPairing(null)}
+            </div>
           )}
         </div>
-      </div>
+      ) : (
+        <>
+          {devices.length === 0 ? (
+            <div className="devices-empty">
+              <span className="devices-empty-icon">📡</span>
+              <span>{t('settings.devices.empty', 'Нет привязанных устройств')}</span>
+            </div>
+          ) : (
+            <div className="devices-list">{devices.map(renderCard)}</div>
+          )}
+          {renderPairing(null)}
+        </>
+      )}
+
     </section>
   )
 }

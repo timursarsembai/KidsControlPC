@@ -30,6 +30,7 @@
     "./data/backend": "./data/backend.js",
     "./data/devices": "./data/devices.js",
     "./data/children": "./data/children.js",
+    "./utils/plural": "./utils/plural.js",
     "./data/rules": "./data/rules.js",
     "./data/pairing": "./data/pairing.js",
     "./data/profile": "./data/profile.js",
