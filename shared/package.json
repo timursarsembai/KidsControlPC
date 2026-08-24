@@ -39,6 +39,7 @@
     "./data/timestamps": "./data/timestamps.js",
     "./data/screenshots": "./data/screenshots.js",
     "./data/chats": "./data/chats.js",
+    "./data/parents": "./data/parents.js",
     "./selfhosted/auth": "./selfhosted/auth.js",
     "./selfhosted/client": "./selfhosted/client.js",
     "./selfhosted/tokens": "./selfhosted/tokens.js",

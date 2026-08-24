@@ -71,7 +71,7 @@ export default async function ruleRoutes(app) {
   app.addHook('preHandler', requireParent)
 
   app.get('/devices/:id/rules', { schema: { params: deviceParams } }, async (request) => {
-    await assertOwnsDevice(request.userId, request.params.id)
+    await assertOwnsDevice(request.ownerId, request.params.id)
     const { rows } = await query(
       `select ${RULE_COLUMNS} from rules where device_id = $1 order by created_at desc`,
       [request.params.id]
@@ -82,7 +82,7 @@ export default async function ruleRoutes(app) {
   app.post('/devices/:id/rules', {
     schema: { params: deviceParams, body: ruleBodySchema }
   }, async (request, reply) => {
-    await assertOwnsDevice(request.userId, request.params.id)
+    await assertOwnsDevice(request.ownerId, request.params.id)
 
     // Every rule is pushed to the agent on every reconnect, so an unbounded
     // list is not just clutter — it is what a child's PC has to download and
@@ -124,7 +124,7 @@ export default async function ruleRoutes(app) {
       [
         request.params.ruleId,
         request.params.id,
-        request.userId,
+        request.ownerId,
         JSON.stringify(patch),
         request.body.status ?? null
       ]
@@ -139,7 +139,7 @@ export default async function ruleRoutes(app) {
   app.put('/devices/:id/rules/slug/:slug', {
     schema: { params: slugParams, body: ruleBodySchema }
   }, async (request) => {
-    await assertOwnsDevice(request.userId, request.params.id)
+    await assertOwnsDevice(request.ownerId, request.params.id)
 
     const { rows } = await query(
       `insert into rules (device_id, slug, status, payload)
@@ -173,7 +173,7 @@ export default async function ruleRoutes(app) {
       `delete from rules r
         using devices d
         where r.id = $1 and r.device_id = $2 and d.id = r.device_id and d.owner_id = $3`,
-      [request.params.ruleId, request.params.id, request.userId]
+      [request.params.ruleId, request.params.id, request.ownerId]
     )
     if (rowCount === 0) throw notFound('rule_not_found', 'Правило не найдено.')
     return reply.code(204).send()

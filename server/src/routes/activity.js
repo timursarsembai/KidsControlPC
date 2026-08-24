@@ -68,7 +68,7 @@ export default async function activityRoutes(app) {
       }
     }
   }, async (request) => {
-    await assertOwnsDevice(request.userId, request.params.id)
+    await assertOwnsDevice(request.ownerId, request.params.id)
 
     const date = request.query.date ?? new Date().toISOString().slice(0, 10)
     const offset = request.query.tzOffsetMinutes ?? 0
@@ -109,7 +109,7 @@ export default async function activityRoutes(app) {
       }
     }
   }, async (request) => {
-    await assertOwnsDevice(request.userId, request.params.id)
+    await assertOwnsDevice(request.ownerId, request.params.id)
 
     const { from, to, days } = request.query
     const rows = from || to

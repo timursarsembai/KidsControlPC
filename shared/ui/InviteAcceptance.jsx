@@ -1,11 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { signInWithEmailAndPassword, signOut, updatePassword } from 'firebase/auth'
-import { auth } from '@kidscontrol/shared/firebase/config'
+import {
+  changePassword,
+  requiresCurrentPasswordToChange,
+  signIn,
+  signOutUser
+} from '@kidscontrol/shared/data/auth'
 import {
   acceptParentInvitation,
   declineParentInvitation,
   getParentInvitation
-} from '@kidscontrol/shared/firebase/parents'
+} from '@kidscontrol/shared/data/parents'
 
 export default function InviteAcceptance({ user }) {
   const params = useMemo(() => new URLSearchParams(window.location.search), [])
@@ -58,8 +62,8 @@ export default function InviteAcceptance({ user }) {
 
     try {
       if (!signedInAsInvitee) {
-        if (user) await signOut(auth)
-        await signInWithEmailAndPassword(auth, invitedEmail, password)
+        if (user) await signOutUser()
+        await signIn(invitedEmail, password)
       }
 
       const result = await acceptParentInvitation(invitationId, token)
@@ -104,7 +108,10 @@ export default function InviteAcceptance({ user }) {
 
     setSubmitting(true)
     try {
-      await updatePassword(auth.currentUser, newPassword)
+      // The self-hosted backend asks for the current password; on Firebase it
+      // relies on the sign-in that just happened a moment ago. Either way the
+      // parent has just typed the temporary one from the invitation letter.
+      await changePassword(requiresCurrentPasswordToChange ? password : undefined, newPassword)
       window.location.assign('/')
     } catch (err) {
       setError(err.message || 'Не удалось сменить пароль.')

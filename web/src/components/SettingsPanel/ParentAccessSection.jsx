@@ -4,7 +4,7 @@ import {
   revokeParentAccess,
   subscribeToParentAccess,
   subscribeToParentInvitations
-} from '@kidscontrol/shared/firebase/parents'
+} from '@kidscontrol/shared/data/parents'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 
 function formatDate(value) {

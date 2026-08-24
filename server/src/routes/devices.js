@@ -80,7 +80,7 @@ export default async function deviceRoutes(app) {
   app.get('/devices', async (request) => {
     const { rows } = await query(
       `select ${DEVICE_COLUMNS} from devices where owner_id = $1 order by paired_at desc nulls last`,
-      [request.userId]
+      [request.ownerId]
     )
     return { devices: rows.map(row => serializeDevice(row)) }
   })
@@ -88,7 +88,7 @@ export default async function deviceRoutes(app) {
   app.get('/devices/:id', { schema: { params: deviceParams } }, async (request) => {
     const { rows } = await query(
       `select ${DEVICE_COLUMNS}, recent_logs from devices where id = $1 and owner_id = $2`,
-      [request.params.id, request.userId]
+      [request.params.id, request.ownerId]
     )
     if (!rows[0]) throw notFound('device_not_found', 'Устройство не найдено.')
     return serializeDevice(rows[0], { includeLogs: true })
@@ -110,7 +110,7 @@ export default async function deviceRoutes(app) {
         returning ${DEVICE_COLUMNS}`,
       [
         request.params.id,
-        request.userId,
+        request.ownerId,
         // alias: null is a real value — clearing a custom name — so it is
         // passed through as an empty string rather than folded into coalesce.
         alias === null ? '' : alias ?? null,
@@ -126,14 +126,14 @@ export default async function deviceRoutes(app) {
   app.delete('/devices/:id', { schema: { params: deviceParams } }, async (request, reply) => {
     const { rowCount } = await query(
       'delete from devices where id = $1 and owner_id = $2',
-      [request.params.id, request.userId]
+      [request.params.id, request.ownerId]
     )
     if (rowCount === 0) throw notFound('device_not_found', 'Устройство не найдено.')
     return reply.code(204).send()
   })
 
   app.post('/pairing/codes', async (request) => {
-    return issuePairingCode(request.userId)
+    return issuePairingCode(request.ownerId)
   })
 
   // Re-pairing an existing device: the agent is being reinstalled on a PC that
@@ -143,11 +143,11 @@ export default async function deviceRoutes(app) {
   app.post('/pairing/codes/repair', { schema: { body: repairSchema } }, async (request) => {
     const { rows } = await query(
       'select id from devices where id = $1 and owner_id = $2',
-      [request.body.deviceId, request.userId]
+      [request.body.deviceId, request.ownerId]
     )
     if (!rows[0]) throw notFound('device_not_found', 'Устройство не найдено.')
 
-    return issuePairingCode(request.userId, request.body.deviceId)
+    return issuePairingCode(request.ownerId, request.body.deviceId)
   })
 
   // Lets a parent cut off a device without deleting it: the current agent
@@ -157,7 +157,7 @@ export default async function deviceRoutes(app) {
     const revoked = await withTransaction(async (client) => {
       const { rows } = await client.query(
         'select id from devices where id = $1 and owner_id = $2',
-        [request.params.id, request.userId]
+        [request.params.id, request.ownerId]
       )
       if (!rows[0]) return false
 

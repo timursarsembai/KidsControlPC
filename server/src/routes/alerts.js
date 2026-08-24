@@ -37,7 +37,7 @@ export default async function alertRoutes(app) {
         where owner_id = $1
         order by created_at desc
         limit ${PAGE_SIZE}`,
-      [request.userId]
+      [request.ownerId]
     )
     return { alerts: rows.map(serializeAlert) }
   })
@@ -45,7 +45,7 @@ export default async function alertRoutes(app) {
   app.post('/alerts/:id/ack', { schema: { params: alertParams } }, async (request, reply) => {
     await query(
       'update alerts set acknowledged = true where id = $1 and owner_id = $2',
-      [request.params.id, request.userId]
+      [request.params.id, request.ownerId]
     )
     // No 404 for an alert that is already gone: the parent asked for it to
     // stop showing, and it is not showing.
@@ -57,12 +57,12 @@ export default async function alertRoutes(app) {
     if (ids && ids.length > 0) {
       await query(
         'update alerts set acknowledged = true where owner_id = $1 and id = any($2::uuid[])',
-        [request.userId, ids]
+        [request.ownerId, ids]
       )
     } else {
       await query(
         'update alerts set acknowledged = true where owner_id = $1 and acknowledged = false',
-        [request.userId]
+        [request.ownerId]
       )
     }
     return reply.code(204).send()

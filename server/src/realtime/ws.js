@@ -7,6 +7,7 @@
 
 import { query } from '../db.js'
 import { AUDIENCE_AGENT, AUDIENCE_PARENT, verifyAccessToken } from '../auth/tokens.js'
+import { resolveOwnerId } from '../auth/guard.js'
 import {
   ALERT_COLUMNS, APP_COLUMNS, COMMAND_COLUMNS, DEVICE_COLUMNS, RULE_COLUMNS,
   serializeAlert, serializeApp, serializeCommand, serializeDevice, serializeRule
@@ -101,13 +102,13 @@ const PER_DEVICE_CHANNELS = new Set(['device', 'rules', 'commands', 'apps'])
  */
 async function resolveChannel(client, requested) {
   if (client.kind === AUDIENCE_PARENT) {
-    if (requested === 'devices') return channelFor.devices(client.userId)
-    if (requested === 'alerts') return channelFor.alerts(client.userId)
+    if (requested === 'devices') return channelFor.devices(client.ownerId)
+    if (requested === 'alerts') return channelFor.alerts(client.ownerId)
 
     const [kind, id] = requested.split(':')
     if (!id || !UUID_RE.test(id)) return null
     if (!PER_DEVICE_CHANNELS.has(kind)) return null
-    if (!await ownsDevice(client.userId, id)) return null
+    if (!await ownsDevice(client.ownerId, id)) return null
 
     return channelFor[kind](id)
   }
@@ -239,7 +240,9 @@ export default async function websocketRoutes(app, { hub }) {
             clearTimeout(authTimer)
 
             client = audience === AUDIENCE_PARENT
-              ? { kind: AUDIENCE_PARENT, userId: payload.sub }
+              // ownerId, not userId: a second parent watches the account that
+              // invited them, and their own has nothing in it.
+              ? { kind: AUDIENCE_PARENT, userId: payload.sub, ownerId: await resolveOwnerId(payload.sub) }
               : { kind: AUDIENCE_AGENT, deviceId: payload.sub, ownerId: payload.ownerId }
             attach(socket, client)
 

@@ -70,3 +70,40 @@ export function emailVerificationEmail({ url, ttlHours }) {
     )
   }
 }
+
+export function parentInvitationEmail({ url, ownerEmail, temporaryPassword, ttlHours }) {
+  const who = ownerEmail ? `Владелец аккаунта (${ownerEmail})` : 'Владелец аккаунта'
+
+  const text = [
+    `${who} приглашает вас как второго родителя в KidsControlPC.`,
+    '',
+    `Чтобы принять приглашение, откройте ссылку (действует ${ttlHours} ч):`,
+    url,
+    ...(temporaryPassword
+      ? [
+          '',
+          'Для вас создан аккаунт. Временный пароль:',
+          `    ${temporaryPassword}`,
+          'Смените его после входа: Настройки → Аккаунт → Смена пароля.'
+        ]
+      : []),
+    '',
+    'Если вы не ждали приглашения, просто удалите это письмо —',
+    'без вашего согласия доступ не появится.'
+  ].join('\n')
+
+  return {
+    subject: 'Приглашение второго родителя — KidsControlPC',
+    text,
+    html: layout(
+      'Приглашение второго родителя',
+      `<p>${who} приглашает вас помогать с родительским контролем. Ссылка действует ${ttlHours} часов.</p>` +
+      (temporaryPassword
+        ? `<p>Для вас создан аккаунт. Временный пароль: <b style="font-family:monospace">${temporaryPassword}</b><br>
+           Смените его после входа: Настройки → Аккаунт → Смена пароля.</p>`
+        : '') +
+      `<p style="color:#6b7280">Если вы не ждали приглашения, просто удалите это письмо — без вашего согласия доступ не появится.</p>`,
+      { url, label: 'Принять приглашение' }
+    )
+  }
+}

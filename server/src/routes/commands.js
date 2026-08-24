@@ -50,7 +50,7 @@ export default async function commandRoutes(app) {
   }
 
   app.get('/devices/:id/apps', { schema: { params: deviceParams } }, async (request) => {
-    await assertOwnsDevice(request.userId, request.params.id)
+    await assertOwnsDevice(request.ownerId, request.params.id)
     const { rows } = await query(
       `select ${APP_COLUMNS} from installed_apps where device_id = $1 order by lower(name)`,
       [request.params.id]
@@ -59,7 +59,7 @@ export default async function commandRoutes(app) {
   })
 
   app.get('/devices/:id/commands', { schema: { params: deviceParams } }, async (request) => {
-    await assertOwnsDevice(request.userId, request.params.id)
+    await assertOwnsDevice(request.ownerId, request.params.id)
     const { rows } = await query(
       `select ${COMMAND_COLUMNS} from commands
         where device_id = $1
@@ -78,7 +78,7 @@ export default async function commandRoutes(app) {
       throw badRequest('invalid_action', 'Не указано, что сделать.')
     }
 
-    await assertOwnsDevice(request.userId, request.params.id)
+    await assertOwnsDevice(request.ownerId, request.params.id)
 
     const { rows: pending } = await query(
       `select count(*)::int as n from commands where device_id = $1 and status = 'pending'`,

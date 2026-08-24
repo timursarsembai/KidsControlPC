@@ -51,13 +51,26 @@ async function pruneEmailTokens() {
   return rowCount
 }
 
+// Otherwise an invitation nobody answered stays "ожидает ответа" in the
+// owner's list forever, and the unique index keeps blocking a new one to the
+// same address.
+async function expireParentInvitations() {
+  const { rowCount } = await query(
+    `update parent_invitations
+        set status = 'expired', responded_at = now()
+      where status = 'pending' and expires_at < now()`
+  )
+  return rowCount
+}
+
 export async function runMaintenance(log) {
   const tasks = [
     ['refresh tokens', pruneRefreshTokens],
     ['pairing codes', pruneExpiredPairingCodes],
     ['commands', pruneOldCommands],
     ['alerts', pruneOldAlerts],
-    ['email tokens', pruneEmailTokens]
+    ['email tokens', pruneEmailTokens],
+    ['parent invitations', expireParentInvitations]
   ]
 
   for (const [name, task] of tasks) {
