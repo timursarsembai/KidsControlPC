@@ -261,3 +261,160 @@
 .device-storage-bar--clickable:hover {
   background: var(--bg-hover, rgba(255,255,255,0.05));
 }
+
+/* ── Профили детей ─────────────────────────────────────────────── */
+
+.child-group {
+  margin-bottom: 2px;
+}
+
+.child-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.child-head:hover { background: var(--bg-hover); }
+
+/* Профиль, внутри которого сейчас выбранное устройство: иначе, когда
+   список свёрнут, непонятно, к какому ребёнку относится открытый экран. */
+.child-head.has-selected { background: var(--accent-dim); }
+
+.child-head-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 7px 8px;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.child-avatar {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.child-labels {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.child-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.child-sub {
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.child-chevron {
+  font-size: 15px;
+  color: var(--text-tertiary);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.child-chevron.open { transform: rotate(90deg); }
+
+.child-edit-btn {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  opacity: 0;
+}
+
+/* Кнопки правки и удаления показываются при наведении: они нужны редко,
+   а промахнуться по крестику рядом с именем ребёнка — легко. */
+.child-head:hover .child-edit-btn,
+.child-edit-btn:focus-visible { opacity: 1; }
+
+.child-edit-btn:hover { background: var(--bg-active); color: var(--text-primary); }
+.child-edit-btn--danger:hover { color: var(--danger); }
+
+.child-group .device-sidebar-devices,
+.child-empty {
+  margin-left: var(--space-3);
+  padding-left: var(--space-2);
+  border-left: 1px solid var(--border);
+}
+
+.child-empty {
+  display: block;
+  width: calc(100% - var(--space-3));
+  padding: 6px 8px;
+  background: none;
+  border-top: none;
+  border-right: none;
+  border-bottom: none;
+  color: var(--text-tertiary);
+  font-family: var(--font);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.child-empty:hover { color: var(--accent); }
+
+.device-sidebar-group-label--sub {
+  margin-top: var(--space-3);
+  opacity: 0.75;
+}
+
+/* Строка устройства: сама кнопка плюс выбор профиля справа. */
+.device-item-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.device-item-row .device-item { flex: 1; min-width: 0; }
+
+.device-item-move {
+  width: 22px;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0;
+  border-radius: var(--radius-sm);
+}
+
+.device-item-row:hover .device-item-move,
+.device-item-move:focus-visible { opacity: 1; }
+
+.device-item-move:hover { color: var(--text-primary); background: var(--bg-active); }
+
+.device-item-move option {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+/* На касании наведения нет — иначе перенести устройство с телефона
+   было бы нечем. */
+@media (hover: none) {
+  .child-edit-btn,
+  .device-item-move { opacity: 1; }
+}

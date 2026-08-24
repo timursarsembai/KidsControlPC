@@ -8,6 +8,8 @@ agent/node_modules/
 agent/dist/
 agent/pairing.json
 agent/agent_auth*.json
+# то же самое, но созданное пробой из корня репозитория
+agent_auth*.json
 .local-tools/
 *.exe
 *.log

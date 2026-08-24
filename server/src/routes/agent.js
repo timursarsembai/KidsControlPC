@@ -82,12 +82,12 @@ export default async function agentRoutes(app) {
         `update pairing_codes
             set used = true, used_at = now()
           where code = $1 and used = false and expires_at > now()
-          returning owner_id, target_device_id`,
+          returning owner_id, target_device_id, child_id`,
         [code]
       )
       if (claimed.rowCount === 0) return null
 
-      const { owner_id: ownerId, target_device_id: targetDeviceId } = claimed.rows[0]
+      const { owner_id: ownerId, target_device_id: targetDeviceId, child_id: childId } = claimed.rows[0]
 
       let deviceId
       if (targetDeviceId) {
@@ -115,9 +115,9 @@ export default async function agentRoutes(app) {
         deviceId = randomUUID()
         await client.query(
           `insert into devices (id, owner_id, hostname, os_type, device_name,
-                                agent_version, status, last_seen, paired_at)
-           values ($1, $2, $3, $4, $3, $5, 'online', now(), now())`,
-          [deviceId, ownerId, hostname, osType, agentVersion]
+                                agent_version, status, last_seen, paired_at, child_id)
+           values ($1, $2, $3, $4, $3, $5, 'online', now(), now(), $6)`,
+          [deviceId, ownerId, hostname, osType, agentVersion, childId]
         )
       }
 

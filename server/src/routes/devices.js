@@ -43,7 +43,7 @@ const MAX_LIVE_CODES = 5
 // Codes are single-use and expire in 15 minutes, the same as the Cloud
 // Function had. A collision would mean two parents holding one code, so the
 // insert retries rather than trusting 32^6 to never repeat.
-async function issuePairingCode(ownerId, targetDeviceId = null) {
+async function issuePairingCode(ownerId, targetDeviceId = null, childId = null) {
   const expiresAt = new Date(Date.now() + config.pairingCodeTtlSec * 1000)
 
   // Drop the oldest live codes over the cap, so the new one fits under it.
@@ -62,9 +62,9 @@ async function issuePairingCode(ownerId, targetDeviceId = null) {
     const code = generatePairingCode()
     try {
       await query(
-        `insert into pairing_codes (code, owner_id, target_device_id, expires_at)
-         values ($1, $2, $3, $4)`,
-        [code, ownerId, targetDeviceId, expiresAt]
+        `insert into pairing_codes (code, owner_id, target_device_id, child_id, expires_at)
+         values ($1, $2, $3, $4, $5)`,
+        [code, ownerId, targetDeviceId, childId, expiresAt]
       )
       return { code, expiresAt: expiresAt.toISOString() }
     } catch (err) {
@@ -191,8 +191,25 @@ export default async function deviceRoutes(app) {
     return reply.code(204).send()
   })
 
-  app.post('/pairing/codes', async (request) => {
-    return issuePairingCode(request.ownerId)
+  app.post('/pairing/codes', {
+    schema: {
+      body: {
+        type: 'object',
+        properties: { childId: { type: ['string', 'null'], format: 'uuid' } },
+        additionalProperties: false,
+        nullable: true
+      }
+    }
+  }, async (request) => {
+    const childId = request.body?.childId ?? null
+    if (childId) {
+      const { rows } = await query(
+        'select 1 from children where id = $1 and owner_id = $2',
+        [childId, request.ownerId]
+      )
+      if (!rows[0]) throw notFound('child_not_found', 'Профиль ребёнка не найден.')
+    }
+    return issuePairingCode(request.ownerId, null, childId)
   })
 
   // Re-pairing an existing device: the agent is being reinstalled on a PC that

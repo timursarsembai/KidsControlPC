@@ -2,9 +2,10 @@ import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { createPairingCode, createRepairPairingCode } from '@kidscontrol/shared/data/pairing'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
+import { supportsChildren } from '@kidscontrol/shared/data/children'
 import { logger } from '@kidscontrol/shared/utils/logger'
 
-function DeviceCard({ device, ownerUid, onRemove, onRename, deleting }) {
+function DeviceCard({ device, ownerUid, onRemove, onRename, deleting, childProfiles = [], onAssign }) {
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(device.alias || device.hostname || device.id)
   const [repairCode, setRepairCode] = useState(null)
@@ -72,6 +73,24 @@ function DeviceCard({ device, ownerUid, onRemove, onRename, deleting }) {
               </span>
             )}
           </div>
+          {supportsChildren && (
+            <label className="device-child-row">
+              <span className="device-child-label">Профиль ребёнка</span>
+              <select
+                className="device-child-select"
+                value={device.childId ?? ''}
+                onChange={(e) => {
+                  onAssign(device.id, e.target.value || null)
+                    .catch(err => window.alert(err?.message || 'Не удалось сменить профиль.'))
+                }}
+              >
+                {childProfiles.map(child => (
+                  <option key={child.id} value={child.id}>{child.avatar} {child.name}</option>
+                ))}
+                <option value="">Без профиля</option>
+              </select>
+            </label>
+          )}
         </div>
         <div className="device-actions-row">
           <button
@@ -132,16 +151,27 @@ function DeviceCard({ device, ownerUid, onRemove, onRename, deleting }) {
 
 export default function DevicesSection({ uid: ownerUid }) {
   const { t } = useTranslation()
-  const { devices, renameDevice, deleteDevice } = useRulesStore()
+  const {
+    devices, renameDevice, deleteDevice,
+    children, pairingChildId, assignDeviceToChild
+  } = useRulesStore()
   const [code, setCode] = useState('')
+  const [codeChild, setCodeChild] = useState(null)
+  // Профиль, который выбрали в боковой панели, если пришли оттуда.
+  const [targetChildId, setTargetChildId] = useState(pairingChildId ?? '')
+
+  React.useEffect(() => {
+    if (pairingChildId) setTargetChildId(pairingChildId)
+  }, [pairingChildId])
   const [generating, setGenerating] = useState(false)
   const [deleteId, setDeleteId] = useState(null)
 
   const generateCode = async () => {
     setGenerating(true)
     try {
-      const result = await createPairingCode()
+      const result = await createPairingCode(targetChildId || null)
       setCode(result.code)
+      setCodeChild(children.find(c => c.id === targetChildId) ?? null)
       logger.info('general', `Сгенерирован код привязки: ${result.code}`)
     } catch (err) {
       console.error('Error generating pairing code:', err)
@@ -187,6 +217,8 @@ export default function DevicesSection({ uid: ownerUid }) {
               key={device.id}
               device={device}
               ownerUid={ownerUid}
+              childProfiles={children}
+              onAssign={assignDeviceToChild}
               onRemove={() => removeDevice(device.id)}
               onRename={(name) => renameDevice(device.id, name)}
               deleting={deleteId === device.id}
@@ -205,7 +237,10 @@ export default function DevicesSection({ uid: ownerUid }) {
         <div className="pairing-body" style={{ marginTop: '1rem' }}>
           {code ? (
             <div className="code-display">
-              <div className="code-label">{t('settings.devices.code_active', 'Код привязки (действителен 15 минут)')}</div>
+              <div className="code-label">
+                {t('settings.devices.code_active', 'Код привязки (действителен 15 минут)')}
+                {supportsChildren && codeChild && ` → ${codeChild.avatar} ${codeChild.name}`}
+              </div>
               <div className="code-value">
                 {code.split('').map((c, i) => (
                   <span key={i} className="code-char">{c}</span>
@@ -231,6 +266,22 @@ export default function DevicesSection({ uid: ownerUid }) {
               </div>
             </div>
           ) : (
+            <>
+            {supportsChildren && children.length > 0 && (
+              <label className="pairing-child-row">
+                <span className="device-child-label">Чьё устройство</span>
+                <select
+                  className="device-child-select"
+                  value={targetChildId}
+                  onChange={(e) => setTargetChildId(e.target.value)}
+                >
+                  {children.map(child => (
+                    <option key={child.id} value={child.id}>{child.avatar} {child.name}</option>
+                  ))}
+                  <option value="">Без профиля</option>
+                </select>
+              </label>
+            )}
             <button
               className="btn btn-primary pairing-btn"
               onClick={generateCode}
@@ -238,6 +289,7 @@ export default function DevicesSection({ uid: ownerUid }) {
             >
               {generating ? <><span className="btn-spinner-sm" /> ...</> : t('settings.devices.code_gen', '+ Сгенерировать код привязки')}
             </button>
+            </>
           )}
         </div>
       </div>

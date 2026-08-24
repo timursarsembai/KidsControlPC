@@ -1,6 +1,8 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
+import { supportsChildren } from '@kidscontrol/shared/data/children'
+import ChildDialog from './ChildDialog'
 import './DeviceSidebar.css'
 
 function formatStorageBytes(bytes) {
@@ -40,7 +42,7 @@ function sortDevices(devices) {
   return [...ordered, ...rest]
 }
 
-function DeviceItem({ device, isSelected, onClick, onDragStart, onDragEnter, onDragEnd, isDragging, isOver }) {
+function DeviceItem({ device, isSelected, onClick, onDragStart, onDragEnter, onDragEnd, isDragging, isOver, onMove, childProfiles = [] }) {
   const { t } = useTranslation()
   const [now, setNow] = React.useState(Date.now())
 
@@ -53,9 +55,13 @@ function DeviceItem({ device, isSelected, onClick, onDragStart, onDragEnter, onD
   const isOnline = device.status !== 'offline' && lastSeen && (now - lastSeen.getTime()) < 2 * 60 * 1000
 
   return (
-    <button
+    <div className={`device-item-row ${isSelected ? 'active' : ''}`}>
+    <span
+      role="button"
+      tabIndex={0}
       className={`device-item ${isSelected ? 'active' : ''} ${isDragging ? 'dnd-dragging' : ''} ${isOver ? 'dnd-over' : ''}`}
       onClick={onClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
       title={device.hostname || device.id}
       draggable
       onDragStart={onDragStart}
@@ -79,46 +85,139 @@ function DeviceItem({ device, isSelected, onClick, onDragStart, onDragEnter, onD
         </span>
       </div>
       {isSelected && <span className="device-item-check">✓</span>}
-    </button>
+    </span>
+    {onMove && (
+      // Перенос выбором, а не перетаскиванием: перетащить устройство в
+      // соседний профиль слишком легко случайно, а последствие — ребёнок
+      // остаётся без присмотра, и заметить это не по чему.
+      <select
+        className="device-item-move"
+        value={device.childId ?? ''}
+        title="Переместить в другой профиль"
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => onMove(device.id, e.target.value || null)}
+      >
+        {childProfiles.map(c => (
+          <option key={c.id} value={c.id}>{c.avatar} {c.name}</option>
+        ))}
+        <option value="">Без профиля</option>
+      </select>
+    )}
+    </div>
+  )
+}
+
+/**
+ * Список устройств одного профиля, с перетаскиванием внутри профиля.
+ *
+ * Порядок внутри группы — своё состояние: индексы перетаскивания локальные,
+ * иначе при переносе между профилями они указывали бы не на те строки.
+ */
+function DeviceGroup({ devices, selectedDeviceId, showSettings, activeTab, onSelect, onReorder, onMove, childProfiles }) {
+  const [ordered, setOrdered] = React.useState(devices)
+  const [dragIdx, setDragIdx] = React.useState(null)
+  const [overIdx, setOverIdx] = React.useState(null)
+
+  React.useEffect(() => { setOrdered(devices) }, [devices])
+
+  return (
+    <div className="device-sidebar-devices">
+      {ordered.map((device, idx) => (
+        <DeviceItem
+          key={device.id}
+          device={device}
+          isSelected={selectedDeviceId === device.id && !showSettings && activeTab !== 'notifications'}
+          onClick={() => onSelect(device.id)}
+          onDragStart={() => setDragIdx(idx)}
+          onDragEnter={() => {
+            if (idx === dragIdx || dragIdx === null) return
+            setOverIdx(idx)
+            setOrdered(prev => {
+              const next = [...prev]
+              const [item] = next.splice(dragIdx, 1)
+              next.splice(idx, 0, item)
+              setDragIdx(idx)
+              return next
+            })
+          }}
+          onDragEnd={() => { onReorder(ordered); setDragIdx(null); setOverIdx(null) }}
+          isDragging={dragIdx === idx}
+          isOver={overIdx === idx}
+          onMove={onMove}
+          childProfiles={childProfiles}
+        />
+      ))}
+    </div>
   )
 }
 
 export default function DeviceSidebar({ isMobileOpen = false, onMobileNavigate }) {
-  const { devices, selectedDeviceId, selectDevice, showSettings, setShowSettings, activeTab, setActiveTab, alerts, storageUsedBytes, storageQuotaBytes } = useRulesStore()
+  const {
+    devices, selectedDeviceId, selectDevice, showSettings, setShowSettings,
+    activeTab, setActiveTab, alerts, storageUsedBytes, storageQuotaBytes,
+    children, expandedChildId, expandChild, addChild, editChild, removeChild,
+    assignDeviceToChild, startAddDevice
+  } = useRulesStore()
 
-  const [orderedDevices, setOrderedDevices] = React.useState([])
-  const [dragIdx, setDragIdx] = React.useState(null)
-  const [overIdx, setOverIdx] = React.useState(null)
+  const [dialog, setDialog] = React.useState(null)
 
-  React.useEffect(() => {
-    setOrderedDevices(sortDevices(devices))
-  }, [devices])
+  // Устройства, разложенные по профилям. Те, что ни к кому не привязаны,
+  // показываются отдельной группой, а не прячутся: устройство без профиля
+  // всё ещё работает и всё ещё требует внимания.
+  const { byChild, orphans } = React.useMemo(() => {
+    const map = new Map(children.map(c => [c.id, []]))
+    const loose = []
+    for (const device of sortDevices(devices)) {
+      const bucket = device.childId ? map.get(device.childId) : null
+      if (bucket) bucket.push(device)
+      else loose.push(device)
+    }
+    return { byChild: map, orphans: loose }
+  }, [devices, children])
 
-  const handleDragStart = (idx) => {
-    setDragIdx(idx)
-  }
-
-  const handleDragEnter = (idx) => {
-    if (idx === dragIdx) return
-    setOverIdx(idx)
-    setOrderedDevices(prev => {
-      const next = [...prev]
-      const [item] = next.splice(dragIdx, 1)
-      next.splice(idx, 0, item)
-      setDragIdx(idx)
-      return next
-    })
-  }
-
-  const handleDragEnd = () => {
-    saveOrder(orderedDevices.map(d => d.id))
-    setDragIdx(null)
-    setOverIdx(null)
-  }
-
-  const handleAddDevice = () => {
-    setShowSettings(true)
+  const handleSelect = (deviceId) => {
+    selectDevice(deviceId)
+    setShowSettings(false)
+    if (activeTab === 'notifications') setActiveTab('permanent')
     onMobileNavigate?.()
+  }
+
+  // Порядок сохраняется общим списком, как и раньше; группы идут подряд,
+  // поэтому склейка даёт тот же порядок, что видит родитель.
+  const handleReorder = (childId, groupOrder) => {
+    const all = []
+    for (const child of children) {
+      all.push(...(child.id === childId ? groupOrder : (byChild.get(child.id) ?? [])))
+    }
+    all.push(...(childId === null ? groupOrder : orphans))
+    saveOrder(all.map(d => d.id))
+  }
+
+  const handleAddDevice = (childId = null) => {
+    startAddDevice(childId)
+    onMobileNavigate?.()
+  }
+
+  // Перенос и удаление идут на сервер, и отказ надо показать: значение в
+  // списке просто вернётся на место, и без сообщения это выглядит как
+  // «нажал, а ничего не произошло».
+  const guard = (action) => async (...args) => {
+    try {
+      await action(...args)
+    } catch (err) {
+      window.alert(err?.message || 'Не удалось выполнить действие. Попробуйте ещё раз.')
+    }
+  }
+
+  const moveDevice = guard(assignDeviceToChild)
+
+  const confirmRemoveChild = async (child) => {
+    const count = byChild.get(child.id)?.length ?? 0
+    const warning = count > 0
+      ? `\n\nУстройств в профиле: ${count}. Они останутся, но окажутся без профиля.`
+      : ''
+    if (!window.confirm(`Удалить профиль «${child.name}»?${warning}`)) return
+    await guard(removeChild)(child.id)
   }
 
   const unreadAlerts = alerts?.filter(a => !a.acknowledged).length || 0
@@ -139,38 +238,124 @@ export default function DeviceSidebar({ isMobileOpen = false, onMobileNavigate }
       )}
 
       <div className="device-sidebar-group">
-        <div className="device-sidebar-group-label">Устройства</div>
+        <div className="device-sidebar-group-label">
+          {supportsChildren ? 'Дети' : 'Устройства'}
+        </div>
 
-        {orderedDevices.length === 0 ? (
+        {supportsChildren && children.map(child => {
+          const childDevices = byChild.get(child.id) ?? []
+          const isExpanded = expandedChildId === child.id
+          const hasSelected = childDevices.some(d => d.id === selectedDeviceId)
+
+          return (
+            <div key={child.id} className={`child-group ${isExpanded ? 'expanded' : ''}`}>
+              <div className={`child-head ${hasSelected && !showSettings ? 'has-selected' : ''}`}>
+                <button
+                  className="child-head-main"
+                  onClick={() => expandChild(child.id)}
+                  aria-expanded={isExpanded}
+                  title={child.note || child.name}
+                >
+                  <span className="child-avatar">{child.avatar}</span>
+                  <span className="child-labels">
+                    <span className="child-name">{child.name}</span>
+                    <span className="child-sub">
+                      {childDevices.length === 0
+                        ? 'нет устройств'
+                        : `${childDevices.length} ${childDevices.length === 1 ? 'устройство' : childDevices.length < 5 ? 'устройства' : 'устройств'}`}
+                    </span>
+                  </span>
+                  <span className={`child-chevron ${isExpanded ? 'open' : ''}`}>›</span>
+                </button>
+                <button
+                  className="child-edit-btn"
+                  title="Изменить профиль"
+                  onClick={() => setDialog({ child })}
+                >
+                  ✎
+                </button>
+                <button
+                  className="child-edit-btn child-edit-btn--danger"
+                  title="Удалить профиль"
+                  onClick={() => confirmRemoveChild(child)}
+                >
+                  ×
+                </button>
+              </div>
+
+              {isExpanded && (
+                childDevices.length === 0 ? (
+                  <button className="child-empty" onClick={() => handleAddDevice(child.id)}>
+                    Добавить устройство
+                  </button>
+                ) : (
+                  <DeviceGroup
+                    devices={childDevices}
+                    selectedDeviceId={selectedDeviceId}
+                    showSettings={showSettings}
+                    activeTab={activeTab}
+                    onSelect={handleSelect}
+                    onReorder={(order) => handleReorder(child.id, order)}
+                    onMove={moveDevice}
+                    childProfiles={children}
+                  />
+                )
+              )}
+            </div>
+          )
+        })}
+
+        {orphans.length > 0 && (
+          <div className="child-group expanded">
+            {supportsChildren && (
+              <div className="device-sidebar-group-label device-sidebar-group-label--sub">
+                Без профиля
+              </div>
+            )}
+            <DeviceGroup
+              devices={orphans}
+              selectedDeviceId={selectedDeviceId}
+              showSettings={showSettings}
+              activeTab={activeTab}
+              onSelect={handleSelect}
+              onReorder={(order) => handleReorder(null, order)}
+              onMove={supportsChildren ? moveDevice : null}
+              childProfiles={children}
+            />
+          </div>
+        )}
+
+        {devices.length === 0 && children.length === 0 && (
           <div className="device-sidebar-no-devices">
             <span className="device-sidebar-no-devices-icon">📡</span>
             <span>Нет устройств</span>
           </div>
-        ) : (
-          <div className="device-sidebar-devices">
-            {orderedDevices.map((device, idx) => (
-              <DeviceItem
-                key={device.id}
-                device={device}
-                isSelected={selectedDeviceId === device.id && !showSettings && activeTab !== 'notifications'}
-                onClick={() => { selectDevice(device.id); setShowSettings(false); if (activeTab === 'notifications') setActiveTab('permanent'); onMobileNavigate?.() }}
-                onDragStart={() => handleDragStart(idx)}
-                onDragEnter={() => handleDragEnter(idx)}
-                onDragEnd={handleDragEnd}
-                isDragging={dragIdx === idx}
-                isOver={overIdx === idx}
-              />
-            ))}
-          </div>
         )}
 
-        <button className="device-sidebar-add-device" onClick={handleAddDevice}>
+        {supportsChildren && (
+          <button className="device-sidebar-add-device" onClick={() => setDialog({ child: null })}>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            Добавить ребёнка
+          </button>
+        )}
+
+        <button className="device-sidebar-add-device" onClick={() => handleAddDevice(expandedChildId)}>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
           </svg>
           Добавить устройство
         </button>
       </div>
+
+      {dialog && (
+        <ChildDialog
+          child={dialog.child}
+          onClose={() => setDialog(null)}
+          onSave={(values) => dialog.child ? editChild(dialog.child.id, values) : addChild(values)}
+        />
+      )}
 
       <div style={{ flex: 1 }} />
 

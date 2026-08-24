@@ -10,6 +10,7 @@ import { createRulesSlice } from './slices/rulesSlice.js'
 import { createScreenshotsSlice } from './slices/screenshotsSlice.js'
 import { createUiSlice } from './slices/uiSlice.js'
 import { createChatSlice } from './slices/chatSlice.js'
+import { createChildrenSlice } from './slices/childrenSlice.js'
 
 export function createAppStore() {
   return create((set, get) => ({
@@ -23,6 +24,7 @@ export function createAppStore() {
     ...createCommandsSlice(set, get),
     ...createScreenshotsSlice(set, get),
     ...createChatSlice(set, get),
+    ...createChildrenSlice(set, get),
     ...createDerivedSelectors(set, get)
   }))
 }

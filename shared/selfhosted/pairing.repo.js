@@ -2,8 +2,10 @@
 
 import { api } from './client.js'
 
-export async function createPairingCode() {
-  return api.post('/pairing/codes')
+// childId — профиль, которому достанется устройство. Без него устройство
+// привяжется без профиля.
+export async function createPairingCode(childId = null) {
+  return api.post('/pairing/codes', childId ? { childId } : {})
 }
 
 // Re-pairing an existing device — replacing a laptop, reinstalling Windows —

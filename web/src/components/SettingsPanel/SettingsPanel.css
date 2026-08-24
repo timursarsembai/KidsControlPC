@@ -786,3 +786,32 @@
     max-height: none;
   }
 }
+
+/* Профиль ребёнка на карточке устройства и при выдаче кода привязки. */
+.device-child-row,
+.pairing-child-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.pairing-child-row { margin-bottom: var(--space-3); }
+
+.device-child-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.device-child-select {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 4px 6px;
+  max-width: 200px;
+}
+
+.device-child-select:focus { outline: none; border-color: var(--accent); }
