@@ -7,7 +7,7 @@
 // device is called offline: a Windows 11 machine coming back from Modern
 // Standby needs tens of seconds to get its network back, and a card that
 // flickers between online and offline is worse than one that lags.
-const OFFLINE_AFTER_MS = 3 * 60 * 1000
+export const OFFLINE_AFTER_MS = 3 * 60 * 1000
 
 export const DEVICE_COLUMNS = `id, hostname, os_type, device_name, alias, agent_version,
                                status, last_seen, paired_at, settings, pomodoro_state,

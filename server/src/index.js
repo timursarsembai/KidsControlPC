@@ -8,7 +8,7 @@ import Fastify from 'fastify'
 import { config } from './config.js'
 import { ping, pool } from './db.js'
 import { errorHandler } from './errors.js'
-import { runMaintenance } from './maintenance.js'
+import { runMaintenance, sweepStaleDevices } from './maintenance.js'
 import { runMigrations } from './migrate.js'
 import { isChangeListenerConnected, startChangeListener, stopChangeListener } from './realtime/changes.js'
 import { startDispatcher } from './realtime/dispatch.js'
@@ -86,6 +86,7 @@ app.setErrorHandler(errorHandler)
 
 const hub = new Hub()
 let pruneTimer = null
+let staleDeviceTimer = null
 
 async function registerPlugins() {
   // The panel lives on kidscontrol.kz and the API on api.kidscontrol.kz, so
@@ -188,6 +189,12 @@ async function start() {
   // pending timer never holds up shutdown.
   runMaintenance(app.log)
   pruneTimer = setInterval(() => runMaintenance(app.log), 6 * 60 * 60 * 1000)
+
+  // Отдельно от общей уборки: та ходит раз в шесть часов, а статус на экране
+  // родителя столько ждать не может.
+  staleDeviceTimer = setInterval(() => {
+    sweepStaleDevices().catch(err => app.log.warn(`stale device sweep failed: ${err.message}`))
+  }, 60_000)
   pruneTimer.unref()
 }
 
@@ -196,6 +203,7 @@ for (const signal of ['SIGTERM', 'SIGINT']) {
     app.log.info(`${signal} received, shutting down`)
     try {
       if (pruneTimer) clearInterval(pruneTimer)
+      if (staleDeviceTimer) clearInterval(staleDeviceTimer)
       await stopChangeListener()
       await app.close()
       await pool.end()

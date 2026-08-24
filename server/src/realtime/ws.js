@@ -16,6 +16,16 @@ import { channelFor } from './hub.js'
 
 const AUTH_TIMEOUT_MS = 10_000
 const PING_INTERVAL_MS = 30_000
+
+// Агентские сокеты опрашиваются чаще: по ним определяется, включён ли
+// компьютер ребёнка. У панели такой роли нет — там сокет только доставляет
+// изменения, и лишние кадры каждые пятнадцать секунд ей ни к чему.
+const AGENT_PING_INTERVAL_MS = 15_000
+
+// Сколько ждать после разрыва, прежде чем признать устройство выключенным.
+// Мигнувшая сеть и переустановка агента рвут сокет на секунду-другую, и без
+// этой паузы устройство мигало бы «оффлайн» на глазах у родителя.
+const OFFLINE_GRACE_MS = 15_000
 const MAX_CHANNELS_PER_SOCKET = 50
 
 // The HTTP rate limiter counts requests, and a WebSocket is a single request.
@@ -247,6 +257,48 @@ async function resolveChannel(client, requested) {
   return null
 }
 
+/**
+ * Есть ли у устройства живое соединение прямо сейчас.
+ *
+ * Агент может держать не один сокет: старый ещё не закрылся, новый уже
+ * подключился — при переустановке это обычное дело.
+ */
+function hasLiveAgentSocket(hub, deviceId) {
+  for (const subscriber of hub.subscribers) {
+    if (subscriber.kind === AUDIENCE_AGENT && subscriber.deviceId === deviceId) return true
+  }
+  return false
+}
+
+/**
+ * Компьютер ребёнка выключили — отметить это, не дожидаясь, пока протухнет
+ * последний отчёт.
+ *
+ * Раньше статус держался только на отчётах раз в тридцать секунд с запасом в
+ * три минуты: родитель выключал ПК из панели и ещё пару минут видел
+ * «Онлайн». Разрыв сокета сервер замечает сразу, и это куда более точный
+ * признак, чем возраст последнего отчёта.
+ *
+ * Проверка `last_seen < closedAt` — это «после разрыва от агента ничего не
+ * приходило». Просто «отчёт свежий» здесь не годится: при штатном выключении
+ * последний отчёт всегда свежий, и устройство так и осталось бы «в сети».
+ */
+function scheduleOfflineCheck(hub, deviceId, closedAt, log) {
+  setTimeout(async () => {
+    if (hasLiveAgentSocket(hub, deviceId)) return
+    try {
+      await query(
+        `update devices
+            set status = 'offline', updated_at = now()
+          where id = $1 and status <> 'offline' and last_seen < $2`,
+        [deviceId, new Date(closedAt)]
+      )
+    } catch (err) {
+      log?.warn?.(`offline check for ${deviceId} failed: ${err.message}`)
+    }
+  }, OFFLINE_GRACE_MS).unref?.()
+}
+
 async function snapshotFor(channel, client) {
   const [kind, id] = channel.split(':')
   if (kind === 'devices') return snapshotDevices(id)
@@ -291,16 +343,19 @@ export default async function websocketRoutes(app, { hub }) {
       }
       alive = false
       try { socket.ping() } catch { /* closing */ }
-    }, PING_INTERVAL_MS)
+    }, client.kind === AUDIENCE_AGENT ? AGENT_PING_INTERVAL_MS : PING_INTERVAL_MS)
 
-    socket.on('close', () => {
+    const disconnected = () => {
       clearInterval(pinger)
       hub.remove(client)
-    })
-    socket.on('error', () => {
-      clearInterval(pinger)
-      hub.remove(client)
-    })
+      // Сокет агента — это и есть признак «компьютер включён».
+      if (client.kind === AUDIENCE_AGENT && client.deviceId) {
+        scheduleOfflineCheck(hub, client.deviceId, Date.now(), app.log)
+      }
+    }
+
+    socket.on('close', disconnected)
+    socket.on('error', disconnected)
   }
 
   async function handleSubscribe(socket, client, requested) {

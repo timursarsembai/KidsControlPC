@@ -4,6 +4,7 @@
 // next one picks up the same rows. Nothing in it is allowed to throw out to
 // the caller — a failed cleanup must never look like a failed service.
 
+import { OFFLINE_AFTER_MS } from './serializers.js'
 import { query } from './db.js'
 import { pruneRefreshTokens } from './auth/tokens.js'
 import { deleteFile, listStoredFiles } from './storage/files.js'
@@ -142,6 +143,27 @@ async function sweepOrphanFiles(log) {
     removed++
   }
   return removed
+}
+
+/**
+ * Привести статус устройств в согласие с тем, что они давно не отчитывались.
+ *
+ * Обычно выключение ловится по разрыву соединения — за считанные секунды.
+ * Но таймер этой проверки живёт в памяти сервера: если сервер перезапустили
+ * или агент работает без постоянного соединения, в базе остаётся «online» у
+ * компьютера, которого нет в сети. Панель это скрывает — она смотрит на
+ * возраст последнего отчёта, — но база при этом хранит неправду, и всякий,
+ * кто прочтёт её напрямую, будет обманут.
+ */
+export async function sweepStaleDevices() {
+  const { rowCount } = await query(
+    `update devices
+        set status = 'offline', updated_at = now()
+      where status <> 'offline'
+        and (last_seen is null or last_seen < now() - make_interval(secs => $1))`,
+    [OFFLINE_AFTER_MS / 1000]
+  )
+  return rowCount
 }
 
 export async function runMaintenance(log) {

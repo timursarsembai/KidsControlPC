@@ -2,6 +2,8 @@ import { eventBus, EVENTS } from '../core/eventBus.js'
 import {
   markCommandCompleted,
   markCommandFailed,
+  markDeviceOffline,
+  sendHeartbeat,
   pushRecentLogs
 } from '../network/sync.js'
 import { ensureWidgetLocked } from './widgetManager.js'
@@ -51,7 +53,19 @@ export function registerCommandHandlers(log) {
       } else if (action === 'update_agent' || action === 'force_update') {
         await checkAndUpdateSilently(log, true)
       } else if (['shutdown', 'restart', 'sleep', 'hibernate'].includes(action)) {
-        await executePowerAction(action, log)
+        // Сказать до, а не после: `shutdown /s /t 0` не оставляет времени ни
+        // на один запрос, а спящий режим отрезает сеть в ту же секунду. Иначе
+        // родитель, сам выключивший компьютер из панели, ещё минуту-другую
+        // видит «Онлайн» и не понимает, сработало ли.
+        await markDeviceOffline()
+        try {
+          await executePowerAction(action, log)
+        } catch (err) {
+          // Не выключились — значит компьютер работает дальше, и статус надо
+          // вернуть сразу, а не ждать очередного отчёта.
+          await sendHeartbeat().catch(() => {})
+          throw err
+        }
       } else {
         throw new Error(`Unknown command action: ${action}`)
       }
