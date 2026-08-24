@@ -58,8 +58,9 @@ export async function performProgramRescan(parentUid, deviceId, log, reason = 'm
       return
     }
 
+    let uploaded = true
     if (IS_SELF_HOSTED) {
-      await uploadInstalledApps(apps.map(app => ({
+      uploaded = await uploadInstalledApps(apps.map(app => ({
         id: app.id,
         name: app.name,
         path: app.path,
@@ -90,7 +91,10 @@ export async function performProgramRescan(parentUid, deviceId, log, reason = 'm
     })
     }
 
-    lastUploadedAppsSignature = appsSignature
+    // Only when it actually reached the server. Remembering a failed upload
+    // as done means the next scan sees an unchanged list and skips it, and
+    // the list never arrives at all.
+    if (uploaded) lastUploadedAppsSignature = appsSignature
     installedBasenames = new Set(apps.map(a => a.exeBasename).filter(Boolean))
     installedNameMap = new Map(apps.filter(a => a.exeBasename).map(a => [a.exeBasename, a.name]))
     // Store install directory for ALL apps as path prefixes.

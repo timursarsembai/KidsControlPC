@@ -400,9 +400,17 @@ export async function sendActivity({ logs = [], stats = {} } = {}) {
   }
 }
 
+/**
+ * Uploads the installed program list. Returns whether it got through.
+ *
+ * The answer matters: the caller remembers what it last sent so it does not
+ * resend an unchanged list, and treating a failure as success meant the list
+ * was never retried — the panel stayed empty until somebody installed or
+ * removed a program on that PC.
+ */
 export async function uploadInstalledApps(apps) {
-  if (!deviceId || !apps?.length) return
-  if (!await ensureAgentAuth()) return
+  if (!deviceId || !apps?.length) return false
+  if (!await ensureAgentAuth()) return false
 
   // Chunked: a Windows machine reports a few hundred programs, and one request
   // carrying all of them over a home connection is a request that times out
@@ -412,9 +420,10 @@ export async function uploadInstalledApps(apps) {
       await api.post('/agent/apps', { apps: apps.slice(i, i + 200) })
     } catch (err) {
       log(`Could not upload programs (chunk ${i}): ${err.message}`)
-      return
+      return false
     }
   }
+  return true
 }
 
 /**

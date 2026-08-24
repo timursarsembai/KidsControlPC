@@ -37,6 +37,13 @@ const tokenSchema = {
   additionalProperties: false
 }
 
+// Values from the Windows registry, cut to something sensible for display.
+function trim(value, max = 500) {
+  if (value === null || value === undefined) return null
+  const text = String(value)
+  return text.length > max ? text.slice(0, max) : text
+}
+
 const heartbeatSchema = {
   type: 'object',
   properties: {
@@ -313,11 +320,18 @@ export default async function agentRoutes(app) {
                 type: 'object',
                 required: ['id'],
                 properties: {
+                  // Deliberately no length limits except on the id, which we
+                  // generate ourselves. These values come out of the Windows
+                  // registry, where names and paths can be anything at all —
+                  // and a schema that refuses one oversized entry refuses the
+                  // whole batch with it. That is exactly what happened on the
+                  // first real PC: two hundred programs dropped because of one.
+                  // Oversized values are trimmed below instead.
                   id: { type: 'string', maxLength: 200 },
-                  name: { type: 'string', maxLength: 200 },
-                  path: { type: 'string', maxLength: 500 },
-                  publisher: { type: 'string', maxLength: 200 },
-                  version: { type: 'string', maxLength: 50 }
+                  name: { type: 'string' },
+                  path: { type: 'string' },
+                  publisher: { type: 'string' },
+                  version: { type: 'string' }
                 },
                 additionalProperties: false
               }
@@ -344,10 +358,13 @@ export default async function agentRoutes(app) {
         [
           request.deviceId,
           apps.map(a => a.id),
-          apps.map(a => a.name ?? null),
-          apps.map(a => a.path ?? null),
-          apps.map(a => a.publisher ?? null),
-          apps.map(a => a.version ?? null)
+          // Trimmed rather than rejected: the columns are unbounded text, but
+          // a program name of several kilobytes is a registry oddity, not
+          // information a parent needs.
+          apps.map(a => trim(a.name)),
+          apps.map(a => trim(a.path, 1000)),
+          apps.map(a => trim(a.publisher)),
+          apps.map(a => trim(a.version, 200))
         ]
       )
       return { saved: apps.length }
