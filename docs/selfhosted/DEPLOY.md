@@ -70,10 +70,14 @@ curl -s -o /dev/null -w '%{http_code}\n' https://kidscontrol.kz/
 
 ## Агент
 
-Собирается на домашнем ПК с Windows (здесь нет ни Windows, ни .NET):
+Собирается на ПК с Windows (здесь нет ни Windows, ни .NET). Полный порядок для
+чистой машины — `docs/selfhosted/BUILD-AGENT.md`; коротко:
 
 ```powershell
-npm run build:selfhosted --prefix agent
+git clone https://github.com/timursarsembai/KidsControlPC
+cd KidsControlPC && git checkout selfhosted
+cd agent && npm install
+npm run build:selfhosted
 ```
 
 Отличие от обычной сборки — одна константа, зашитая в исполняемый файл
