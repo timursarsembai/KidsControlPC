@@ -6,7 +6,7 @@
  */
 
 import { readFileSync, writeFileSync, existsSync } from 'fs'
-import { PAIRING_FILE, AGENT_VERSION, IS_SELF_HOSTED } from './config.js'
+import { PAIRING_FILE, AGENT_VERSION, BACKEND, IS_SELF_HOSTED } from './config.js'
 import { callCF } from './network/firebaseSync.js'
 import { api } from './network/httpClient.js'
 import { hostname, type as osType } from 'os'
@@ -34,10 +34,33 @@ async function promptUI(title, message, requireInput) {
 }
 
 // ─── Load saved pairing ───────────────────────────────────────────────────────
+/**
+ * Reads the saved pairing, or null if this machine is not paired.
+ *
+ * A pairing made against a different backend counts as no pairing at all. Both
+ * builds install into the same folder under the same service name and share
+ * this file, so installing one over the other leaves the new agent holding
+ * credentials the new server has never heard of. It would start, look
+ * installed, and enforce nothing — the worst possible way to fail. Better to
+ * ask for a code again.
+ */
 export function loadPairing() {
   if (!existsSync(PAIRING_FILE)) return null
   try {
-    return JSON.parse(readFileSync(PAIRING_FILE, 'utf8'))
+    const pairing = JSON.parse(readFileSync(PAIRING_FILE, 'utf8'))
+
+    // Older files predate this field; they were all written by the Firebase
+    // build, so that is what an absent value means.
+    const pairedWith = pairing.backend || 'firebase'
+    if (pairedWith !== BACKEND) {
+      console.log(
+        `[Pairing] This PC is paired with the "${pairedWith}" backend, but this agent talks to "${BACKEND}". ` +
+        'Pairing again is required.'
+      )
+      return null
+    }
+
+    return pairing
   } catch {
     return null
   }
@@ -108,6 +131,10 @@ export async function runPairingFlow() {
       const deviceHostname = hostname()
 
       const pairingData = {
+        // Which backend this pairing belongs to. Read on every start, so an
+        // agent installed over one built for the other backend asks for a new
+        // code instead of quietly failing to authenticate.
+        backend: BACKEND,
         parentUid,
         deviceId,
         // Written under both names so a pairing file survives a build being
