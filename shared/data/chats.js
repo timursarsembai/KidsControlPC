@@ -14,6 +14,15 @@ export const markMessagesRead = impl.markMessagesRead
 export const markMessagesDelivered = impl.markMessagesDelivered
 export const markFileDeleted = impl.markFileDeleted
 
-// Only the self-hosted backend needs this: on Firebase the message already
-// carries a download URL from Storage.
-export const getAttachmentURL = selfhosted.getAttachmentURL
+/**
+ * The address to show an attachment from.
+ *
+ * On Firebase the message already carries a public download URL from Storage.
+ * On the self-hosted backend the file is behind the ordinary access token, so
+ * it gets fetched and turned into an object URL — an <img> cannot send a
+ * header, and a URL that carried its own access would end up in logs and in
+ * forwarded links.
+ */
+export const getAttachmentURL = isSelfHosted
+  ? selfhosted.getAttachmentURL
+  : async (message) => message?.fileUrl ?? null

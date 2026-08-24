@@ -2,10 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import Picker from '@emoji-mart/react'
 import data from '@emoji-mart/data'
 import GifPicker from './GifPicker'
-import { storage } from '@kidscontrol/shared/firebase/config'
-import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
-import { v4 as uuidv4 } from 'uuid'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 const ACCEPTED_TYPES = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.txt,.csv'
@@ -62,29 +59,18 @@ export default function MessageInput({ onSend, disabled, chatId }) {
       setUploadProgress(0)
       setFileError(null)
       try {
-        const uid = user?.uid || 'unknown'
-        const storagePath = `users/${uid}/chats/${chatId}/attachments/${uuidv4()}-${pendingFile.file.name}`
-        const fileRef = storageRef(storage, storagePath)
-        const task = uploadBytesResumable(fileRef, pendingFile.file)
-
-        await new Promise((resolve, reject) => {
-          task.on('state_changed',
-            snap => setUploadProgress(Math.round(snap.bytesTransferred / snap.totalBytes * 100)),
-            reject,
-            resolve
-          )
-        })
-
-        const fileUrl = await getDownloadURL(task.snapshot.ref)
-        onSend({
+        // The file goes to the data layer, not to a storage service from here:
+        // this component used to talk to Firebase Storage directly, so on any
+        // other backend an attachment quietly went to the wrong place.
+        await onSend({
           text: text.trim(),
           gifUrl: null,
           gifPreviewUrl: null,
-          fileUrl,
+          file: pendingFile.file,
           fileName: pendingFile.file.name,
           fileSize: pendingFile.file.size,
           mimeType: pendingFile.file.type,
-          storagePath,
+          onProgress: setUploadProgress,
         })
         setText('')
         setPendingFile(null)

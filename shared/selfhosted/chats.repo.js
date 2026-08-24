@@ -63,7 +63,7 @@ export async function deleteChat(_ownerUid, chatId) {
  */
 export async function sendMessage(_ownerUid, chatId, {
   text = '', file = null, fileName = null, mimeType = null,
-  gifUrl = null, gifPreviewUrl = null, senderName = ''
+  gifUrl = null, gifPreviewUrl = null, senderName = '', onProgress = null
 } = {}) {
   if (file) {
     const params = new URLSearchParams({
@@ -88,6 +88,9 @@ export async function sendMessage(_ownerUid, chatId, {
       const body = await response.json().catch(() => null)
       throw new Error(body?.error?.message || 'Не удалось отправить файл.')
     }
+    // fetch reports no upload progress, so the bar goes straight to done
+    // rather than pretending to creep along.
+    onProgress?.(100)
     const message = await response.json()
     return message.id
   }

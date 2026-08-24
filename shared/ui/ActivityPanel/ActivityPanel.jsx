@@ -4,7 +4,7 @@ import {
   subscribeToActivityLogs,
   subscribeToActivityStats,
   subscribeToActivityStatsRange,
-} from '@kidscontrol/shared/firebase/activity'
+} from '@kidscontrol/shared/data/activity'
 import './ActivityPanel.css'
 
 function fmtTime(ts) {

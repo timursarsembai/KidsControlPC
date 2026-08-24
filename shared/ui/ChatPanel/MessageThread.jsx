@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { getAttachmentURL } from '@kidscontrol/shared/data/chats'
 import { useRulesStore } from '@kidscontrol/shared/stores/useRulesStore'
 import MessageInput from './MessageInput'
 
@@ -70,8 +71,34 @@ export default function MessageThread({ chat }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages.length])
 
-  const handleSend = async ({ text, gifUrl, gifPreviewUrl, fileUrl, fileName, fileSize, mimeType }) => {
-    await sendChatMessage(chat.id, { text, gifUrl, gifPreviewUrl, fileUrl, fileName, fileSize, mimeType })
+  // Attachment addresses come from the data layer, not from the message.
+  // On Firebase that is the Storage URL the message already carries; on the
+  // self-hosted backend the file sits behind an access token, so it is fetched
+  // and turned into an object URL — an <img> cannot send a header.
+  const [attachmentUrls, setAttachmentUrls] = useState({})
+
+  useEffect(() => {
+    let cancelled = false
+    const withFiles = (messages || []).filter(m => m.fileUrl && !m.fileDeleted)
+
+    Promise.all(withFiles.map(async (msg) => {
+      try {
+        return [msg.id, await getAttachmentURL(msg)]
+      } catch {
+        // A single unreadable attachment must not blank the whole thread.
+        return [msg.id, null]
+      }
+    })).then(pairs => {
+      if (!cancelled) setAttachmentUrls(Object.fromEntries(pairs.filter(([, url]) => url)))
+    })
+
+    return () => { cancelled = true }
+  }, [messages])
+
+  const handleSend = async ({ text, gifUrl, gifPreviewUrl, file, fileUrl, fileName, fileSize, mimeType, onProgress }) => {
+    await sendChatMessage(chat.id, {
+      text, gifUrl, gifPreviewUrl, file, fileUrl, fileName, fileSize, mimeType, onProgress
+    })
   }
 
   let lastDateLabel = null
@@ -137,13 +164,13 @@ export default function MessageThread({ chat }) {
                   )}
                   {msg.fileUrl && !msg.fileDeleted && msg.mimeType?.startsWith('image/') && (
                     <div className="msg-file-img-wrap">
-                      <a href={msg.fileUrl} target="_blank" rel="noreferrer">
-                        <img src={msg.fileUrl} alt={msg.fileName || 'изображение'} className="msg-file-img" loading="lazy" />
+                      <a href={attachmentUrls[msg.id] || msg.fileUrl} target="_blank" rel="noreferrer">
+                        <img src={attachmentUrls[msg.id] || msg.fileUrl} alt={msg.fileName || 'изображение'} className="msg-file-img" loading="lazy" />
                       </a>
                     </div>
                   )}
                   {msg.fileUrl && !msg.fileDeleted && !msg.mimeType?.startsWith('image/') && (
-                    <a className="msg-file-doc" href={msg.fileUrl} target="_blank" rel="noreferrer" download={msg.fileName}>
+                    <a className="msg-file-doc" href={attachmentUrls[msg.id] || msg.fileUrl} target="_blank" rel="noreferrer" download={msg.fileName}>
                       <span className="msg-file-doc-icon">📎</span>
                       <span className="msg-file-doc-info">
                         <span className="msg-file-doc-name">{msg.fileName || 'Файл'}</span>

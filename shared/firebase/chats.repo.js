@@ -50,8 +50,37 @@ export function subscribeToChats(ownerUid, callback) {
 
 // ── Messages ───────────────────────────────────────────────────────────────────
 
+/**
+ * Uploads an attachment to Storage and reports progress.
+ *
+ * Moved here out of MessageInput: the panel component had Firebase Storage
+ * wired into it directly, so on any other backend sending a file silently went
+ * to the wrong place. Which backend stores what belongs in this layer.
+ */
+async function uploadAttachment(ownerUid, chatId, file, onProgress) {
+  const { getStorage, ref: storageRef, uploadBytesResumable, getDownloadURL } =
+    await import('firebase/storage')
+  const { v4: uuidv4 } = await import('uuid')
+
+  const storagePath = `users/${ownerUid}/chats/${chatId}/attachments/${uuidv4()}-${file.name}`
+  const task = uploadBytesResumable(storageRef(getStorage(), storagePath), file)
+
+  await new Promise((resolve, reject) => {
+    task.on(
+      'state_changed',
+      snap => onProgress?.(Math.round(snap.bytesTransferred / snap.totalBytes * 100)),
+      reject,
+      resolve
+    )
+  })
+
+  return { fileUrl: await getDownloadURL(task.snapshot.ref), storagePath }
+}
+
 export async function sendMessage(ownerUid, chatId, {
   text = '',
+  file = null,
+  onProgress = null,
   gifUrl = null,
   gifPreviewUrl = null,
   fileUrl = null,
@@ -65,6 +94,17 @@ export async function sendMessage(ownerUid, chatId, {
   senderName = '',
   parentName = null
 }) {
+  // A File means the caller handed over the bytes and expects this layer to
+  // put them somewhere; the older call style passes an already-uploaded URL.
+  if (file) {
+    const uploaded = await uploadAttachment(ownerUid, chatId, file, onProgress)
+    fileUrl = uploaded.fileUrl
+    storagePath = uploaded.storagePath
+    fileName = fileName || file.name
+    fileSize = fileSize ?? file.size
+    mimeType = mimeType || file.type
+  }
+
   const msgRef = await addDoc(messagesCol(ownerUid, chatId), {
     text,
     gifUrl,
