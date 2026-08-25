@@ -1,3 +1,4 @@
+import { IS_SELF_HOSTED } from './config.js'
 import https from 'https'
 import fs from 'fs'
 import { join } from 'path'
@@ -16,7 +17,13 @@ export async function checkAndUpdateSilently(logFunc = console.log, force = fals
     if (force || isNewerVersion(AGENT_VERSION, latestVersion)) {
       logFunc(`[Updater] Найден релиз: v${latestVersion}. Текущая версия: v${AGENT_VERSION}${force ? ' (Принудительное обновление)' : ''}`)
       
-      const asset = release.assets.find(a => a.name === 'KidsControlAgent_Setup.exe')
+      // Своя сборка, а не первая попавшаяся: в релизе лежат обе, и чужая
+      // увела бы агента на другой сервер.
+      const assetName = IS_SELF_HOSTED
+        ? 'KidsControlAgent_SelfHosted_Setup.exe'
+        : 'KidsControlAgent_Setup.exe'
+      const asset = release.assets.find(a => a.name === assetName)
+      if (!asset) logFunc(`[Updater] В релизе нет файла ${assetName} — обновление пропущено`)
       if (asset) {
         logFunc(`[Updater] Скачивание обновления...`)
         const setupPath = join(tmpdir(), `kca_setup_v${latestVersion}.exe`)

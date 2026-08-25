@@ -16,7 +16,21 @@ const isStaging = buildEnvironment === 'staging'
 const serviceId = isStaging ? 'KidsControlPCAgentDev' : 'KidsControlPCAgent'
 const serviceName = isStaging ? 'KidsControlPC Agent Dev' : 'KidsControlPC Agent'
 const installDirName = isStaging ? 'KidsControlAgentDev' : 'KidsControlAgent'
-const outputFileName = isStaging ? 'KidsControlAgent_Dev_Setup.exe' : 'KidsControlAgent_Setup.exe'
+// Имя установщика различает не только dev и prod, но и бэкенд — и это не
+// косметика.
+//
+// Агент сам обновляется: раз в два часа он смотрит последний релиз в этом
+// репозитории и скачивает оттуда файл с известным ему именем. Пока обе сборки
+// назывались одинаково, любой релиз раскатывался на всех: выложи сборку для
+// своего сервера — и агенты боевых пользователей ушли бы на kidscontrol.kz,
+// где их устройств нет; выложи боевую — и агент на своём сервере перестал бы
+// видеть свой. Разные имена позволяют одному релизу нести обе сборки, и
+// каждый агент берёт свою.
+const outputFileName = isStaging
+  ? 'KidsControlAgent_Dev_Setup.exe'
+  : buildBackend === 'selfhosted'
+    ? 'KidsControlAgent_SelfHosted_Setup.exe'
+    : 'KidsControlAgent_Setup.exe'
 const widgetTaskName = isStaging ? 'KidsControlTimerWidgetDev' : 'KidsControlTimerWidget'
 const registryRunValue = isStaging ? 'KidsControlTimerWidgetDev' : 'KidsControlTimerWidget'
 const uninstallKey = isStaging ? 'KidsControlAgentDev' : 'KidsControlAgent'
